@@ -1,0 +1,102 @@
+/** Tailwind + Element Plus 企业SaaS浅色主题 */
+
+:root {
+  /* 程式蓝主色 */
+  --el-color-primary: #2B5AED;
+  --el-color-primary-light-3: #5B7DF2;
+  --el-color-primary-light-5: #8BA6F7;
+  --el-color-primary-light-7: #BBCFFB;
+  --el-color-primary-light-9: #EEF3FE;
+  --el-color-primary-dark-2: #1F47C4;
+
+  --el-color-success: #18A058;
+  --el-color-warning: #F0A020;
+  --el-color-danger: #D03050;
+  --el-color-info: #6B7A99;
+
+  /* 背景 */
+  --el-bg-color: #FFFFFF;
+  --el-bg-color-page: #F7F8FA;
+  --el-bg-color-overlay: #FFFFFF;
+
+  /* 文字 */
+  --el-text-color-primary: #1F2329;
+  --el-text-color-regular: #646A73;
+  --el-text-color-secondary: #8F959E;
+  --el-text-color-placeholder: #C0C4CC;
+
+  /* 边框 */
+  --el-border-color: #DEE0E3;
+  --el-border-color-light: #E8EAEC;
+  --el-border-color-lighter: #F0F1F3;
+
+  /* 圆角 */
+  --el-border-radius-base: 6px;
+  --el-border-radius-small: 4px;
+  --el-border-radius-round: 20px;
+
+  /* 字体 */
+  --el-font-family: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC",
+    "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --el-font-size-base: 14px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--el-font-family);
+  background-color: var(--el-bg-color-page);
+  color: var(--el-text-color-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #D0D3D9;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #B0B3B9;
+}
+
+/* Tailwind 兼容 */
+.page-container {
+  padding: 20px;
+}
+
+.card-shadow {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.card-shadow-hover:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+/* 状态标签 */
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.status-tag-critical { background: #FEF0F0; color: #D03050; }
+.status-tag-high { background: #FDF2F0; color: #E8553A; }
+.status-tag-medium { background: #FFF7E6; color: #F0A020; }
+.status-tag-low { background: #E8F4FF; color: #2080F0; }
+.status-tag-info { background: #F0F1F3; color: #646A73; }
