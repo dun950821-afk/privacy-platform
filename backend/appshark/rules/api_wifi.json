@@ -1,0 +1,21 @@
+{
+  "Wifi_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "Wifi_APICall",
+      "detail": "获取WiFi信息(SSID/BSSID/扫描结果)",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalNetworkEnv_APICall",
+      "complianceCategoryDetail": "网络环境信息_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<android.net.wifi.WifiInfo: * getSSID(*)>": {},
+      "<android.net.wifi.WifiInfo: * getBSSID(*)>": {},
+      "<android.net.wifi.WifiInfo: * getMacAddress(*)>": {},
+      "<android.net.wifi.WifiManager: * getScanResults(*)>": {},
+      "<android.net.wifi.WifiManager: * getConnectionInfo(*)>": {},
+      "<android.net.NetworkInfo: * getExtraInfo(*)>": {}
+    }
+  }
+}

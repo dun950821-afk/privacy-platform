@@ -1,0 +1,30 @@
+{
+  "Clipboard_Log": {
+    "SliceMode": true,
+    "traceDepth": 10,
+    "PrimTypeAsTaint": true,
+    "desc": {
+      "name": "Clipboard_Log",
+      "detail": "读取剪贴板内容并写入日志",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalClipboard_Log",
+      "complianceCategoryDetail": "剪贴板信息_写入日志",
+      "level": "L3"
+    },
+    "source": {
+      "Return": [
+        "<android.content.ClipboardManager: * getPrimaryClip(*)>",
+        "<android.content.ClipboardManager: * getText(*)>",
+        "<android.content.ClipData$Item: * getText(*)>",
+        "<android.text.ClipboardManager: * getText(*)>"
+      ]
+    },
+    "sink": {
+      "<android.util.Log: * d(*)>": { "TaintCheck": ["p*"] },
+      "<android.util.Log: * e(*)>": { "TaintCheck": ["p*"] },
+      "<android.util.Log: * i(*)>": { "TaintCheck": ["p*"] },
+      "<android.util.Log: * w(*)>": { "TaintCheck": ["p*"] },
+      "<android.util.Log: * v(*)>": { "TaintCheck": ["p*"] }
+    }
+  }
+}

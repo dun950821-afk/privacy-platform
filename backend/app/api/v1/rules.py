@@ -22,7 +22,8 @@ def list_rules(category: str = None, status: str = None,
     return {"code": 0, "data": [
         {"id": r.id, "rule_key": r.rule_key, "name": r.name, "category": r.category,
          "description": r.description, "status": r.status,
-         "current_version_id": r.current_version_id} for r in items
+         "current_version_id": r.current_version_id,
+         "updated_at": str(r.updated_at) if r.updated_at else None} for r in items
     ]}
 
 
@@ -45,12 +46,23 @@ def get_rule(rid: int, user: User = Depends(get_current_user), db: Session = Dep
     r = db.query(Rule).get(rid)
     if not r:
         raise HTTPException(status_code=404, detail="规则不存在")
-    versions = db.query(RuleVersion).filter(RuleVersion.rule_id == rid).all()
+    versions = db.query(RuleVersion).filter(RuleVersion.rule_id == rid).order_by(
+        RuleVersion.created_at.desc()).all()
+    user_ids = {v.published_by for v in versions if v.published_by}
+    user_names = {u.id: (u.full_name or u.username)
+                  for u in db.query(User).filter(User.id.in_(user_ids)).all()} if user_ids else {}
+    current = next((v for v in versions if v.id == r.current_version_id), None)
     return {"code": 0, "data": {
         "id": r.id, "rule_key": r.rule_key, "name": r.name, "category": r.category,
         "description": r.description, "status": r.status,
+        "current_version_id": r.current_version_id,
+        "current_version": current.version if current else None,
+        "current_content": current.rule_content if current else None,
+        "created_at": str(r.created_at) if r.created_at else None,
+        "updated_at": str(r.updated_at) if r.updated_at else None,
         "versions": [{"id": v.id, "version": v.version, "status": v.status,
                        "changelog": v.changelog,
+                       "published_by": user_names.get(v.published_by),
                        "published_at": str(v.published_at) if v.published_at else None} for v in versions]
     }}
 

@@ -1,0 +1,22 @@
+{
+  "InstalledApps_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "InstalledApps_APICall",
+      "detail": "获取已安装应用列表/包信息",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalInstalledApps_APICall",
+      "complianceCategoryDetail": "已安装应用列表_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<android.content.pm.PackageManager: * getInstalledPackages(*)>": {},
+      "<android.content.pm.PackageManager: * getInstalledApplications(*)>": {},
+      "<android.content.pm.PackageManager: * queryIntentActivities(*)>": {},
+      "<android.content.pm.PackageManager: * queryIntentServices(*)>": {},
+      "<android.content.pm.PackageManager: * queryIntentContentProviders(*)>": {},
+      "<android.content.pm.PackageManager: * getPackageInfo(*)>": {},
+      "<android.content.pm.PackageManager: * getApplicationInfo(*)>": {}
+    }
+  }
+}

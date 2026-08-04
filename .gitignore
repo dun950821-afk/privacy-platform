@@ -16,6 +16,9 @@ env/
 node_modules/
 frontend/dist/
 **/.sites-runtime/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 # IDE
 .vscode/
 .idea/
@@ -28,6 +31,7 @@ Thumbs.db
 
 # Data
 data/evidence/
+data/pgdata/
 *.apk
 *.pcap
 *.log

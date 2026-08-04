@@ -49,8 +49,8 @@ ENGINE_REGISTRY = {
         "adapter": AppSharkAdapter,
         "capabilities": ["DATA_FLOW", "TAINT_ANALYSIS"],
         "description": "深度污点分析：Source-Sink数据流追踪",
-        "install_guide": "下载 AppShark-0.1.2-all.jar 到 /home/user/appshark/AppShark.jar，需 Java 8+",
-        "installed": False,
+        "install_guide": "部署 /opt/appshark(AppShark-0.1.2-all.jar + config/EngineConfig.json5 + config/tools/platforms)，需 JRE 11+，详见 README 4.1.1",
+        "installed": True,
     },
     "mobsf": {
         "name": "MobSF",
@@ -147,7 +147,17 @@ class EngineWorker:
                 logger.warning(f"Task {task_id} not found")
                 return
 
+            # 状态守卫：只处理排队中的任务，防止同一任务被重复消费导致结果叠加
+            if task.status != "queued":
+                logger.warning(f"Task {task_id} status is {task.status}, skip duplicate dispatch")
+                return
+
             logger.info(f"Processing task {task.task_code} (id={task_id})")
+
+            # 幂等清理：重跑前删除该任务上一轮的事件和引擎执行记录
+            db.query(DetectionEvent).filter(DetectionEvent.task_id == task_id).delete(synchronize_session=False)
+            db.query(EngineExecution).filter(EngineExecution.task_id == task_id).delete(synchronize_session=False)
+            db.commit()
 
             # 获取APK路径
             version = db.query(AppVersion).get(task.app_version_id)

@@ -1,7 +1,7 @@
 """报告生成服务"""
 from sqlalchemy.orm import Session
 from app.models import (DetectionTask, Finding, DetectionEvent, Evidence,
-                        DetectionScenario, AppVersion, Rule, SDKKnowledge)
+                        DetectionScenario, AppVersion, Rule)
 from app.core.storage import storage
 from datetime import datetime, timezone
 import json

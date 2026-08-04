@@ -13,4 +13,5 @@ export const taskApi = {
     api.put(`/tasks/${tid}/scenarios/${sid}`, data),
   findings: (id: number) => api.get(`/tasks/${id}/findings`),
   evidence: (id: number, params?: any) => api.get(`/tasks/${id}/evidence`, { params }),
+  reportOverview: (id: number) => api.get(`/tasks/${id}/report-overview`),
 }

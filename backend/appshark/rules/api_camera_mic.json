@@ -1,0 +1,19 @@
+{
+  "CameraMic_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "CameraMic_APICall",
+      "detail": "调用摄像头/麦克风",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalMedia_APICall",
+      "complianceCategoryDetail": "音视频采集_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<android.hardware.Camera: * open(*)>": {},
+      "<android.media.MediaRecorder: * setAudioSource(*)>": {},
+      "<android.media.MediaRecorder: * setVideoSource(*)>": {},
+      "<android.media.AudioRecord: * startRecording(*)>": {}
+    }
+  }
+}

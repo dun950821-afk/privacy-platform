@@ -36,9 +36,34 @@ def download_evidence(eid: int, user: User = Depends(require_permission("evidenc
 
 @router.get("/{eid}/preview")
 def preview_evidence(eid: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """证据预览: 图片直接返回文件流, 文本类返回内容, 其他返回不支持"""
+    IMAGE_EXTS = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                  ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp"}
+    TEXT_EXTS = {".json", ".txt", ".log", ".xml", ".md", ".csv",
+                 ".yaml", ".yml", ".html", ".htm", ".java", ".smali"}
+    MAX_TEXT_SIZE = 512 * 1024  # 512KB
+
     e = db.query(Evidence).get(eid)
     if not e:
         raise HTTPException(status_code=404, detail="证据不存在")
-    if e.evidence_type == "screenshot" and e.artifact_path and Path(e.artifact_path).exists():
-        return FileResponse(e.artifact_path, media_type="image/png")
-    return {"code": 0, "data": {"metadata": e.metadata_json}}
+    if not e.artifact_path or not Path(e.artifact_path).exists():
+        raise HTTPException(status_code=404, detail="证据文件不存在")
+
+    path = Path(e.artifact_path)
+    ext = path.suffix.lower()
+
+    if ext in IMAGE_EXTS:
+        return FileResponse(str(path), media_type=IMAGE_EXTS[ext])
+
+    if ext in TEXT_EXTS or e.evidence_type in ("engine_output", "log_file", "api_call_stack"):
+        size = path.stat().st_size
+        truncated = size > MAX_TEXT_SIZE
+        with open(path, "rb") as f:
+            raw = f.read(MAX_TEXT_SIZE)
+        content = raw.decode("utf-8", errors="replace")
+        return {"code": 0, "data": {
+            "kind": "text", "content": content, "truncated": truncated,
+            "filename": path.name, "size": size,
+        }}
+
+    return {"code": 0, "data": {"kind": "unsupported", "filename": path.name}}

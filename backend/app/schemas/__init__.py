@@ -64,6 +64,7 @@ class AppCreate(BaseModel):
 
 class AppUpdate(BaseModel):
     app_name: Optional[str] = None
+    app_alias: Optional[str] = None
     category: Optional[str] = None
     department: Optional[str] = None
     vendor: Optional[str] = None
@@ -142,24 +143,27 @@ class RuleVersionCreate(BaseModel):
     changelog: Optional[str] = None
 
 
-# ============ SDK ============
+# ============ SDK/组件知识库 (privacy_kb) ============
 
-class SDKCreate(BaseModel):
+class ComponentCreate(BaseModel):
     name: str
     vendor: Optional[str] = None
-    category: Optional[str] = None
-    official_url: Optional[str] = None
-    privacy_policy_url: Optional[str] = None
+    component_kind: str = "SDK"
+    category_l1: Optional[str] = None
+    category_l2: Optional[str] = None
+    primary_purpose: Optional[str] = None
     description: Optional[str] = None
-    privacy_behaviors: list[dict] = Field(default_factory=list)
-    config_capabilities: dict = Field(default_factory=dict)
+    sensitivity_level: Optional[str] = None
 
 
-class SDKFingerprintCreate(BaseModel):
+class ComponentFingerprintCreate(BaseModel):
     fingerprint_type: str
-    fingerprint_value: str
-    weight: float = 1.0
-    version_range: Optional[str] = None
+    value: str
+    match_mode: str = "EXACT"
+    weight: int = 10
+    evidence_role: str = "SUPPORTING"
+    version_from: Optional[str] = None
+    version_to: Optional[str] = None
 
 
 # ============ Agent ============

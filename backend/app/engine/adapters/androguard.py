@@ -165,15 +165,18 @@ class AndroguardAdapter(EngineAdapter):
                 "event_data": sp
             })
 
-        # 导出组件 (潜在风险)
-        for activity in raw_result.get("components", {}).get("activities", [])[:50]:
-            events.append({
-                "event_type": "static_component",
-                "timestamp": ts,
-                "data_type": "ACTIVITY",
-                "api": activity,
-                "event_data": {"component": activity, "type": "activity"}
-            })
+        # 全部声明组件（Activity/Service/Receiver/Provider），供 SDK 指纹匹配
+        comp = raw_result.get("components", {})
+        for ctype, key in [("ACTIVITY", "activities"), ("SERVICE", "services"),
+                           ("RECEIVER", "receivers"), ("PROVIDER", "providers")]:
+            for name in comp.get(key, []):
+                events.append({
+                    "event_type": "static_component",
+                    "timestamp": ts,
+                    "data_type": ctype,
+                    "api": name,
+                    "event_data": {"component": name, "type": key}
+                })
 
         return events
 

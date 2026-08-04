@@ -2,7 +2,7 @@
 from app.core.database import SessionLocal
 from app.core.security import hash_password
 from app.models import (
-    User, Rule, RuleVersion, SDKKnowledge, SysDict
+    User, Rule, RuleVersion, SysDict
 )
 import json
 

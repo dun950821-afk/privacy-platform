@@ -1,74 +1,75 @@
 <template>
   <div class="page-container">
+    <PageHeader title="综合看板" subtitle="平台运行与隐私合规风险总览">
+      <el-button :icon="Refresh" :loading="loading" @click="loadAll">刷新</el-button>
+    </PageHeader>
+
     <!-- 统计卡片 -->
-    <el-row :gutter="16" class="stat-row">
-      <el-col :span="6" v-for="card in statCards" :key="card.label">
-        <div class="stat-card" :style="{ borderTopColor: card.color }">
-          <div class="stat-icon" :style="{ background: card.bg, color: card.color }">
-            <el-icon :size="24"><component :is="card.icon" /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-value">{{ card.value }}</div>
-            <div class="stat-label">{{ card.label }}</div>
-          </div>
-        </div>
-      </el-col>
-    </el-row>
+    <div class="stat-grid">
+      <StatCard title="项目数" :value="dash.project_count" :icon="Folder" color="#2B5AED" to="/workspace" />
+      <StatCard title="App资产" :value="dash.app_count" :icon="Cellphone" color="#18A058" to="/workspace" />
+      <StatCard title="检测任务" :value="dash.task_count" :icon="List" color="#F0A020" to="/workspace" />
+      <StatCard title="问题总数" :value="dash.finding_count" :icon="Warning" color="#2080F0" to="/findings" />
+      <StatCard title="高风险问题" :value="dash.high_finding_count" :icon="WarningFilled" color="#D03050"
+                value-color="#D03050" to="/findings" />
+      <StatCard title="在线节点" :value="dash.node_count" :icon="Monitor" color="#7B61FF" />
+      <StatCard title="设备数" :value="dash.device_count" :icon="Iphone" color="#13C2C2" />
+    </div>
 
+    <!-- 图表行 -->
     <el-row :gutter="16" class="chart-row">
-      <!-- 风险分布 -->
-      <el-col :span="8">
+      <el-col :xs="24" :sm="24" :md="8">
         <el-card shadow="never" class="chart-card">
-          <template #header><span class="card-title">风险等级分布</span></template>
-          <div ref="severityChartRef" class="chart"></div>
+          <div class="chart-card-title">风险等级分布</div>
+          <VChart :option="severityOption" height="260px" />
         </el-card>
       </el-col>
-      <!-- 问题状态 -->
-      <el-col :span="8">
+      <el-col :xs="24" :sm="24" :md="8">
         <el-card shadow="never" class="chart-card">
-          <template #header><span class="card-title">问题状态分布</span></template>
-          <div ref="statusChartRef" class="chart"></div>
+          <div class="chart-card-title">问题状态分布</div>
+          <VChart :option="findingStatusOption" height="260px" />
         </el-card>
       </el-col>
-      <!-- 任务统计 -->
-      <el-col :span="8">
+      <el-col :xs="24" :sm="24" :md="8">
         <el-card shadow="never" class="chart-card">
-          <template #header><span class="card-title">任务状态统计</span></template>
-          <div ref="taskChartRef" class="chart"></div>
+          <div class="chart-card-title">近30天任务趋势</div>
+          <VChart :option="trendOption" height="260px" />
         </el-card>
       </el-col>
     </el-row>
 
+    <!-- 底部两列 -->
     <el-row :gutter="16" class="chart-row">
-      <!-- 最近任务 -->
-      <el-col :span="16">
-        <el-card shadow="never">
-          <template #header><span class="card-title">最近检测任务</span></template>
-          <el-table :data="recentTasks" size="small" stripe>
-            <el-table-column prop="task_code" label="任务编号" width="180" />
-            <el-table-column prop="app_name" label="App" />
-            <el-table-column prop="version_name" label="版本" width="80" />
-            <el-table-column prop="status" label="状态" width="120">
-              <template #default="{ row }">
-                <el-tag :type="statusTagType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="created_at" label="创建时间" width="180" />
-          </el-table>
-        </el-card>
-      </el-col>
-      <!-- 系统信息 -->
-      <el-col :span="8">
-        <el-card shadow="never">
-          <template #header><span class="card-title">系统信息</span></template>
-          <div class="sys-info">
-            <div class="sys-row"><span>在线节点</span><span>{{ dashboard.node_count || 0 }}</span></div>
-            <div class="sys-row"><span>Android设备</span><span>{{ dashboard.device_count || 0 }}</span></div>
-            <div class="sys-row"><span>活跃项目</span><span>{{ dashboard.project_count || 0 }}</span></div>
-            <div class="sys-row"><span>高危问题</span>
-              <span style="color:#D03050;font-weight:600">{{ dashboard.high_finding_count || 0 }}</span>
+      <el-col :xs="24" :sm="24" :md="12">
+        <el-card shadow="never" class="list-card">
+          <div class="chart-card-title">最新高风险问题</div>
+          <template v-if="recentFindings.length">
+            <div v-for="f in recentFindings" :key="f.id" class="risk-item" @click="goFinding(f.id)">
+              <StatusTag :value="f.severity" :map="SEVERITY" />
+              <span class="risk-title" :title="f.title">{{ f.title }}</span>
+              <span class="risk-time">{{ fmtDateTime(f.created_at) }}</span>
             </div>
-          </div>
+          </template>
+          <EmptyBox v-else description="暂无高风险问题" :image-size="90" />
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="24" :md="12">
+        <el-card shadow="never" class="list-card">
+          <div class="chart-card-title">最近检测任务</div>
+          <template v-if="recentTasks.length">
+            <div v-for="t in recentTasks" :key="t.id" class="task-item" @click="goTask(t.id)">
+              <div class="task-main">
+                <span class="task-code">{{ t.task_code }}</span>
+                <span class="task-app" :title="t.app_name || ''">{{ t.app_name || '-' }}</span>
+                <span class="task-type">{{ dictLabel(DETECTION_TYPE, t.detection_type) }}</span>
+              </div>
+              <div class="task-side">
+                <StatusTag :value="t.status" :map="TASK_STATUS" />
+                <span class="task-time">{{ fmtDateTime(t.created_at) }}</span>
+              </div>
+            </div>
+          </template>
+          <EmptyBox v-else description="暂无检测任务" :image-size="90" />
         </el-card>
       </el-col>
     </el-row>
@@ -76,153 +77,300 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
-import * as echarts from 'echarts'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
+import type { EChartsOption } from 'echarts'
+import {
+  Refresh, Folder, Cellphone, List, Warning, WarningFilled, Monitor, Iphone,
+} from '@element-plus/icons-vue'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/StatCard.vue'
+import StatusTag from '@/components/StatusTag.vue'
+import EmptyBox from '@/components/EmptyBox.vue'
+import VChart from '@/components/VChart.vue'
 import { systemApi } from '@/api/system'
 import { taskApi } from '@/api/tasks'
-import { Cellphone, Folder, Warning, List } from '@element-plus/icons-vue'
+import { fmtDateTime } from '@/utils/format'
+import {
+  SEVERITY, FINDING_STATUS, TASK_STATUS, DETECTION_TYPE, dictItem, dictLabel,
+} from '@/utils/dict'
 
-const dashboard = ref<any>({})
-const recentTasks = ref<any[]>([])
-
-const severityChartRef = ref<HTMLElement>()
-const statusChartRef = ref<HTMLElement>()
-const taskChartRef = ref<HTMLElement>()
-let severityChart: echarts.ECharts | null = null
-let statusChart: echarts.ECharts | null = null
-let taskChart: echarts.ECharts | null = null
-
-const statCards = computed(() => [
-  { label: '项目数', value: dashboard.value.project_count || 0, icon: Folder, color: '#2B5AED', bg: '#EEF3FE' },
-  { label: 'App资产', value: dashboard.value.app_count || 0, icon: Cellphone, color: '#18A058', bg: '#E8F8EE' },
-  { label: '检测任务', value: dashboard.value.task_count || 0, icon: List, color: '#F0A020', bg: '#FFF7E6' },
-  { label: '风险问题', value: dashboard.value.finding_count || 0, icon: Warning, color: '#D03050', bg: '#FEF0F0' },
-])
-
-function initCharts() {
-  if (severityChartRef.value) {
-    severityChart = echarts.init(severityChartRef.value)
-    severityChart.setOption({
-      tooltip: { trigger: 'item' },
-      legend: { bottom: 0, icon: 'circle', textStyle: { fontSize: 12 } },
-      series: [{
-        type: 'pie', radius: ['40%', '65%'], center: ['50%', '40%'],
-        label: { show: false }, labelLine: { show: false },
-        data: [
-          { value: 0, name: '严重', itemStyle: { color: '#D03050' } },
-          { value: 0, name: '高', itemStyle: { color: '#E8553A' } },
-          { value: 0, name: '中', itemStyle: { color: '#F0A020' } },
-          { value: 0, name: '低', itemStyle: { color: '#2080F0' } },
-        ]
-      }]
-    })
-  }
-  if (statusChartRef.value) {
-    statusChart = echarts.init(statusChartRef.value)
-    statusChart.setOption({
-      tooltip: { trigger: 'item' },
-      legend: { bottom: 0, icon: 'circle', textStyle: { fontSize: 12 } },
-      series: [{
-        type: 'pie', radius: ['40%', '65%'], center: ['50%', '40%'],
-        label: { show: false }, labelLine: { show: false },
-        data: [
-          { value: 0, name: '待处理', itemStyle: { color: '#D03050' } },
-          { value: 0, name: '已分派', itemStyle: { color: '#F0A020' } },
-          { value: 0, name: '修复中', itemStyle: { color: '#2080F0' } },
-          { value: 0, name: '已修复', itemStyle: { color: '#18A058' } },
-        ]
-      }]
-    })
-  }
-  if (taskChartRef.value) {
-    taskChart = echarts.init(taskChartRef.value)
-    taskChart.setOption({
-      tooltip: { trigger: 'axis' },
-      grid: { left: '10%', right: '5%', bottom: '15%', top: '10%' },
-      xAxis: { type: 'category', data: ['队列中', '执行中', '分析中', '已完成', '已失败'] },
-      yAxis: { type: 'value' },
-      series: [{
-        type: 'bar', barWidth: '50%',
-        itemStyle: { color: '#2B5AED', borderRadius: [4, 4, 0, 0] },
-        data: [0, 0, 0, 0, 0]
-      }]
-    })
-  }
+interface RecentFinding {
+  id: number
+  title: string
+  severity: string
+  status: string
+  task_id: number
+  created_at: string
 }
 
-function handleResize() {
-  severityChart?.resize()
-  statusChart?.resize()
-  taskChart?.resize()
+interface TaskItem {
+  id: number
+  task_code: string
+  status: string
+  detection_type: string
+  app_name: string | null
+  version_name: string | null
+  created_at: string
 }
 
-function statusTagType(status: string) {
-  const map: Record<string, string> = {
-    draft: 'info', queued: 'warning', preparing: 'warning',
-    running_static: '', running_dynamic: '', waiting_dynamic: 'warning',
-    analyzing: 'warning', reviewing: 'warning',
-    completed: 'success', failed: 'danger', canceled: 'info'
+interface DashboardData {
+  project_count: number
+  app_count: number
+  task_count: number
+  finding_count: number
+  high_finding_count: number
+  node_count: number
+  device_count: number
+  severity_distribution: Record<string, number>
+  finding_status_distribution: Record<string, number>
+  task_status_distribution: Record<string, number>
+  task_trend: { date: string; count: number }[]
+  recent_findings: RecentFinding[]
+}
+
+const router = useRouter()
+const loading = ref(false)
+const dash = ref<Partial<DashboardData>>({})
+const recentFindings = ref<RecentFinding[]>([])
+const recentTasks = ref<TaskItem[]>([])
+
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: '#D03050',
+  high: '#E8553A',
+  medium: '#F0A020',
+  low: '#2080F0',
+}
+
+/** el-tag type → 图表配色 */
+const TYPE_COLORS: Record<string, string> = {
+  primary: '#2B5AED',
+  success: '#18A058',
+  warning: '#F0A020',
+  danger: '#D03050',
+  info: '#909399',
+}
+
+const severityOption = computed<EChartsOption>(() => {
+  const dist = dash.value.severity_distribution || {}
+  const data = Object.entries(dist).map(([key, value]) => {
+    const k = key.toLowerCase()
+    return {
+      name: dictLabel(SEVERITY, k),
+      value,
+      itemStyle: { color: SEVERITY_COLORS[k] || '#909399' },
+    }
+  })
+  return {
+    tooltip: { trigger: 'item' },
+    legend: { bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { fontSize: 12 } },
+    series: [{
+      type: 'pie',
+      radius: '62%',
+      center: ['50%', '44%'],
+      label: { show: false },
+      labelLine: { show: false },
+      emphasis: { scaleSize: 6 },
+      data,
+    }],
   }
-  return map[status] || 'info'
-}
+})
 
-function statusLabel(status: string) {
-  const map: Record<string, string> = {
-    draft: '草稿', queued: '队列中', preparing: '准备中',
-    running_static: '静态检测', running_dynamic: '动态检测',
-    waiting_dynamic: '等待动态', analyzing: '分析中',
-    reviewing: '复核中', completed: '已完成', failed: '失败', canceled: '已取消'
+const findingStatusOption = computed<EChartsOption>(() => {
+  const dist = dash.value.finding_status_distribution || {}
+  const data = Object.entries(dist).map(([key, value]) => {
+    const item = dictItem(FINDING_STATUS, key)
+    return {
+      name: item.label,
+      value,
+      itemStyle: { color: TYPE_COLORS[item.type] || '#909399' },
+    }
+  })
+  return {
+    tooltip: { trigger: 'item' },
+    legend: { bottom: 0, icon: 'circle', itemWidth: 8, itemHeight: 8, textStyle: { fontSize: 12 } },
+    series: [{
+      type: 'pie',
+      radius: ['42%', '62%'],
+      center: ['50%', '44%'],
+      label: { show: false },
+      labelLine: { show: false },
+      emphasis: { scaleSize: 6 },
+      data,
+    }],
   }
-  return map[status] || status
+})
+
+const trendOption = computed<EChartsOption>(() => {
+  const trend = dash.value.task_trend || []
+  return {
+    tooltip: { trigger: 'axis' },
+    grid: { left: 8, right: 16, top: 24, bottom: 8, containLabel: true },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: trend.map((t) => t.date.slice(5)),
+      axisLine: { lineStyle: { color: '#E5E6EB' } },
+      axisTick: { show: false },
+      axisLabel: { color: '#8F959E', fontSize: 11, interval: 4 },
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      splitLine: { lineStyle: { color: '#F0F1F3' } },
+      axisLabel: { color: '#8F959E', fontSize: 11 },
+    },
+    series: [{
+      type: 'line',
+      smooth: true,
+      symbol: 'circle',
+      symbolSize: 5,
+      showSymbol: false,
+      data: trend.map((t) => t.count),
+      lineStyle: { color: '#2B5AED', width: 2 },
+      itemStyle: { color: '#2B5AED' },
+      areaStyle: {
+        color: {
+          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: 'rgba(43, 90, 237, 0.25)' },
+            { offset: 1, color: 'rgba(43, 90, 237, 0.02)' },
+          ],
+        },
+      },
+    }],
+  }
+})
+
+async function loadDashboard() {
+  const res: any = await systemApi.dashboard()
+  dash.value = res.data || {}
+  recentFindings.value = res.data?.recent_findings || []
 }
 
-onMounted(async () => {
-  await nextTick()
-  initCharts()
-  window.addEventListener('resize', handleResize)
-  
+async function loadTasks() {
+  const res: any = await taskApi.list({ page: 1, page_size: 6 })
+  recentTasks.value = res.data?.items || []
+}
+
+async function loadAll() {
+  loading.value = true
   try {
-    const res: any = await systemApi.dashboard()
-    dashboard.value = res.data
-  } catch {}
-  try {
-    const res: any = await taskApi.list({ page: 1, page_size: 5 })
-    recentTasks.value = res.data.items || []
-  } catch {}
+    await Promise.allSettled([loadDashboard(), loadTasks()])
+  } finally {
+    loading.value = false
+  }
+}
+
+function goFinding(id: number) {
+  router.push(`/findings/${id}`)
+}
+
+function goTask(id: number) {
+  router.push(`/tasks/${id}`)
+}
+
+let timer: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  loadAll()
+  timer = setInterval(loadDashboard, 60_000)
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', handleResize)
-  severityChart?.dispose()
-  statusChart?.dispose()
-  taskChart?.dispose()
+  if (timer) clearInterval(timer)
 })
 </script>
 
 <style scoped>
-.stat-row { margin-bottom: 16px; }
-.stat-card {
-  background: #fff; border-radius: 8px; padding: 20px;
-  display: flex; align-items: center; gap: 16px;
-  border-top: 3px solid #2B5AED;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+.chart-row {
+  margin-bottom: 16px;
 }
-.stat-icon {
-  width: 48px; height: 48px; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
+.chart-card {
+  border-radius: 8px;
 }
-.stat-value { font-size: 28px; font-weight: 700; color: #1F2329; }
-.stat-label { font-size: 13px; color: #8F959E; margin-top: 2px; }
-.chart-row { margin-bottom: 16px; }
-.chart-card { height: 300px; }
-.chart { height: 240px; }
-.card-title { font-size: 14px; font-weight: 600; color: #1F2329; }
-.sys-info { padding: 8px 0; }
-.sys-row {
-  display: flex; justify-content: space-between;
-  padding: 12px 0; border-bottom: 1px solid #F0F1F3;
-  font-size: 14px; color: #646A73;
+.list-card {
+  border-radius: 8px;
+  min-height: 320px;
 }
-.sys-row:last-child { border-bottom: none; }
-.sys-row span:last-child { font-weight: 600; color: #1F2329; }
+.risk-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 4px;
+  border-bottom: 1px solid #F0F1F3;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.risk-item:last-child {
+  border-bottom: none;
+}
+.risk-item:hover {
+  background: #F7F8FA;
+}
+.risk-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #1F2329;
+}
+.risk-time {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #8F959E;
+}
+.task-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 4px;
+  border-bottom: 1px solid #F0F1F3;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.task-item:last-child {
+  border-bottom: none;
+}
+.task-item:hover {
+  background: #F7F8FA;
+}
+.task-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.task-code {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2B5AED;
+  white-space: nowrap;
+}
+.task-app {
+  font-size: 13px;
+  color: #1F2329;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-type {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #8F959E;
+}
+.task-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.task-time {
+  font-size: 12px;
+  color: #8F959E;
+}
 </style>

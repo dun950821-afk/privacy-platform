@@ -1,0 +1,27 @@
+{
+  "Location_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "Location_APICall",
+      "detail": "调用定位API(系统定位/高德/百度/腾讯)",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalLocation_APICall",
+      "complianceCategoryDetail": "个人位置信息_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<android.location.LocationManager: * getLastKnownLocation(*)>": {},
+      "<android.location.LocationManager: * requestLocationUpdates(*)>": {},
+      "<android.location.LocationManager: * getCurrentLocation(*)>": {},
+      "<android.location.Location: * getLatitude(*)>": {},
+      "<android.location.Location: * getLongitude(*)>": {},
+      "<com.amap.api.location.AMapLocationClient: * startLocation(*)>": {},
+      "<com.amap.api.location.AMapLocation: * getLatitude(*)>": {},
+      "<com.amap.api.location.AMapLocation: * getLongitude(*)>": {},
+      "<com.baidu.location.LocationClient: * start(*)>": {},
+      "<com.baidu.location.BDLocation: * getLatitude(*)>": {},
+      "<com.baidu.location.BDLocation: * getLongitude(*)>": {},
+      "<com.tencent.map.geolocation.TencentLocationManager: * requestLocationUpdates(*)>": {}
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "Location_NetworkTransfer": {
+    "SliceMode": true,
+    "traceDepth": 12,
+    "PrimTypeAsTaint": true,
+    "desc": {
+      "name": "Location_NetworkTransfer",
+      "detail": "位置信息(经纬度)通过网络发送",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalLocation_NetworkTransfer",
+      "complianceCategoryDetail": "个人位置信息_网络传输",
+      "level": "L3"
+    },
+    "source": {
+      "Return": [
+        "<android.location.LocationManager: * getLastKnownLocation(*)>",
+        "<android.location.Location: * getLatitude(*)>",
+        "<android.location.Location: * getLongitude(*)>",
+        "<com.amap.api.location.AMapLocation: * getLatitude(*)>",
+        "<com.amap.api.location.AMapLocation: * getLongitude(*)>",
+        "<com.baidu.location.BDLocation: * getLatitude(*)>",
+        "<com.baidu.location.BDLocation: * getLongitude(*)>",
+        "<com.tencent.map.geolocation.TencentLocation: * getLatitude(*)>",
+        "<com.tencent.map.geolocation.TencentLocation: * getLongitude(*)>"
+      ]
+    },
+    "sink": {
+      "<okhttp3.Request$Builder: * url(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<okhttp3.RequestBody: * create(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<okhttp3.FormBody$Builder: * add(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<java.net.URL: * openConnection(*)>": { "LibraryOnly": true, "TaintCheck": ["@this"] },
+      "<java.net.HttpURLConnection: * getOutputStream(*)>": { "LibraryOnly": true, "TaintCheck": ["@this"] },
+      "<org.apache.http.client.methods.HttpPost: * setEntity(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] }
+    }
+  }
+}

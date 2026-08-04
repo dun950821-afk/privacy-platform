@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import generate_uid
 from app.models import (DetectionTask, SubTask, DetectionScenario, DetectionEvent,
-                        Finding, Evidence, AppVersion, User, AgentNode)
+                        Finding, Evidence, AppVersion, User, AgentNode, EngineExecution)
 from app.schemas import TaskCreate, ScenarioUpdate
 from app.api.deps import get_current_user, require_permission, get_request_id
 from app.tasks.orchestrator import TaskOrchestrator
@@ -43,14 +43,21 @@ def create_task(req: TaskCreate, request: Request,
 
 
 @router.get("")
-def list_tasks(project_id: int = None, status: str = None,
+def list_tasks(project_id: int = None, status: str = None, app_version_id: int = None,
                page: int = 1, page_size: int = 20,
                user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     q = db.query(DetectionTask)
     if project_id:
         q = q.filter(DetectionTask.project_id == project_id)
     if status:
-        q = q.filter(DetectionTask.status == status)
+        # 支持逗号分隔多状态过滤，如 status=queued,running_static
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        if len(statuses) == 1:
+            q = q.filter(DetectionTask.status == statuses[0])
+        elif statuses:
+            q = q.filter(DetectionTask.status.in_(statuses))
+    if app_version_id:
+        q = q.filter(DetectionTask.app_version_id == app_version_id)
     total = q.count()
     items = q.order_by(DetectionTask.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
     result = []
@@ -59,6 +66,7 @@ def list_tasks(project_id: int = None, status: str = None,
         result.append({
             "id": t.id, "task_code": t.task_code, "status": t.status,
             "detection_type": t.detection_type, "rule_pack_version": t.rule_pack_version,
+            "app_version_id": t.app_version_id,
             "app_name": v.app.app_name if v else None,
             "version_name": v.version_name if v else None,
             "created_at": str(t.created_at),
@@ -92,10 +100,14 @@ def get_task(tid: int, user: User = Depends(get_current_user), db: Session = Dep
                      "min_sdk": v.min_sdk, "target_sdk": v.target_sdk} if v else None,
         "sub_tasks": [{"id": s.id, "sub_task_code": s.sub_task_code,
                        "engine_type": s.engine_type, "stage": s.stage, "status": s.status,
-                       "error_message": s.error_message} for s in sub_tasks],
+                       "error_message": s.error_message,
+                       "result_summary": s.result_summary,
+                       "started_at": str(s.started_at) if s.started_at else None,
+                       "completed_at": str(s.completed_at) if s.completed_at else None} for s in sub_tasks],
         "scenarios": [{"id": s.id, "scenario_type": s.scenario_type,
                        "consent_status": s.consent_status, "status": s.status} for s in scenarios],
         "event_count": event_count, "finding_count": finding_count,
+        "created_by": t.created_by,
         "created_at": str(t.created_at)
     }}
 
@@ -139,6 +151,9 @@ def retry_task(tid: int, user: User = Depends(require_permission("task:write")),
         raise HTTPException(status_code=404, detail="任务不存在")
     if t.status not in ["failed", "canceled"]:
         raise HTTPException(status_code=400, detail="任务状态不允许重试")
+    # 清理上一轮的事件和引擎执行记录，避免重跑后结果叠加
+    db.query(DetectionEvent).filter(DetectionEvent.task_id == tid).delete(synchronize_session=False)
+    db.query(EngineExecution).filter(EngineExecution.task_id == tid).delete(synchronize_session=False)
     t.status = "queued"
     t.failed_reason = None
     t.started_at = None
@@ -149,17 +164,119 @@ def retry_task(tid: int, user: User = Depends(require_permission("task:write")),
     return {"code": 0, "data": {"id": t.id, "status": t.status}}
 
 
+# ============ 事件 ↔ SDK知识库 关联匹配 ============
+
+def _load_sdk_match_index(db):
+    """加载包名/类名指纹索引（最长前缀优先），用于事件归属 SDK 匹配"""
+    from app.models.kb import KBComponentFingerprint, KBComponent, KBVendor
+    rows = db.query(KBComponentFingerprint, KBComponent, KBVendor) \
+        .join(KBComponent, KBComponentFingerprint.component_id == KBComponent.id) \
+        .outerjoin(KBVendor, KBComponent.vendor_id == KBVendor.id) \
+        .filter(KBComponentFingerprint.fingerprint_type.in_(["PACKAGE_PREFIX", "CLASS"]),
+                KBComponentFingerprint.is_negative == False,
+                KBComponentFingerprint.match_mode.in_(["EXACT", "PREFIX"]),
+                KBComponent.is_active == True) \
+        .all()
+    index = []
+    for fp, comp, vendor in rows:
+        val = (fp.normalized_value or "").strip().lower()
+        if not val:
+            continue
+        index.append((val, {
+            "id": comp.id, "name": comp.name,
+            "vendor": vendor.name if vendor else None,
+            "component_kind": comp.component_kind,
+            "category_l1": comp.category_l1,
+            "sensitivity_level": comp.sensitivity_level,
+        }))
+    index.sort(key=lambda x: len(x[0]), reverse=True)
+    return index
+
+
+def _match_sdk(index, *candidates):
+    """按调用方/API 的包名前缀匹配 SDK（调用方优先，最长前缀命中）"""
+    for cand in candidates:
+        if not cand:
+            continue
+        c = cand.strip().lower()
+        for val, comp in index:
+            if c.startswith(val):
+                return comp
+    return None
+
+
+def _load_permission_index(db):
+    """加载权限知识库索引: 权限名(小写) -> 权限知识"""
+    from app.models.kb import KBPermission
+    index = {}
+    for p in db.query(KBPermission).filter(KBPermission.is_active == True).all():
+        key = (p.normalized_name or p.permission_name or "").strip().lower()
+        if key:
+            index[key] = {
+                "id": p.id, "permission_name": p.permission_name,
+                "category": p.category, "capability": p.capability,
+                "permission_type": p.permission_type, "risk_level": p.risk_level,
+                "grant_mode": p.grant_mode, "compliance_focus": p.compliance_focus,
+            }
+    return index
+
+
+def _match_permission(index, api):
+    """按完整权限名精确匹配权限知识"""
+    if not api:
+        return None
+    return index.get(api.strip().lower())
+
+
 @router.get("/{tid}/events")
 def list_events(tid: int, event_type: str = None, scenario_id: int = None,
-                data_type: str = None, page: int = 1, page_size: int = 50,
+                data_type: str = None, sdk_id: int = None,
+                page: int = 1, page_size: int = 50,
                 user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    q = db.query(DetectionEvent).filter(DetectionEvent.task_id == tid)
-    if event_type:
-        q = q.filter(DetectionEvent.event_type == event_type)
-    if scenario_id:
-        q = q.filter(DetectionEvent.scenario_id == scenario_id)
-    if data_type:
-        q = q.filter(DetectionEvent.data_type == data_type)
+    from sqlalchemy import func, or_
+    from app.models.kb import KBComponentFingerprint
+
+    def apply_base_filters(query):
+        query = query.filter(DetectionEvent.task_id == tid)
+        if event_type:
+            query = query.filter(DetectionEvent.event_type == event_type)
+        if scenario_id:
+            query = query.filter(DetectionEvent.scenario_id == scenario_id)
+        if data_type:
+            query = query.filter(DetectionEvent.data_type == data_type)
+        return query
+
+    index = _load_sdk_match_index(db)
+    perm_index = _load_permission_index(db)
+
+    # 本任务命中的 SDK 汇总（不受 sdk_id 过滤影响，供筛选下拉与统计）
+    matched_map = {}
+    for caller, api in apply_base_filters(
+            db.query(DetectionEvent.caller, DetectionEvent.api)).all():
+        comp = _match_sdk(index, caller, api)
+        if comp:
+            entry = matched_map.setdefault(comp["id"], {**comp, "count": 0})
+            entry["count"] += 1
+    matched_sdks = sorted(matched_map.values(), key=lambda x: x["count"], reverse=True)
+
+    q = apply_base_filters(db.query(DetectionEvent))
+
+    # 按 SDK 过滤：命中该组件包名/类名前缀的事件
+    if sdk_id:
+        prefixes = [r[0] for r in db.query(KBComponentFingerprint.normalized_value).filter(
+            KBComponentFingerprint.component_id == sdk_id,
+            KBComponentFingerprint.fingerprint_type.in_(["PACKAGE_PREFIX", "CLASS"]),
+            KBComponentFingerprint.is_negative == False).all() if r[0]]
+        if prefixes:
+            conds = []
+            for p in prefixes:
+                lp = p.strip().lower() + "%"
+                conds.append(func.lower(DetectionEvent.caller).like(lp))
+                conds.append(func.lower(DetectionEvent.api).like(lp))
+            q = q.filter(or_(*conds))
+        else:
+            q = q.filter(DetectionEvent.id == 0)
+
     total = q.count()
     items = q.order_by(DetectionEvent.timestamp.asc()).offset((page-1)*page_size).limit(page_size).all()
     return {"code": 0, "data": {
@@ -168,9 +285,13 @@ def list_events(tid: int, event_type: str = None, scenario_id: int = None,
             "event_type": e.event_type, "timestamp": str(e.timestamp),
             "consent_status": e.consent_status, "data_type": e.data_type,
             "api": e.api, "caller": e.caller, "trace_id": e.trace_id,
+            "engine": e.engine_name, "engine_version": e.engine_version,
+            "sdk": _match_sdk(index, e.caller, e.api),
+            "permission": _match_permission(perm_index, e.api),
             "event_data": e.event_data
         } for e in items],
-        "total": total, "page": page, "page_size": page_size
+        "total": total, "page": page, "page_size": page_size,
+        "matched_sdks": matched_sdks
     }}
 
 
@@ -227,3 +348,286 @@ def task_evidence(tid: int, evidence_type: str = None,
          "artifact_size": e.artifact_size,
          "metadata_json": e.metadata_json, "created_at": str(e.created_at)} for e in items
     ]}
+
+
+# ============ 任务检测报告汇总 ============
+
+@router.get("/{tid}/report-overview")
+def task_report_overview(tid: int, user: User = Depends(get_current_user),
+                         db: Session = Depends(get_db)):
+    """任务检测报告汇总：聚合各引擎结果（基础信息/组件/权限/SDK识别/数据流/事件统计）"""
+    from app.services import sdk_analysis
+
+    t = db.query(DetectionTask).get(tid)
+    if not t:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    version = db.query(AppVersion).get(t.app_version_id)
+    app = version.app if version else None
+
+    events = db.query(DetectionEvent).filter(DetectionEvent.task_id == tid).all()
+
+    events_by_type: dict = {}
+    components: dict = {}
+    permissions_declared: list = []
+    permissions_sensitive: list = []
+    data_flow_map: dict = {}
+    api_call_map: dict = {}
+    basic_info: dict = {}
+    appshark_overview = None
+
+    for e in events:
+        events_by_type[e.event_type] = events_by_type.get(e.event_type, 0) + 1
+        if e.event_type == "static_component":
+            key = e.data_type or "UNKNOWN"
+            components[key] = components.get(key, 0) + 1
+        elif e.event_type == "static_permission":
+            if e.api:
+                permissions_declared.append(e.api)
+        elif e.event_type == "static_sensitive_permission":
+            if e.api:
+                permissions_sensitive.append(e.api)
+        elif e.event_type == "static_data_flow":
+            ed = e.event_data or {}
+            key = (e.data_type or "-", ed.get("rule") or "-")
+            data_flow_map[key] = data_flow_map.get(key, 0) + 1
+        elif e.event_type == "static_sensitive_api":
+            key = (e.data_type or "-", e.api or "-")
+            entry = api_call_map.setdefault(key, {"count": 0, "callers": set()})
+            entry["count"] += 1
+            if e.caller:
+                entry["callers"].add(e.caller)
+        elif e.event_type == "static_basic_info":
+            if e.data_type == "appshark_scan":
+                appshark_overview = e.event_data
+            elif e.event_data:
+                basic_info.update(e.event_data)
+
+    # 引擎执行情况
+    engines = [{
+        "engine_name": x.engine_name, "engine_type": x.engine_type,
+        "engine_version": x.engine_version, "status": x.status,
+        "event_count": x.event_count, "artifact_count": x.artifact_count,
+        "duration_ms": x.duration_ms, "error_message": x.error_message,
+        "summary": x.result_summary,
+    } for x in db.query(EngineExecution).filter(
+        EngineExecution.task_id == tid).order_by(EngineExecution.id).all()]
+
+    # 问题统计
+    findings = db.query(Finding).filter(Finding.task_id == tid).all()
+    finding_by_severity: dict = {}
+    for f in findings:
+        finding_by_severity[f.severity] = finding_by_severity.get(f.severity, 0) + 1
+
+    # SDK 识别(已识别/未识别)
+    sdk_hits = sdk_analysis.get_hits(db, t)
+    clusters = sdk_analysis.get_clusters(db, t)
+
+    # 权限关联知识库(能力说明/风险等级/类别)
+    perm_index = _load_permission_index(db)
+
+    def _perm_detail(name: str) -> dict:
+        key = name.strip().lower()
+        kb = perm_index.get(key)
+        if kb is None and "." not in name:
+            # 部分引擎上报的是短名(ACCESS_FINE_LOCATION), 补全前缀再匹配
+            kb = perm_index.get(f"android.permission.{key}")
+        kb = kb or {}
+        full_name = kb.get("permission_name") or (
+            name if "." in name else f"android.permission.{name}")
+        return {"name": full_name, "capability": kb.get("capability"),
+                "risk_level": kb.get("risk_level"), "category": kb.get("category")}
+
+    return {"code": 0, "data": {
+        "task": {
+            "id": t.id, "task_code": t.task_code, "status": t.status,
+            "detection_type": t.detection_type, "rule_pack_version": t.rule_pack_version,
+            "started_at": str(t.started_at) if t.started_at else None,
+            "completed_at": str(t.completed_at) if t.completed_at else None,
+        },
+        "app": {
+            "name": app.app_name if app else None,
+            "package_name": app.package_name if app else None,
+            "version_name": version.version_name if version else None,
+            "version_code": version.version_code if version else None,
+            "sha256": version.sha256 if version else None,
+            "file_size": version.file_size if version else None,
+            "min_sdk": version.min_sdk if version else None,
+            "target_sdk": version.target_sdk if version else None,
+        },
+        "basic_info": basic_info,
+        "engines": engines,
+        "components": {
+            "by_type": components,
+            "total": sum(components.values()),
+        },
+        "permissions": {
+            "declared": [_perm_detail(n) for n in sorted(set(permissions_declared))],
+            "sensitive": [_perm_detail(n) for n in sorted(set(permissions_sensitive))],
+        },
+        "events_by_type": events_by_type,
+        "event_total": len(events),
+        "data_flows": [
+            {"category": k[0], "rule": k[1], "count": v}
+            for k, v in sorted(data_flow_map.items(), key=lambda x: -x[1])
+        ],
+        "sensitive_apis": [
+            {"category": k[0], "api": k[1], "count": v["count"],
+             "callers": sorted(v["callers"])[:5]}
+            for k, v in sorted(api_call_map.items(), key=lambda x: -x[1]["count"])
+        ],
+        "appshark_overview": appshark_overview,
+        "sdk": {
+            "identified": sdk_hits,
+            "unidentified": clusters,
+            "identified_count": len(sdk_hits),
+            "unidentified_count": len(clusters),
+        },
+        "findings": {"total": len(findings), "by_severity": finding_by_severity},
+        "scenario_count": db.query(DetectionScenario).filter(
+            DetectionScenario.task_id == tid).count(),
+        "evidence_count": db.query(Evidence).filter(Evidence.task_id == tid).count(),
+    }}
+
+
+# ============ SDK识别分析 ============
+
+@router.get("/{tid}/sdk-hits")
+def task_sdk_hits(tid: int, refresh: bool = False,
+                  user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """SDK识别结果：一个SDK一条聚合记录"""
+    from app.services import sdk_analysis
+    task = db.query(DetectionTask).get(tid)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    sdk_analysis.analyze_task(db, task, refresh=refresh)
+    return {"code": 0, "data": sdk_analysis.get_hits(db, task)}
+
+
+@router.get("/{tid}/sdk-hits/{hit_id}")
+def task_sdk_hit_detail(tid: int, hit_id: int,
+                        user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """SDK命中详情：证据汇总 + 证据明细（反关联事件流）"""
+    from app.services import sdk_analysis
+    task = db.query(DetectionTask).get(tid)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    detail = sdk_analysis.get_hit_detail(db, task, hit_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="命中记录不存在")
+    return {"code": 0, "data": detail}
+
+
+@router.post("/{tid}/sdk-hits/{hit_id}/review")
+def review_sdk_hit(tid: int, hit_id: int, req: dict,
+                   user: User = Depends(require_permission("task:write")),
+                   db: Session = Depends(get_db)):
+    """人工标记SDK命中: reject(误报) / whitelist(白名单) / confirm(确认)"""
+    from app.models.kb import ScanComponentHit
+    from app.services import sdk_analysis
+    task = db.query(DetectionTask).get(tid)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    job = sdk_analysis.ensure_scan_job(db, task)
+    hit = db.query(ScanComponentHit).get(hit_id)
+    if not hit or hit.scan_job_id != job.id:
+        raise HTTPException(status_code=404, detail="命中记录不存在")
+    action = (req.get("action") or "").lower()
+    status_map = {"reject": "REJECTED", "whitelist": "WHITELISTED", "confirm": "CONFIRMED"}
+    if action not in status_map:
+        raise HTTPException(status_code=400, detail="不支持的标记动作")
+    hit.hit_status = status_map[action]
+    db.commit()
+    return {"code": 0, "data": {"hit_id": hit.id, "hit_status": hit.hit_status}}
+
+
+@router.get("/{tid}/package-clusters")
+def task_package_clusters(tid: int, refresh: bool = False,
+                          user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """未识别包簇列表"""
+    from app.services import sdk_analysis
+    task = db.query(DetectionTask).get(tid)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    sdk_analysis.analyze_task(db, task, refresh=refresh)
+    return {"code": 0, "data": sdk_analysis.get_clusters(db, task)}
+
+
+@router.get("/{tid}/package-clusters/{cid}/classes")
+def cluster_classes(tid: int, cid: int,
+                    user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """包簇下全部类和组件（来自事件流）"""
+    from app.models.kb import ScanPackageCluster
+    from app.services import sdk_analysis
+    task = db.query(DetectionTask).get(tid)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    job = sdk_analysis.ensure_scan_job(db, task)
+    cluster = db.query(ScanPackageCluster).get(cid)
+    if not cluster or cluster.scan_job_id != job.id:
+        raise HTTPException(status_code=404, detail="包簇不存在")
+    events = db.query(DetectionEvent).filter(
+        DetectionEvent.task_id == tid,
+        DetectionEvent.event_type == "static_component",
+        DetectionEvent.api.like(cluster.package_prefix + ".%"),
+    ).order_by(DetectionEvent.api).all()
+    return {"code": 0, "data": {
+        "package_prefix": cluster.package_prefix,
+        "classes": [{"event_id": e.id, "class_name": e.api,
+                     "component_type": e.data_type} for e in events],
+    }}
+
+
+@router.post("/{tid}/package-clusters/{cid}/review")
+def review_cluster(tid: int, cid: int, req: dict,
+                   user: User = Depends(require_permission("task:write")),
+                   db: Session = Depends(get_db)):
+    """包簇人工处理: self_code/link/create/whitelist/packer"""
+    from app.models.kb import ScanPackageCluster, KBComponent, KBComponentFingerprint
+    from app.services import sdk_analysis
+    task = db.query(DetectionTask).get(tid)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    job = sdk_analysis.ensure_scan_job(db, task)
+    cluster = db.query(ScanPackageCluster).get(cid)
+    if not cluster or cluster.scan_job_id != job.id:
+        raise HTTPException(status_code=404, detail="包簇不存在")
+
+    action = (req.get("action") or "").lower()
+    raw = dict(cluster.raw_data or {})
+
+    if action in ("self_code", "whitelist", "packer"):
+        raw["review_status"] = action
+    elif action == "link":
+        comp_id = req.get("component_id")
+        comp = db.query(KBComponent).get(comp_id) if comp_id else None
+        if not comp:
+            raise HTTPException(status_code=400, detail="请选择要关联的SDK组件")
+        cluster.matched_component_id = comp.id
+        raw["review_status"] = "linked"
+    elif action == "create":
+        name = (req.get("name") or cluster.package_prefix).strip()
+        comp = KBComponent(
+            component_key=generate_uid("comp"), name=name,
+            normalized_name=name.lower(),
+            component_kind=req.get("kind") or "SDK",
+            verification_status="PENDING",
+        )
+        db.add(comp)
+        db.flush()
+        db.add(KBComponentFingerprint(
+            component_id=comp.id, fingerprint_type="PACKAGE_PREFIX",
+            value=cluster.package_prefix,
+            normalized_value=cluster.package_prefix.lower(),
+            match_mode="PREFIX", weight=30, evidence_role="PRIMARY",
+        ))
+        cluster.matched_component_id = comp.id
+        raw["review_status"] = "linked"
+    else:
+        raise HTTPException(status_code=400, detail="不支持的处理动作")
+
+    raw["reviewed_by"] = user.username
+    raw["reviewed_at"] = datetime.now(timezone.utc).isoformat()
+    cluster.raw_data = raw
+    db.commit()
+    return {"code": 0, "data": {"id": cluster.id, "review_status": raw["review_status"],
+                                "linked_component_id": cluster.matched_component_id}}

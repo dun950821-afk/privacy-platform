@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models import (Finding, FindingEvidence, FindingEvent, Evidence, DetectionEvent,
-                        Remediation, RetestRecord, User, Rule, SDKKnowledge, DetectionScenario)
+                        Remediation, RetestRecord, User, Rule, DetectionScenario, DetectionTask)
+from app.models.kb import KBComponent, KBVendor
 from app.schemas import FindingAssign, FindingClose, RemediationCreate
 from app.api.deps import get_current_user, require_permission
 from datetime import datetime, timezone
@@ -17,6 +18,9 @@ def list_findings(project_id: int = None, task_id: int = None, severity: str = N
                   page: int = 1, page_size: int = 20,
                   user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     q = db.query(Finding)
+    if project_id:
+        q = q.join(DetectionTask, Finding.task_id == DetectionTask.id) \
+             .filter(DetectionTask.project_id == project_id)
     if task_id:
         q = q.filter(Finding.task_id == task_id)
     if severity:
@@ -49,7 +53,8 @@ def get_finding(fid: int, user: User = Depends(get_current_user), db: Session = 
     
     scenario = db.query(DetectionScenario).get(f.scenario_id) if f.scenario_id else None
     rule = db.query(Rule).get(f.rule_id) if f.rule_id else None
-    sdk = db.query(SDKKnowledge).get(f.sdk_id) if f.sdk_id else None
+    sdk = db.query(KBComponent).get(f.sdk_id) if f.sdk_id else None
+    sdk_vendor = db.query(KBVendor).get(sdk.vendor_id) if sdk and sdk.vendor_id else None
     
     return {"code": 0, "data": {
         "id": f.id, "finding_uid": f.finding_uid, "title": f.title,
@@ -60,7 +65,7 @@ def get_finding(fid: int, user: User = Depends(get_current_user), db: Session = 
         "task_id": f.task_id, "scenario_id": f.scenario_id,
         "scenario": {"type": scenario.scenario_type, "consent_status": scenario.consent_status} if scenario else None,
         "rule": {"rule_key": rule.rule_key, "name": rule.name} if rule else None,
-        "sdk": {"name": sdk.name, "vendor": sdk.vendor} if sdk else None,
+        "sdk": {"name": sdk.name, "vendor": sdk_vendor.name if sdk_vendor else None} if sdk else None,
         "assigned_to": f.assigned_to, "due_date": str(f.due_date) if f.due_date else None,
         "closed_reason": f.closed_reason,
         "created_at": str(f.created_at), "updated_at": str(f.updated_at)

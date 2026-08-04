@@ -1,0 +1,18 @@
+{
+  "Sensor_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "Sensor_APICall",
+      "detail": "注册传感器监听",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalSensor_APICall",
+      "complianceCategoryDetail": "传感器信息_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<android.hardware.SensorManager: * registerListener(*)>": {},
+      "<android.hardware.SensorManager: * getDefaultSensor(*)>": {},
+      "<android.hardware.SensorManager: * getSensorList(*)>": {}
+    }
+  }
+}

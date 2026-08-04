@@ -138,8 +138,22 @@ def agent_events(tid: int, req: AgentEventBatch, db: Session = Depends(get_db)):
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
 
+    # 幂等去重：Agent 重发同一批事件（网络重试/重跑）时按 event_uid 跳过，避免叠加
+    uids = [e.event_uid for e in req.events if e.event_uid]
+    existing: set = set()
+    if uids:
+        rows = db.query(DetectionEvent.event_uid).filter(
+            DetectionEvent.task_id == tid,
+            DetectionEvent.event_uid.in_(uids),
+        ).all()
+        existing = {r[0] for r in rows}
+
     created = 0
+    skipped = 0
     for evt in req.events:
+        if evt.event_uid and evt.event_uid in existing:
+            skipped += 1
+            continue
         event = DetectionEvent(
             event_uid=evt.event_uid or generate_uid("evt"),
             task_id=tid,
@@ -157,10 +171,12 @@ def agent_events(tid: int, req: AgentEventBatch, db: Session = Depends(get_db)):
             engine_version=evt.engine_version
         )
         db.add(event)
+        if evt.event_uid:
+            existing.add(evt.event_uid)  # 同批次内的重复 uid 也只写一次
         created += 1
 
     db.commit()
-    return {"code": 0, "data": {"created": created}}
+    return {"code": 0, "data": {"created": created, "skipped": skipped}}
 
 
 @router.post("/tasks/{tid}/evidence")

@@ -1,0 +1,44 @@
+{
+  "DeviceId_NetworkTransfer": {
+    "SliceMode": true,
+    "traceDepth": 12,
+    "PrimTypeAsTaint": true,
+    "desc": {
+      "name": "DeviceId_NetworkTransfer",
+      "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)通过网络发送",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalDeviceInformation_NetworkTransfer",
+      "complianceCategoryDetail": "个人设备信息_网络传输",
+      "level": "L3"
+    },
+    "source": {
+      "Return": [
+        "<android.telephony.TelephonyManager: * getDeviceId(*)>",
+        "<android.telephony.TelephonyManager: * getImei(*)>",
+        "<android.telephony.TelephonyManager: * getMeid(*)>",
+        "<android.telephony.TelephonyManager: * getSubscriberId(*)>",
+        "<android.telephony.TelephonyManager: * getLine1Number(*)>",
+        "<android.telephony.TelephonyManager: * getSimSerialNumber(*)>",
+        "<android.os.Build: * getSerial(*)>",
+        "<android.net.wifi.WifiInfo: * getMacAddress(*)>",
+        "<android.net.wifi.WifiInfo: * getSSID(*)>",
+        "<android.net.wifi.WifiInfo: * getBSSID(*)>",
+        "<android.provider.Settings$Secure: * getString(*)>",
+        "<android.provider.Settings$System: * getString(*)>",
+        "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>",
+        "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>"
+      ],
+      "Field": [
+        "<android.os.Build: * SERIAL>"
+      ]
+    },
+    "sink": {
+      "<okhttp3.Request$Builder: * url(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<okhttp3.RequestBody: * create(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<okhttp3.FormBody$Builder: * add(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<java.net.URL: * openConnection(*)>": { "LibraryOnly": true, "TaintCheck": ["@this"] },
+      "<java.net.HttpURLConnection: * getOutputStream(*)>": { "LibraryOnly": true, "TaintCheck": ["@this"] },
+      "<org.apache.http.client.methods.HttpPost: * setEntity(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] }
+    }
+  }
+}

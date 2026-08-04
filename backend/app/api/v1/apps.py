@@ -3,7 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Q
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.storage import storage
-from app.models import AppAsset, AppVersion, PrivacyPolicy, User, VersionSDK, SDKKnowledge
+from app.models import AppAsset, AppVersion, PrivacyPolicy, User
+from app.models.kb import KBComponent, KBVendor
+from app.models.kb import ScanApp, ScanAppBuild, ScanJob, ScanComponentHit
 from app.schemas import AppCreate, AppUpdate, PrivacyPolicyCreate
 from app.api.deps import get_current_user, require_permission, get_request_id
 from fastapi import Request
@@ -44,7 +46,10 @@ def list_apps(project_id: int = None, page: int = 1, page_size: int = 20,
     items = q.order_by(AppAsset.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
     return {"code": 0, "data": {
         "items": [{"id": a.id, "package_name": a.package_name, "app_name": a.app_name,
-                    "category": a.category, "vendor": a.vendor, "project_id": a.project_id} for a in items],
+                    "app_alias": a.app_alias,
+                    "app_type": a.app_type, "category": a.category, "vendor": a.vendor,
+                    "project_id": a.project_id, "version_count": len(a.versions),
+                    "created_at": str(a.created_at)} for a in items],
         "total": total, "page": page, "page_size": page_size
     }}
 
@@ -75,6 +80,7 @@ def update_app(aid: int, req: AppUpdate,
     if not app:
         raise HTTPException(status_code=404, detail="App不存在")
     if req.app_name: app.app_name = req.app_name
+    if req.app_alias is not None: app.app_alias = req.app_alias
     if req.category is not None: app.category = req.category
     if req.department is not None: app.department = req.department
     if req.vendor is not None: app.vendor = req.vendor
@@ -196,38 +202,55 @@ def get_policy(aid: int, pid: int, user: User = Depends(get_current_user), db: S
 
 @router.get("/{aid}/sdks")
 def list_app_sdks(aid: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    versions = db.query(AppVersion).filter(AppVersion.app_id == aid).all()
-    version_ids = [v.id for v in versions]
-    if not version_ids:
-        return {"code": 0, "data": []}
-    version_sdks = db.query(VersionSDK).filter(VersionSDK.app_version_id.in_(version_ids)).all()
+    """App识别到的SDK/组件列表 (来自 privacy_scan 扫描命中结果)"""
+    app = db.query(AppAsset).get(aid)
+    if not app:
+        raise HTTPException(status_code=404, detail="App不存在")
+    rows = db.query(ScanComponentHit, KBComponent, KBVendor) \
+        .join(ScanJob, ScanComponentHit.scan_job_id == ScanJob.id) \
+        .join(ScanAppBuild, ScanJob.app_build_id == ScanAppBuild.id) \
+        .join(ScanApp, ScanAppBuild.app_id == ScanApp.id) \
+        .join(KBComponent, ScanComponentHit.component_id == KBComponent.id) \
+        .outerjoin(KBVendor, KBComponent.vendor_id == KBVendor.id) \
+        .filter(ScanApp.package_name == app.package_name) \
+        .order_by(ScanComponentHit.total_score.desc()).all()
     result = []
     seen = set()
-    for vs in version_sdks:
-        if vs.sdk_id and vs.sdk_id not in seen:
-            sdk = db.query(SDKKnowledge).get(vs.sdk_id)
-            if sdk:
-                result.append({"id": sdk.id, "name": sdk.name, "vendor": sdk.vendor,
-                              "category": sdk.category, "confidence": vs.confidence})
-                seen.add(vs.sdk_id)
+    for hit, comp, vendor in rows:
+        if comp.id in seen:
+            continue
+        seen.add(comp.id)
+        result.append({
+            "id": comp.id, "name": comp.name,
+            "vendor": vendor.name if vendor else None,
+            "component_kind": comp.component_kind,
+            "category_l1": comp.category_l1,
+            "sensitivity_level": comp.sensitivity_level,
+            "total_score": hit.total_score,
+            "confidence_level": hit.confidence_level,
+            "hit_status": hit.hit_status,
+            "evidence_count": hit.evidence_count,
+        })
     return {"code": 0, "data": result}
 
 
 @router.post("/quick-upload")
 async def quick_upload(
     project_id: int = Form(...),
-    app_name: str = Form(...),
+    app_alias: str = Form(None),
+    app_name: str = Form(None),  # 兼容旧前端，等价于别称
     file: UploadFile = File(...),
     user: User = Depends(require_permission("app:upload")),
     db: Session = Depends(get_db),
 ):
     """
     一体化上传：创建App + 上传APK + Androguard自动解析
-    用户只需提供项目ID、App名称和APK文件
-    包名、版本、SHA256、SDK版本等全部从APK自动解析
+    包名、App名称、版本、SHA256、SDK版本等全部从APK自动解析
+    App别称（app_alias）为用户自定义显示名，可选
     """
     import logging
     logger = logging.getLogger(__name__)
+    alias = (app_alias or app_name or "").strip() or None
 
     if not file.filename or not file.filename.endswith(".apk"):
         raise HTTPException(status_code=400, detail="请上传APK文件")
@@ -282,8 +305,9 @@ async def quick_upload(
             "version_code": 1,
         }
 
-    # 3. 创建或查找App资产
+    # 3. 创建或查找App资产（名称以APK解析为准，别称用户自定义）
     package_name = parsed.get("package_name", "")
+    parsed_name = parsed.get("app_name_from_apk") or ""
     app = None
     if package_name:
         app = db.query(AppAsset).filter(
@@ -295,12 +319,16 @@ async def quick_upload(
         app = AppAsset(
             project_id=project_id,
             package_name=package_name or f"unknown.{upload_result['hash'][:8]}",
-            app_name=app_name,
+            app_name=parsed_name or alias or package_name or "未知应用",
+            app_alias=alias,
             app_type="android",
         )
         db.add(app)
         db.commit()
         db.refresh(app)
+    elif alias and app.app_alias != alias:
+        app.app_alias = alias
+        db.commit()
 
     # 4. 创建版本
     version = AppVersion(
@@ -323,6 +351,7 @@ async def quick_upload(
     return {"code": 0, "data": {
         "app_id": app.id,
         "app_name": app.app_name,
+        "app_alias": app.app_alias,
         "package_name": app.package_name,
         "version_id": version.id,
         "version_name": version.version_name,

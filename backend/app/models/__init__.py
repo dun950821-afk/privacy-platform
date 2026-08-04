@@ -67,6 +67,7 @@ class AppAsset(Base):
     project_id = Column(BigInteger, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     package_name = Column(String(255), nullable=False)
     app_name = Column(String(200), nullable=False)
+    app_alias = Column(String(200))
     app_type = Column(String(50), default="android")
     category = Column(String(100))
     department = Column(String(200))
@@ -102,7 +103,6 @@ class AppVersion(Base):
 
     app = relationship("AppAsset", back_populates="versions")
     tasks = relationship("DetectionTask", back_populates="app_version")
-    version_sdks = relationship("VersionSDK", back_populates="app_version", cascade="all, delete-orphan")
     __table_args__ = (
         Index("idx_app_versions_app", "app_id"),
         Index("idx_app_versions_sha", "sha256"),
@@ -214,7 +214,7 @@ class DetectionEvent(Base):
     data_type = Column(String(100))
     api = Column(String(500))
     caller = Column(String(500))
-    sdk_id = Column(BigInteger, ForeignKey("sdk_knowledge.id"))
+    sdk_id = Column(BigInteger, ForeignKey("privacy_kb.component.id"))
     trace_id = Column(String(100))
     value_fingerprint = Column(String(64))
     event_data = Column(JSONB, nullable=False, default=dict)
@@ -305,7 +305,7 @@ class Finding(Base):
     title = Column(String(500), nullable=False)
     description = Column(Text)
     data_type = Column(String(100))
-    sdk_id = Column(BigInteger, ForeignKey("sdk_knowledge.id"))
+    sdk_id = Column(BigInteger, ForeignKey("privacy_kb.component.id"))
     network_domain = Column(String(255))
     api_path = Column(String(500))
     remediation_advice = Column(Text)
@@ -346,52 +346,7 @@ class FindingEvent(Base):
     __table_args__ = (UniqueConstraint("finding_id", "event_id"),)
 
 
-# ============ SDK知识库 ============
-
-class SDKKnowledge(Base):
-    __tablename__ = "sdk_knowledge"
-    id = Column(BigInteger, primary_key=True)
-    sdk_uid = Column(String(50), unique=True, nullable=False)
-    name = Column(String(200), nullable=False)
-    vendor = Column(String(200))
-    category = Column(String(100))
-    official_url = Column(String(500))
-    privacy_policy_url = Column(String(500))
-    status = Column(String(20), default="active")
-    privacy_behaviors = Column(JSONB, default=list)
-    config_capabilities = Column(JSONB, default=dict)
-    description = Column(Text)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
-    updated_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
-
-    fingerprints = relationship("SDKFingerprint", back_populates="sdk", cascade="all, delete-orphan")
-
-
-class SDKFingerprint(Base):
-    __tablename__ = "sdk_fingerprints"
-    id = Column(BigInteger, primary_key=True)
-    sdk_id = Column(BigInteger, ForeignKey("sdk_knowledge.id", ondelete="CASCADE"), nullable=False)
-    fingerprint_type = Column(String(50), nullable=False)
-    fingerprint_value = Column(Text, nullable=False)
-    weight = Column(Float, default=1.0)
-    version_range = Column(String(100))
-    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
-
-    sdk = relationship("SDKKnowledge", back_populates="fingerprints")
-    __table_args__ = (Index("idx_sdk_fp_value", "fingerprint_value"),)
-
-
-class VersionSDK(Base):
-    __tablename__ = "version_sdks"
-    id = Column(BigInteger, primary_key=True)
-    app_version_id = Column(BigInteger, ForeignKey("app_versions.id", ondelete="CASCADE"), nullable=False)
-    sdk_id = Column(BigInteger, ForeignKey("sdk_knowledge.id"))
-    identified_at = Column(DateTime(timezone=True), default=utcnow)
-    confidence = Column(String(20), default="confirmed")
-    match_details = Column(JSONB)
-    __table_args__ = (UniqueConstraint("app_version_id", "sdk_id"),)
-
-    app_version = relationship("AppVersion", back_populates="version_sdks")
+# ============ SDK知识库(旧模型已迁移至 privacy_kb，见 app/models/kb.py) ============
 
 
 # ============ 整改与复测 ============
@@ -525,3 +480,7 @@ class EngineExecution(Base):
         Index("idx_engine_exec_engine", "engine_type"),
         Index("idx_engine_exec_status", "status"),
     )
+
+
+# 注册 privacy_kb / privacy_scan 模型（供 create_all 与查询使用）
+from app.models import kb  # noqa: F401,E402

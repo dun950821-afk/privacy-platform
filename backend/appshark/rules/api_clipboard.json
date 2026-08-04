@@ -1,0 +1,20 @@
+{
+  "Clipboard_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "Clipboard_APICall",
+      "detail": "读取剪贴板内容",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalClipboard_APICall",
+      "complianceCategoryDetail": "剪贴板信息_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<android.content.ClipboardManager: * getPrimaryClip(*)>": {},
+      "<android.content.ClipboardManager: * getPrimaryClipDescription(*)>": {},
+      "<android.content.ClipboardManager: * getText(*)>": {},
+      "<android.content.ClipData$Item: * getText(*)>": {},
+      "<android.text.ClipboardManager: * getText(*)>": {}
+    }
+  }
+}

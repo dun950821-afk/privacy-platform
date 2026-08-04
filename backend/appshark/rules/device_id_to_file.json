@@ -1,0 +1,38 @@
+{
+  "DeviceId_FileWrite": {
+    "SliceMode": true,
+    "traceDepth": 10,
+    "PrimTypeAsTaint": true,
+    "desc": {
+      "name": "DeviceId_FileWrite",
+      "detail": "设备标识符(IMEI/IMSI/OAID等)写入文件或SharedPreferences持久化",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalDeviceInformation_Persist",
+      "complianceCategoryDetail": "个人设备信息_持久化存储",
+      "level": "L3"
+    },
+    "source": {
+      "Return": [
+        "<android.telephony.TelephonyManager: * getDeviceId(*)>",
+        "<android.telephony.TelephonyManager: * getImei(*)>",
+        "<android.telephony.TelephonyManager: * getMeid(*)>",
+        "<android.telephony.TelephonyManager: * getSubscriberId(*)>",
+        "<android.telephony.TelephonyManager: * getLine1Number(*)>",
+        "<android.telephony.TelephonyManager: * getSimSerialNumber(*)>",
+        "<android.os.Build: * getSerial(*)>",
+        "<android.net.wifi.WifiInfo: * getMacAddress(*)>",
+        "<android.provider.Settings$Secure: * getString(*)>",
+        "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>",
+        "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>"
+      ],
+      "Field": [
+        "<android.os.Build: * SERIAL>"
+      ]
+    },
+    "sink": {
+      "<java.io.FileOutputStream: * write(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<java.io.FileWriter: * write(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.content.SharedPreferences$Editor: * putString(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] }
+    }
+  }
+}

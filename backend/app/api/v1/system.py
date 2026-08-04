@@ -18,7 +18,8 @@ def list_users(user: User = Depends(require_permission("system:user:read")),
     return {"code": 0, "data": [
         {"id": u.id, "username": u.username, "full_name": u.full_name,
          "email": u.email, "role": u.role, "status": u.status,
-         "last_login_at": str(u.last_login_at) if u.last_login_at else None} for u in users
+         "last_login_at": str(u.last_login_at) if u.last_login_at else None,
+         "created_at": str(u.created_at) if u.created_at else None} for u in users
     ]}
 
 
@@ -99,6 +100,7 @@ def list_audit_logs(page: int = 1, page_size: int = 50,
         "items": [{"id": a.id, "actor_name": a.actor_name, "action": a.action,
                    "target_type": a.target_type, "target_id": a.target_id,
                    "source_ip": a.source_ip, "request_id": a.request_id,
+                   "before_json": a.before_json, "after_json": a.after_json,
                    "created_at": str(a.created_at)} for a in items],
         "total": total, "page": page, "page_size": page_size
     }}
@@ -108,14 +110,50 @@ def list_audit_logs(page: int = 1, page_size: int = 50,
 @router.get("/dashboard")
 def system_dashboard(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from app.models import Project, AppAsset, DetectionTask, Finding
+    from sqlalchemy import func
+    from datetime import datetime, timezone, timedelta
+
+    # 严重度/状态分布（大小写不敏感）
+    severity_rows = db.query(func.lower(Finding.severity), func.count()) \
+        .group_by(func.lower(Finding.severity)).all()
+    finding_status_rows = db.query(Finding.status, func.count()) \
+        .group_by(Finding.status).all()
+    task_status_rows = db.query(DetectionTask.status, func.count()) \
+        .group_by(DetectionTask.status).all()
+
+    # 近30天任务趋势（缺失日期补0）
+    since = datetime.now(timezone.utc).date() - timedelta(days=29)
+    trend_rows = db.query(func.date(DetectionTask.created_at), func.count()) \
+        .filter(DetectionTask.created_at >= datetime.combine(since, datetime.min.time(), timezone.utc)) \
+        .group_by(func.date(DetectionTask.created_at)).all()
+    trend_map = {str(d): c for d, c in trend_rows}
+    task_trend = [{"date": str(since + timedelta(days=i)),
+                   "count": trend_map.get(str(since + timedelta(days=i)), 0)}
+                  for i in range(30)]
+
+    # 最新高风险未关闭问题
+    recent = db.query(Finding) \
+        .filter(func.lower(Finding.severity).in_(["critical", "high"]),
+                Finding.status != "closed") \
+        .order_by(Finding.created_at.desc()).limit(5).all()
+
     return {"code": 0, "data": {
         "project_count": db.query(Project).filter(Project.status == "active").count(),
         "app_count": db.query(AppAsset).count(),
         "task_count": db.query(DetectionTask).count(),
         "finding_count": db.query(Finding).count(),
-        "high_finding_count": db.query(Finding).filter(Finding.severity.in_(["critical", "high"])).count(),
+        "high_finding_count": db.query(Finding).filter(
+            func.lower(Finding.severity).in_(["critical", "high"])).count(),
         "node_count": db.query(AgentNode).filter(AgentNode.status == "online").count(),
-        "device_count": db.query(Device).count()
+        "device_count": db.query(Device).count(),
+        "severity_distribution": {k: v for k, v in severity_rows},
+        "finding_status_distribution": {k: v for k, v in finding_status_rows},
+        "task_status_distribution": {k: v for k, v in task_status_rows},
+        "task_trend": task_trend,
+        "recent_findings": [{
+            "id": f.id, "title": f.title, "severity": f.severity,
+            "status": f.status, "task_id": f.task_id,
+            "created_at": str(f.created_at)} for f in recent]
     }}
 
 

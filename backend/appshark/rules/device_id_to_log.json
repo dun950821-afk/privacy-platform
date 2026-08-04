@@ -1,0 +1,43 @@
+{
+  "DeviceId_Log": {
+    "SliceMode": true,
+    "traceDepth": 10,
+    "PrimTypeAsTaint": true,
+    "desc": {
+      "name": "DeviceId_Log",
+      "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalDeviceInformation_Log",
+      "complianceCategoryDetail": "个人设备信息_写入日志",
+      "level": "L3"
+    },
+    "source": {
+      "Return": [
+        "<android.telephony.TelephonyManager: * getDeviceId(*)>",
+        "<android.telephony.TelephonyManager: * getImei(*)>",
+        "<android.telephony.TelephonyManager: * getMeid(*)>",
+        "<android.telephony.TelephonyManager: * getSubscriberId(*)>",
+        "<android.telephony.TelephonyManager: * getLine1Number(*)>",
+        "<android.telephony.TelephonyManager: * getSimSerialNumber(*)>",
+        "<android.os.Build: * getSerial(*)>",
+        "<android.net.wifi.WifiInfo: * getMacAddress(*)>",
+        "<android.net.wifi.WifiInfo: * getSSID(*)>",
+        "<android.net.wifi.WifiInfo: * getBSSID(*)>",
+        "<android.provider.Settings$Secure: * getString(*)>",
+        "<android.provider.Settings$System: * getString(*)>",
+        "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>",
+        "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>"
+      ],
+      "Field": [
+        "<android.os.Build: * SERIAL>"
+      ]
+    },
+    "sink": {
+      "<android.util.Log: * d(*)>": { "TaintCheck": ["p*"] },
+      "<android.util.Log: * e(*)>": { "TaintCheck": ["p*"] },
+      "<android.util.Log: * i(*)>": { "TaintCheck": ["p*"] },
+      "<android.util.Log: * w(*)>": { "TaintCheck": ["p*"] },
+      "<android.util.Log: * v(*)>": { "TaintCheck": ["p*"] }
+    }
+  }
+}

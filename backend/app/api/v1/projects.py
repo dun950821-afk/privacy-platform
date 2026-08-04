@@ -33,7 +33,8 @@ def list_projects(page: int = 1, page_size: int = 20, request: Request = None,
     items = q.order_by(Project.created_at.desc()).offset((page-1)*page_size).limit(page_size).all()
     return {"code": 0, "data": {
         "items": [{"id": p.id, "name": p.name, "description": p.description,
-                    "status": p.status, "created_at": str(p.created_at)} for p in items],
+                    "status": p.status, "app_count": len(p.apps),
+                    "created_at": str(p.created_at)} for p in items],
         "total": total, "page": page, "page_size": page_size
     }}
 
@@ -71,12 +72,60 @@ def update_project(pid: int, req: ProjectUpdate,
 @router.delete("/{pid}")
 def delete_project(pid: int, user: User = Depends(require_permission("project:write")),
                   db: Session = Depends(get_db)):
+    """删除项目：级联删除 App、版本、检测任务、事件、问题、证据等全部关联数据及磁盘文件"""
+    from app.models import RetestRecord, AppVersion
+    from app.core.config import settings
+    from pathlib import Path
+    import shutil
+
     proj = db.query(Project).get(pid)
     if not proj:
         raise HTTPException(status_code=404, detail="项目不存在")
-    proj.status = "deleted"
+
+    # 运行中的任务禁止删除
+    RUNNING = ["queued", "running_static", "running_dynamic", "analyzing", "waiting_dynamic"]
+    tasks = db.query(DetectionTask).filter(DetectionTask.project_id == pid).all()
+    running = [t for t in tasks if t.status in RUNNING]
+    if running:
+        raise HTTPException(
+            status_code=400,
+            detail=f"存在 {len(running)} 个正在运行的检测任务，请先取消后再删除"
+        )
+
+    task_ids = [t.id for t in tasks]
+    app_count = db.query(AppAsset).filter(AppAsset.project_id == pid).count()
+
+    # 收集待清理的磁盘文件（任务证据目录 + APK安装包）
+    versions = db.query(AppVersion).join(AppAsset).filter(AppAsset.project_id == pid).all()
+    apk_paths = [v.artifact_path for v in versions if v.artifact_path]
+
+    # 复测记录无级联约束，先手动清理
+    if task_ids:
+        finding_ids = [row[0] for row in db.query(Finding.id).filter(
+            Finding.task_id.in_(task_ids)).all()]
+        db.query(RetestRecord).filter(
+            RetestRecord.retest_task_id.in_(task_ids) |
+            RetestRecord.original_finding_id.in_(finding_ids or [0])
+        ).delete(synchronize_session=False)
+        # 删除任务：数据库级联清理 子任务/场景/事件/问题/证据/引擎执行/关联表/整改记录
+        db.query(DetectionTask).filter(DetectionTask.id.in_(task_ids)) \
+            .delete(synchronize_session=False)
+
+    # 删除项目：级联 App资产/版本/隐私政策/项目成员
+    db.delete(proj)
     db.commit()
-    return {"code": 0, "message": "已删除"}
+
+    # 清理磁盘文件
+    for tid in task_ids:
+        shutil.rmtree(Path(settings.STORAGE_ROOT) / f"task_{tid}", ignore_errors=True)
+    for p in apk_paths:
+        try:
+            Path(p).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    return {"code": 0, "message": "已删除",
+            "data": {"task_count": len(task_ids), "app_count": app_count}}
 
 
 @router.get("/{pid}/members")
