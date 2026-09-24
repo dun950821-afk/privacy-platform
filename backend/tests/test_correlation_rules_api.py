@@ -37,6 +37,55 @@ def test_seed_is_idempotent(db):
         _delete_builtin_rule(db)
 
 
+def test_seed_database_wires_builtin_correlation_rule(db):
+    """`seed_database()` 必须调用关联规则种子，否则全新/已部署环境里关联静默失效。"""
+    from app.seed import seed_database
+    from app.services.correlation import load_active_rules
+
+    _delete_builtin_rule(db)
+    try:
+        seed_database()
+
+        row = db.execute(text(
+            "select status, current_version_id from rules where rule_key=:key"
+        ), {"key": BUILTIN_RULE_KEY}).first()
+        assert row is not None, "seed_database() 没有创建内置关联规则"
+        assert row.status == "active"
+        assert row.current_version_id is not None
+
+        # 关联链路不再空转：启用中的内置规则可被关联逻辑读到
+        active = load_active_rules(db)
+        assert [entry["rule"].rule_key for entry in active] == [BUILTIN_RULE_KEY]
+    finally:
+        # 断言失败也要把内置规则放回库中（幂等）
+        seed_correlation_rules(db)
+
+
+def test_preview_without_observations_writes_nothing(client, admin_headers, db):
+    """预览一个没有任何 Observation 的任务：不命中，且不写库。"""
+    rule_id = db.execute(text(
+        "select id from rules where rule_key=:key"), {"key": BUILTIN_RULE_KEY}).scalar()
+    assert rule_id is not None
+
+    missing_task_id = 999999
+    before = db.execute(text(
+        "select count(*) from platform_findings where task_id=:tid"), {"tid": missing_task_id}).scalar()
+
+    resp = client.post(f"/api/v1/correlation-rules/{rule_id}/preview", headers=admin_headers,
+                       json={"task_id": missing_task_id})
+    assert resp.status_code == 200
+
+    data = resp.json()["data"]
+    assert data["would_match"] is False
+    assert data["matched_observation_ids"] == []
+    assert data["writes"] is False
+
+    db.rollback()
+    after = db.execute(text(
+        "select count(*) from platform_findings where task_id=:tid"), {"tid": missing_task_id}).scalar()
+    assert after == before == 0
+
+
 def test_create_rule_validates_content(client, admin_headers, db):
     bad = {"rule_key": BAD_RULE_KEY, "name": "坏规则", "content": {"schema_version": "1.0"}}
     try:

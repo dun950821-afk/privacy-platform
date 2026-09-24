@@ -11,10 +11,11 @@
 3. [目录结构](#3-目录结构)
 4. [开发环境启动(本地)](#4-开发环境启动本地)
 5. [数据库说明(重要)](#5-数据库说明重要)
-6. [生产部署(Docker Compose)](#6-生产部署docker-compose)
-7. [常见问题排查](#7-常见问题排查)
-8. [默认账号与端口](#8-默认账号与端口)
-9. [详细设计文档](#9-详细设计文档)
+6. [关联规则(平台风险结论)](#6-关联规则平台风险结论)
+7. [生产部署(Docker Compose)](#7-生产部署docker-compose)
+8. [常见问题排查](#8-常见问题排查)
+9. [默认账号与端口](#9-默认账号与端口)
+10. [详细设计文档](#10-详细设计文档)
 
 ---
 
@@ -226,7 +227,7 @@ cd frontend
 npx vite --host 0.0.0.0 --port 5173
 ```
 
-前端通过 Vite 代理把 `/api`、`/agent` 请求转发到后端(vite.config.ts)。**注意:代理目标必须写 `http://127.0.0.1:8000` 而不是 `http://localhost:8000`**,否则 Vite 会把 localhost 解析成 IPv6 `::1`,而后端只监听 IPv4,导致页面所有接口报错(见 §7)。
+前端通过 Vite 代理把 `/api`、`/agent` 请求转发到后端(vite.config.ts)。**注意:代理目标必须写 `http://127.0.0.1:8000` 而不是 `http://localhost:8000`**,否则 Vite 会把 localhost 解析成 IPv6 `::1`,而后端只监听 IPv4,导致页面所有接口报错(见 §8)。
 
 ### 4.7 数据库初始化(仅限全新空库)
 
@@ -282,7 +283,80 @@ sudo -u postgres psql -c "CREATE DATABASE privacy_platform;"
 zcat backup/privacy_platform_20260804.sql.gz | sudo -u postgres psql -d privacy_platform
 ```
 
-## 6. 生产部署(Docker Compose)
+## 6. 关联规则(平台风险结论)
+
+关联规则把多个引擎的 Observation(观察事实)组合成一条平台风险结论(Platform Finding)。
+规则不是硬编码在代码里,而是存在数据库、可在界面维护、可版本化发布。
+
+### 6.1 规则存储位置
+
+| 项目 | 值 |
+|------|-----|
+| 存储表 | `rules` + `rule_versions`(复用合规规则表,不另建表) |
+| 区分方式 | `rules.category = 'correlation'` |
+| 规则内容 | `rule_versions.rule_content`(结构化 JSON:`match` 条件 + `produce` 结论 + `standards`) |
+| 生效条件 | `rules.status = 'active'` 且 `rules.current_version_id` 指向已发布版本 |
+| 内置规则 | `PRIVACY_CONTACTS_NETWORK`(通讯录信息网络传输),由 `backend/app/services/rule_seed.py` 提供 |
+
+内置规则由种子流程写入:`backend/app/seed.py::seed_database()` 会调用 `seed_correlation_rules(db)`
+(幂等,已存在同名 `rule_key` 则跳过)。因此**全新环境执行 §4.7 的 `init_db.py` 后关联规则即生效**,
+无需手工插入;已有规则的库重复执行也不会产生重复数据。
+
+管理界面:前端「知识库 → 关联规则」(`/correlation-rules`);接口见 `/api/v1/correlation-rules`。
+
+### 6.2 发布语义(重要)
+
+**保存即新版本,新版本默认不启用**:
+
+- `PUT /api/v1/correlation-rules/{id}/versions` 保存一个新版本后,该规则立即变为 `disabled`
+  (`current_version_id` 不指向新版本),关联逻辑随即跳过它 —— 必须显式发布才会生效。
+- `POST /api/v1/correlation-rules/{id}/versions/{vid}/publish` 发布指定版本,规则回到 `active`
+  并指向该版本。
+- `POST /api/v1/correlation-rules/{id}/disable` 停用规则,不会改动历史 Finding。
+
+规则被停用后**不会**产生新的 Platform Finding;已产生的历史 Finding 保留其生成时的
+`rule_snapshot`(规则内容快照)与 `correlation_rule_version`,结论可复现,不受后续改规则影响。
+
+### 6.3 预览用法
+
+预览只做「用当前启用版本对某个任务的 Observation 求值」,不在库里写任何数据
+(响应中的 `writes` 恒为 `false`,可用它做人工核对):
+
+```bash
+# 1. 登录拿 token
+TOKEN=$(curl -s -X POST http://127.0.0.1:8000/api/v1/auth/login \
+  -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin123"}' \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin)["data"]["access_token"])')
+
+# 2. 查看内置规则(拿到 id,状态应为 active)
+curl -s http://127.0.0.1:8000/api/v1/correlation-rules -H "Authorization: Bearer $TOKEN"
+
+# 3. 预览:某任务是否会命中该规则
+curl -s -X POST http://127.0.0.1:8000/api/v1/correlation-rules/<rule_id>/preview \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"task_id": <task_id>}'
+```
+
+返回 `would_match`、`matched_observation_ids`、`finding_code`、`existing_findings`、`writes`。
+
+### 6.4 回归测试
+
+规则的正反例 fixture 在 `backend/tests/fixtures/correlation/<rule_key>/{positive,negative}.json`
+(目录名对应 `rule_key`;`positive.json` 必须命中,`negative.json` 必须不命中)。新增内置规则时
+同步补 fixture:
+
+```bash
+cd backend && PYTHONPATH=. /tmp/venv/bin/pytest tests/test_correlation_fixtures.py -q
+```
+
+关联规则相关用例(校验/求值、种子接线、CRUD 与发布、预览不写库)一并跑:
+
+```bash
+cd backend && PYTHONPATH=. /tmp/venv/bin/pytest tests/test_rule_evaluator.py tests/test_correlation.py \
+  tests/test_correlation_rules_api.py tests/test_correlation_fixtures.py tests/test_finding_auto_trigger.py -q
+```
+
+## 7. 生产部署(Docker Compose)
 
 ```bash
 cd deploy
@@ -294,7 +368,7 @@ docker compose up -d --build
 - 数据卷:`pg_data`(数据库)、`evidence_data`(证据文件)
 - 首次部署后执行数据库初始化(见 §4.7),生产环境务必修改默认密码
 
-## 7. 常见问题排查
+## 8. 常见问题排查
 
 ### Q1: 页面一直报错,接口全部失败
 
@@ -327,7 +401,7 @@ ss -tlnp | grep -E ":8000|:5173|:5432|:6379"   # 查看占用
 
 种子数据未初始化:确认执行过 §4.7 的 `init_db.py`(会创建 `admin/admin123`)。
 
-## 8. 默认账号与端口
+## 9. 默认账号与端口
 
 | 项目 | 地址 / 账号 |
 |------|-------------|
@@ -338,7 +412,7 @@ ss -tlnp | grep -E ":8000|:5173|:5432|:6379"   # 查看占用
 | PostgreSQL | localhost:5432 (privacy/privacy123) |
 | Redis | localhost:6379 |
 
-## 9. 详细设计文档
+## 10. 详细设计文档
 
 见 `docs/` 目录:
 

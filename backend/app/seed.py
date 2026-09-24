@@ -4,6 +4,7 @@ from app.core.security import hash_password
 from app.models import (
     User, Rule, RuleVersion, SysDict
 )
+from app.services.rule_seed import seed_correlation_rules
 import json
 
 
@@ -313,6 +314,11 @@ def seed_database():
                 db.add(SysDict(dict_type=dtype, dict_key=dkey, dict_value=dvalue))
         db.commit()
         print(f"Seeded {len(SEED_DICTS)} dictionary entries")
+
+        # 内置关联规则（幂等：已存在 rule_key 则跳过）
+        created_correlation = seed_correlation_rules(db)
+        if created_correlation:
+            print(f"Seeded {created_correlation} correlation rule(s)")
 
         print("Database seed completed.")
     finally:
