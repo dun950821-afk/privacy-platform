@@ -117,7 +117,7 @@ finished_at
 - 引擎超时：终止当前引擎并按策略重试；
 - 任务超时：终止所有运行引擎，剩余 pending 标记 `skipped`。
 
-错误码分别为 `SCAN_TIMEOUT`、`ENGINE_TIMEOUT`、`TASK_TIMEOUT`。
+超时错误码统一为 `STAGE_TIMEOUT`、`ENGINE_TIMEOUT`、`TASK_TIMEOUT`；第三方服务自身报告的扫描超时使用 `PROVIDER_SCAN_TIMEOUT`。
 
 取消流程为 `canceling → Adapter.cancel() → 资源清理 → canceled`。取消后禁止写入事件和证据，但保留原始结果和日志。
 
@@ -146,7 +146,7 @@ ENGINE_UNREACHABLE ENGINE_AUTH_FAILED ENGINE_PERMISSION_DENIED
 FILE_NOT_FOUND FILE_INVALID FILE_TOO_LARGE FILE_UNREADABLE APK_PARSE_FAILED
 UPLOAD_FAILED SCAN_START_FAILED ENGINE_PROCESS_CRASHED SCAN_FAILED
 EMPTY_RESULT RESULT_PARSE_FAILED NORMALIZE_FAILED
-SCAN_TIMEOUT ENGINE_TIMEOUT TASK_TIMEOUT TASK_CANCELED CANCEL_FAILED
+STAGE_TIMEOUT ENGINE_TIMEOUT TASK_TIMEOUT PROVIDER_SCAN_TIMEOUT TASK_CANCELED CANCEL_FAILED
 ```
 
 重试以单个 `EngineExecution` 为单位，不重跑整个任务。自动重试最多三次，退避为 10 秒、30 秒、60 秒。网络不可达、上传失败、外部服务 5xx、扫描超时和进程崩溃通常可重试；认证、配置、文件格式和解析错误默认不可自动重试。
@@ -274,19 +274,211 @@ Redis Stream 继续负责任务入口，数据库 `EngineExecution` 是引擎状
 
 旧任务（如 task 64）的历史失败记录保留，不改写；新尝试单独创建并显示完整生命周期。
 
-## 10. 实施顺序
+## 10. V1.0 基础约束补充
+
+### 10.1 Lease、CAS 与 Worker 接管
+
+`EngineExecution` 增加执行租约字段：
 
 ```text
-1. 统一 Adapter 接口和错误对象
-2. 扩展 EngineExecution 状态字段并迁移
-3. 重构 Worker 生命周期
-4. 修复 MobSF 完整生命周期
-5. 隔离 AppShark 进程
-6. 强化 Androguard 事实提取
-7. 统一 Raw Result 和 Evidence
-8. 统一 Event/Finding 模型
-9. 引擎级重试和幂等
-10. 队列前端和时间线
-11. 并行执行和资源调度
-12. 监控、文档和完整验收
+worker_id
+lease_token
+lease_expires_at
+state_version
+heartbeat_at
+```
+
+Worker 不能仅依赖 Redis 消费组或内存状态获得执行权。领取执行记录时创建租约；所有状态、阶段、进度和结果更新都必须带 `id + state_version + lease_token` 条件：
+
+```sql
+UPDATE engine_executions
+SET status = :status,
+    stage = :stage,
+    state_version = state_version + 1
+WHERE id = :id
+  AND state_version = :expected_version
+  AND lease_token = :lease_token
+  AND lease_expires_at > :now;
+```
+
+更新影响行数为 0 时，Worker 视为已失去执行权，立即停止写状态、标准化结果和证据。Worker 崩溃后由恢复流程在租约过期后重新 Claim，旧 Worker 恢复时不能覆盖新 Worker 的终态。
+
+### 10.2 动态取消令牌
+
+`cancel_requested` 不能只作为创建 Context 时的布尔快照。Context 提供动态取消令牌或执行仓储查询：
+
+```python
+ctx.cancel_token.is_cancelled()
+# 或
+ctx.execution_repo.is_cancel_requested(ctx.execution_id)
+```
+
+Worker/Executor 必须在阶段切换、长时间轮询、AppShark 心跳和批量 normalize 前检查取消信号。数据库中的取消状态是事实来源。
+
+### 10.3 完整状态迁移表
+
+正式状态增加 `canceling`，并限制迁移：
+
+```text
+queued → preparing → validating → running → collecting → normalizing → completed
+
+任意非终止状态 → failed
+任意非终止状态 → timed_out
+任意非终止状态 → canceling → canceled
+```
+
+终止状态不可再次迁移。重试不执行 `failed → queued` 原地修改，而是创建新的 `EngineExecution` attempt。
+
+### 10.4 超时和重试定义
+
+阶段超时统一使用：
+
+```text
+STAGE_TIMEOUT
+ENGINE_TIMEOUT
+TASK_TIMEOUT
+PROVIDER_SCAN_TIMEOUT
+```
+
+第三方扫描服务自身报告的超时使用 `PROVIDER_SCAN_TIMEOUT`；某个 Adapter 阶段超时使用 `STAGE_TIMEOUT` 并记录具体 `stage`。
+
+配置统一使用 `max_attempts`，包含初始执行：
+
+```text
+max_attempts = 4  # 初始执行 + 最多 3 次重试
+```
+
+是否可重试由 `error_code + engine_type + stage` 联合决策。网络不可达、HTTP 502/503/504、网络超时和进程崩溃可以重试；AppShark 在相同资源和相同配置下的确定性超时默认不自动重试，人工重试时应允许提高资源或超时。
+
+### 10.5 带配置和作用域的 Fingerprint
+
+Fingerprint 的输入不是字符串拼接，而是 canonical JSON：
+
+```json
+{
+  "apk_sha256": "...",
+  "engine_type": "appshark",
+  "engine_version": "0.1.2",
+  "rule_pack_version": "2026.09",
+  "adapter_version": "2",
+  "normalized_config_hash": "...",
+  "cache_scope": "project:10"
+}
+```
+
+对 canonical serialization 后的 JSON 计算 SHA256。`normalized_config_hash` 包含影响结果的规则组、超时和引擎参数；API Key 等秘密不进入 fingerprint。缓存至少按租户或项目隔离，不能让不同租户读取同一 APK 的成功结果。
+
+### 10.6 三层结果模型
+
+结果模型正式调整为：
+
+```text
+Raw Artifact → Engine Observation → Platform Finding
+```
+
+`Engine Observation` 表示某个引擎观察到的证据，包含：
+
+```text
+observation_id
+execution_id
+engine_type
+observation_type
+rule_code
+severity
+confidence
+evidence_refs
+payload
+```
+
+`Platform Finding` 表示平台规则层合并后的风险结论。通过 `FindingObservationRelation` 关联多个 Observation，因此一个通讯录外传风险可以同时关联 Androguard 权限、AppShark 数据流和 MobSF Manifest 发现，不再强制一个 Finding 归属单一引擎。
+
+### 10.7 三态分析结论
+
+静态分析不能把运行时事实伪装成确定布尔值。以下属性使用 `true / false / unknown`，并附带来源、置信度和证据：
+
+```text
+third_party
+encrypted
+before_consent
+```
+
+例如 SDK 指纹可使 `third_party=true`，但仅看到 Crypto API 不足以证明数据在 Sink 前已加密；用户同意前行为通常只能标记为 `unknown`，除非有明确的控制流/运行时证据。
+
+### 10.8 ArtifactStore 与 Schema Version
+
+`raw_result_path` 仅作为兼容字段，不作为长期存储抽象。新增 `ArtifactStore` 接口，数据库保存：
+
+```text
+artifact_id
+artifact_uri
+sha256
+size
+content_type
+storage_backend
+retention_until
+```
+
+开发环境可使用 `file://`，后续可替换为 MinIO、S3 或 NAS。原始结果、Observation 和 Finding 增加 schema version：
+
+```text
+raw_schema_version
+observation_schema_version
+finding_schema_version
+parser_version
+```
+
+`finished_at` 是终止时间唯一事实字段；旧接口的 `completed_at` 由 Serializer 映射为 `finished_at`。`duration_ms` 优先由 `finished_at - started_at` 计算，避免两个时间字段漂移。
+
+### 10.9 MobSF provider 标识
+
+MobSF 返回的 `hash` 是 Provider 扫描标识，不是平台 APK 身份。平台必须分开保存：
+
+```text
+apk_sha256
+provider
+provider_scan_id
+provider_scan_hash
+```
+
+Adapter 同时兼容 `/scan` 同步返回完整 JSON 和返回处理中后通过 `poll()` 再 `collect()` 的模式。
+
+## 11. 实施顺序
+
+```text
+Phase 0.1 统一 Adapter 接口、Context、错误对象和状态迁移表
+Phase 0.2 EngineExecution 字段迁移、Lease/CAS、Cancellation Token、ArtifactStore 接口
+Phase 0.3 Engine Observation 三层模型、schema version、fingerprint 和作用域
+Phase 1.1 MobSF reference implementation：validate → upload → scan/poll → collect → normalize
+Phase 1.2 AppShark 独立进程、资源限制和生命周期
+Phase 1.3 Androguard 事实提取生命周期
+Phase 1.4 引擎级重试、取消、崩溃恢复和最小闭环验收
+Phase 2.1 三个引擎能力深化和规则分组
+Phase 2.2 Raw Artifact、Observation、Finding 去重合并和重新解析
+Phase 3.1 队列前端、时间线、错误诊断和人工引擎级重试
+Phase 3.2 并行执行、资源调度、优先级和监控
+```
+
+## 12. V1.0 验收矩阵
+
+至少覆盖：
+
+```text
+正常完成
+服务不可达
+API Key 错误
+APK 损坏
+HTTP 413
+MobSF 500
+MobSF 空结果
+JSON 解析失败
+Normalize 失败
+阶段/引擎/任务超时
+扫描中取消
+Worker kill -9 后租约接管
+Redis 重复投递
+相同 fingerprint 重复提交
+Raw Result 成功但 Parser 失败
+更换 Parser 后重新解析 Raw Result
+租约失效后旧 Worker CAS 更新失败
+不同项目/租户不能复用彼此缓存
 ```
