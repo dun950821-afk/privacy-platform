@@ -34,32 +34,45 @@ def _resolve_field(observation: dict, field: str):
     return observation.get(field)
 
 
+def _validate_standard_ids(standards: dict, key: str, pattern: re.Pattern, label: str) -> None:
+    values = standards.get(key)
+    if values is None:
+        return
+    _require(isinstance(values, (list, tuple)), f"{label} 标识必须是数组")
+    for value in values:
+        _require(isinstance(value, str) and bool(pattern.match(value)), f"{label} 标识格式错误: {value}")
+
+
 def validate_rule_content(content: dict) -> None:
     _require(isinstance(content, dict), "规则内容必须是对象")
     _require(content.get("schema_version") == "1.0", "不支持的 schema_version")
     match = content.get("match") or {}
-    _require(match.get("logic") in ALLOWED_LOGIC, "logic 只能是 all 或 any")
+    _require(isinstance(match, dict), "match 必须是对象")
+    logic = match.get("logic")
+    _require(isinstance(logic, str) and logic in ALLOWED_LOGIC, "logic 只能是 all 或 any")
     conditions = match.get("conditions") or []
+    _require(isinstance(conditions, list), "conditions 必须是数组")
     _require(len(conditions) > 0, "至少需要一个匹配条件")
     for condition in conditions:
+        _require(isinstance(condition, dict), "匹配条件必须是对象")
         operator = condition.get("operator")
-        _require(operator in ALLOWED_OPERATORS, f"不支持的操作符: {operator}")
+        _require(isinstance(operator, str) and operator in ALLOWED_OPERATORS, f"不支持的操作符: {operator}")
         field = condition.get("field")
-        _require(field in ALLOWED_FIELDS or _is_payload_field(field), f"不支持的字段: {field}")
+        _require(isinstance(field, str) and (field in ALLOWED_FIELDS or _is_payload_field(field)),
+                 f"不支持的字段: {field}")
         _require(bool(condition.get("observation_type")), "条件缺少 observation_type")
         if operator != "exists":
             _require(condition.get("value") not in (None, ""), "该操作符需要 value")
     produce = content.get("produce") or {}
+    _require(isinstance(produce, dict), "produce 必须是对象")
     _require(bool(FINDING_CODE_RE.match(str(produce.get("finding_code") or ""))), "finding_code 格式错误")
     _require(bool(produce.get("title")), "produce.title 不能为空")
     _require(bool(produce.get("category")), "produce.category 不能为空")
     standards = content.get("standards") or {}
-    for value in standards.get("masvs") or []:
-        _require(bool(MASVS_RE.match(value)), f"MASVS 标识格式错误: {value}")
-    for value in standards.get("maswe") or []:
-        _require(bool(MASWE_RE.match(value)), f"MASWE 标识格式错误: {value}")
-    for value in standards.get("mastg") or []:
-        _require(bool(MASTG_RE.match(value)), f"MASTG 标识格式错误: {value}")
+    _require(isinstance(standards, dict), "standards 必须是对象")
+    _validate_standard_ids(standards, "masvs", MASVS_RE, "MASVS")
+    _validate_standard_ids(standards, "maswe", MASWE_RE, "MASWE")
+    _validate_standard_ids(standards, "mastg", MASTG_RE, "MASTG")
 
 
 def _condition_matches(condition: dict, observation: dict) -> bool:

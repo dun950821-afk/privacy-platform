@@ -34,6 +34,56 @@ def test_rejects_malformed_maswe_id():
         validate_rule_content(bad)
 
 
+def test_rejects_non_string_logic():
+    bad = {**VALID, "match": {"logic": ["all"], "conditions": [VALID["match"]["conditions"][0]]}}
+    with pytest.raises(RuleValidationError):
+        validate_rule_content(bad)
+
+
+def test_rejects_non_dict_condition():
+    bad = {**VALID, "match": {"logic": "all", "conditions": ["a"]}}
+    with pytest.raises(RuleValidationError):
+        validate_rule_content(bad)
+
+
+def test_rejects_non_list_conditions():
+    bad = {**VALID, "match": {"logic": "all", "conditions": "nope"}}
+    with pytest.raises(RuleValidationError):
+        validate_rule_content(bad)
+
+
+def test_rejects_non_dict_match():
+    bad = {**VALID, "match": "nope"}
+    with pytest.raises(RuleValidationError):
+        validate_rule_content(bad)
+
+
+def test_rejects_non_string_standard_id():
+    for value in (1, None):
+        bad = {**VALID, "standards": {**VALID["standards"], "maswe": [value]}}
+        with pytest.raises(RuleValidationError):
+            validate_rule_content(bad)
+
+
+def test_rejects_non_sequence_standard_ids():
+    for value in (1, "MASWE-0001", {"MASWE-0001": 1}):
+        bad = {**VALID, "standards": {**VALID["standards"], "maswe": value}}
+        with pytest.raises(RuleValidationError):
+            validate_rule_content(bad)
+
+
+def test_accepts_tuple_standard_ids():
+    validate_rule_content({**VALID, "standards": {**VALID["standards"], "maswe": ("MASWE-0001",)}})
+
+
+def test_rejects_non_string_operator_and_field():
+    for key, value in (("operator", {}), ("field", [])):
+        condition = {**VALID["match"]["conditions"][0], key: value}
+        bad = {**VALID, "match": {"logic": "all", "conditions": [condition]}}
+        with pytest.raises(RuleValidationError):
+            validate_rule_content(bad)
+
+
 def test_all_logic_requires_every_condition():
     observations = [
         {"id": 1, "observation_type": "fact.permission", "subject": "android.permission.READ_CONTACTS", "payload": {}},
