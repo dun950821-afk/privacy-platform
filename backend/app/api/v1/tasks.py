@@ -352,11 +352,15 @@ def task_platform_findings(tid: int, user: User = Depends(get_current_user), db:
     rows = db.query(PlatformFinding).filter(PlatformFinding.task_id == tid).all()
     return {"code": 0, "data": {
         "items": [{
-            "id": f.id, "finding_code": f.finding_code, "title": f.title,
+            "id": f.id, "finding_uid": f.finding_uid, "finding_code": f.finding_code, "title": f.title,
             "category": f.category, "severity": f.severity, "confidence": f.confidence,
             "triage_status": f.triage_status, "baseline_state": f.baseline_state,
             "recommendation": f.recommendation, "observation_count": f.observation_count,
             "masvs_controls": f.masvs_controls, "maswe_ids": f.maswe_ids, "mastg_test_ids": f.mastg_test_ids,
+            # 历史结论可复现：结论 ID 与生成时的规则快照必须对外可见
+            "rule_snapshot": f.rule_snapshot,
+            "correlation_rule_id": f.correlation_rule_id,
+            "correlation_rule_version": f.correlation_rule_version,
             "schema_version": f.schema_version,
         } for f in rows],
         "total": len(rows),

@@ -16,49 +16,56 @@ def _delete_rule(db, rule_key):
     db.commit()
 
 
-def _delete_builtin_rule(db):
-    """删除内置规则及其版本，先删版本（引用 rules.id）再删规则。"""
-    db.execute(text("delete from rule_versions where rule_id in (select id from rules where rule_key=:key)"), {"key": BUILTIN_RULE_KEY})
-    db.execute(text("delete from rules where rule_key=:key"), {"key": BUILTIN_RULE_KEY})
-    db.commit()
+def _builtin_rule_rows(db):
+    """内置规则的行数与状态。测试只读取、不删除共享的内置规则行。"""
+    return db.execute(text(
+        "select id, status, current_version_id from rules where rule_key=:key"
+    ), {"key": BUILTIN_RULE_KEY}).all()
 
 
 def test_seed_is_idempotent(db):
-    _delete_builtin_rule(db)
-    try:
-        first = seed_correlation_rules(db)
-        second = seed_correlation_rules(db)
-        assert first == 1
-        assert second == 0
-        row = db.execute(text("select status, current_version_id from rules where rule_key='PRIVACY_CONTACTS_NETWORK'")).first()
-        assert row.status == "active"
-        assert row.current_version_id is not None
-    finally:
-        _delete_builtin_rule(db)
+    """种子幂等：先确保内置规则存在，再次调用不得新建、不得改变已有行。"""
+    seed_correlation_rules(db)
+
+    rows = _builtin_rule_rows(db)
+    assert len(rows) == 1, "内置规则必须唯一"
+    before = rows[0]
+
+    assert seed_correlation_rules(db) == 0
+
+    rows = _builtin_rule_rows(db)
+    assert len(rows) == 1
+    assert rows[0].id == before.id
+    assert rows[0].status == "active"
+    assert rows[0].current_version_id is not None
 
 
-def test_seed_database_wires_builtin_correlation_rule(db):
-    """`seed_database()` 必须调用关联规则种子，否则全新/已部署环境里关联静默失效。"""
-    from app.seed import seed_database
+def test_seed_database_wires_builtin_correlation_rule(db, monkeypatch):
+    """`seed_database()` 必须调用关联规则种子，否则全新/已部署环境里关联静默失效。
+
+    用间谍替换 `app.seed.seed_correlation_rules` 只观察调用，不改动共享的内置规则行。
+    """
+    import app.seed as seed_module
     from app.services.correlation import load_active_rules
 
-    _delete_builtin_rule(db)
-    try:
-        seed_database()
+    calls = []
+    real_seed = seed_module.seed_correlation_rules
 
-        row = db.execute(text(
-            "select status, current_version_id from rules where rule_key=:key"
-        ), {"key": BUILTIN_RULE_KEY}).first()
-        assert row is not None, "seed_database() 没有创建内置关联规则"
-        assert row.status == "active"
-        assert row.current_version_id is not None
+    def spy(session):
+        calls.append(session)
+        return real_seed(session)
 
-        # 关联链路不再空转：启用中的内置规则可被关联逻辑读到
-        active = load_active_rules(db)
-        assert [entry["rule"].rule_key for entry in active] == [BUILTIN_RULE_KEY]
-    finally:
-        # 断言失败也要把内置规则放回库中（幂等）
-        seed_correlation_rules(db)
+    monkeypatch.setattr(seed_module, "seed_correlation_rules", spy)
+    seed_module.seed_database()
+
+    assert len(calls) == 1, "seed_database() 没有调用 seed_correlation_rules()"
+
+    # 接线后关联链路不再空转：启用中的内置规则可被关联逻辑读到
+    row = _builtin_rule_rows(db)[0]
+    assert row.status == "active"
+    assert row.current_version_id is not None
+    active = load_active_rules(db)
+    assert [entry["rule"].rule_key for entry in active] == [BUILTIN_RULE_KEY]
 
 
 def test_preview_without_observations_writes_nothing(client, admin_headers, db):
