@@ -143,6 +143,25 @@ class RuleVersionCreate(BaseModel):
     changelog: Optional[str] = None
 
 
+# ============ 关联规则 ============
+
+class CorrelationRuleCreate(BaseModel):
+    rule_key: str
+    name: str
+    description: Optional[str] = None
+    content: dict
+
+
+class CorrelationRuleVersionCreate(BaseModel):
+    version: str
+    content: dict
+    changelog: Optional[str] = None
+
+
+class CorrelationRulePreview(BaseModel):
+    task_id: int
+
+
 # ============ SDK/组件知识库 (privacy_kb) ============
 
 class ComponentCreate(BaseModel):

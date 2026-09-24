@@ -57,6 +57,21 @@ def execution(db):
 
 
 @pytest.fixture
+def client():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    return TestClient(app)
+
+
+@pytest.fixture
+def admin_headers(client):
+    resp = client.post("/api/v1/auth/login",
+                       json={"username": "admin", "password": "admin123"})
+    token = resp.json()["data"]["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
 def expire_lease():
     from datetime import datetime, timedelta, timezone
 

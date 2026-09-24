@@ -12,6 +12,7 @@ from app.api.v1.reports import router as reports_router
 from app.api.v1.system import router as system_router
 from app.api.v1.engines import router as engines_router
 from app.api.v1.appshark_rules import router as appshark_rules_router
+from app.api.v1.correlation_rules import router as correlation_rules_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -26,3 +27,4 @@ api_router.include_router(reports_router)
 api_router.include_router(system_router)
 api_router.include_router(engines_router)
 api_router.include_router(appshark_rules_router)
+api_router.include_router(correlation_rules_router)
