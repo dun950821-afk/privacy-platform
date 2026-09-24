@@ -1,6 +1,6 @@
-from app.services.finding_service import generate_findings
+from app.services.finding_service import compute_finding_uid, generate_findings
 from app.services.rule_seed import seed_correlation_rules
-from app.models import EngineObservation, DetectionTask, SubTask, EngineExecution
+from app.models import EngineObservation, DetectionTask, SubTask, EngineExecution, PlatformFinding
 from app.core.security import generate_uid
 from sqlalchemy import text
 
@@ -33,6 +33,17 @@ def test_observations_produce_platform_finding(db):
     assert len(findings) == 1
     assert findings[0].finding_code == "PRIVACY_CONTACTS_NETWORK"
     assert findings[0].observation_count == 2
+
+    # 规则溯源字段必须真正落库：重新查询而不读内存对象
+    db.expire_all()
+    persisted = db.query(PlatformFinding).filter(PlatformFinding.task_id == task.id).one()
+    assert isinstance(persisted.finding_uid, str) and len(persisted.finding_uid) == 64
+    assert all(c in "0123456789abcdef" for c in persisted.finding_uid)
+    assert persisted.finding_uid == compute_finding_uid(persisted.finding_code, persisted.dedup_key)
+    assert isinstance(persisted.rule_snapshot, dict) and persisted.rule_snapshot
+    assert persisted.rule_snapshot["produce"]["finding_code"] == persisted.finding_code
+    assert persisted.correlation_rule_id
+    assert persisted.correlation_rule_version == "1.0"
 
     # 重复生成不应产生重复 Finding
     assert len(generate_findings(db, task.id)) == 1

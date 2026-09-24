@@ -1,11 +1,14 @@
 """跨引擎 Observation 关联和去重规则。"""
 from hashlib import sha256
 import json
+import logging
 
 from sqlalchemy.orm import Session
 
 from app.models import Rule, RuleVersion
-from app.services.rule_evaluator import evaluate_rule
+from app.services.rule_evaluator import RuleValidationError, evaluate_rule
+
+logger = logging.getLogger(__name__)
 
 
 def observation_dedup_key(observation: dict) -> str:
@@ -23,11 +26,21 @@ def load_active_rules(db: Session) -> list[dict]:
             for rule, version in rows]
 
 
+def _rule_label(entry: dict) -> str:
+    rule = entry.get("rule")
+    return str(getattr(rule, "rule_key", None) or getattr(rule, "id", "unknown"))
+
+
 def correlate(observations: list[dict], rules: list[dict]) -> list[dict]:
     findings = []
     for entry in rules:
         content = entry["content"]
-        matched = evaluate_rule(content, observations)
+        try:
+            matched = evaluate_rule(content, observations)
+        except RuleValidationError as exc:
+            # 单条规则内容非法只跳过该规则，不能让整个任务的关联结果为空
+            logger.warning(f"跳过无效关联规则 {_rule_label(entry)}: {exc}")
+            continue
         if not matched:
             continue
         produce = content.get("produce") or {}

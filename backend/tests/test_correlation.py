@@ -18,3 +18,12 @@ def test_correlation_requires_both_permission_and_flow():
 
 def test_dedup_key_is_stable():
     assert observation_dedup_key(CONTACTS_PERMISSION) == observation_dedup_key(CONTACTS_PERMISSION)
+
+
+def test_invalid_rule_does_not_suppress_other_rules():
+    """单条规则内容非法（如空 rule_content）时，其它规则仍应产出结论。"""
+    broken = {"rule": type("R", (), {"id": 9, "rule_key": "BROKEN"})(),
+              "version": type("V", (), {"version": "1.0"})(), "content": {}}
+    findings = correlate([CONTACTS_PERMISSION, CONTACTS_FLOW], [broken, *RULES])
+    assert len(findings) == 1
+    assert findings[0]["finding_code"] == "PRIVACY_CONTACTS_NETWORK"
