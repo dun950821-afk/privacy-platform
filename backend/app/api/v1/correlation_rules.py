@@ -97,8 +97,10 @@ def publish_correlation_version(rid: int, vid: int,
                                 user=Depends(require_permission("rule:publish")),
                                 db: Session = Depends(get_db)):
     rule = db.query(Rule).get(rid)
+    if not rule or rule.category != "correlation":
+        raise HTTPException(status_code=404, detail="规则不存在")
     version = db.query(RuleVersion).get(vid)
-    if not rule or not version or version.rule_id != rid:
+    if not version or version.rule_id != rid:
         raise HTTPException(status_code=404, detail="规则版本不存在")
     version.status = "published"
     version.published_by = user.id
@@ -131,7 +133,11 @@ def preview_correlation_rule(rid: int, req: CorrelationRulePreview,
     rows = db.query(EngineObservation).filter(EngineObservation.task_id == req.task_id).all()
     observations = [{"id": o.id, "observation_type": o.observation_type, "subject": o.subject,
                      "payload": o.payload or {}, "location": o.location} for o in rows]
-    matched = evaluate_rule(version.rule_content, observations) or []
+    try:
+        matched = evaluate_rule(version.rule_content, observations) or []
+    except RuleValidationError as exc:
+        # 库中存量内容可能非法，这属于客户端可见的校验失败，不能变成 500
+        raise HTTPException(status_code=422, detail=f"规则内容非法: {exc}")
     current = db.query(PlatformFinding).filter(
         PlatformFinding.task_id == req.task_id,
         PlatformFinding.correlation_rule_id == str(rule.id)).all()

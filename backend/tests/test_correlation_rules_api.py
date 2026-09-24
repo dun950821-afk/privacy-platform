@@ -5,6 +5,8 @@ BUILTIN_RULE_KEY = "PRIVACY_CONTACTS_NETWORK"
 LIFECYCLE_RULE_KEY = "TEST_LIFECYCLE"
 PREVIEW_RULE_KEY = "TEST_PREVIEW"
 BAD_RULE_KEY = "BAD_RULE"
+NON_CORRELATION_RULE_KEY = "TEST_NON_CORRELATION"
+INVALID_CONTENT_RULE_KEY = "TEST_INVALID_CONTENT"
 
 
 def _delete_rule(db, rule_key):
@@ -136,3 +138,63 @@ def test_preview_reports_match_and_writes_nothing(client, admin_headers, db, exe
         assert writes == [], f"预览接口不应写库，实际写操作: {statements}"
     finally:
         _delete_rule(db, PREVIEW_RULE_KEY)
+
+
+def test_publish_rejects_non_correlation_rule(client, admin_headers, db):
+    from app.models import Rule, RuleVersion
+
+    try:
+        rule = Rule(rule_key=NON_CORRELATION_RULE_KEY, name="非关联规则", category="consent",
+                    status="disabled")
+        db.add(rule)
+        db.flush()
+        current = RuleVersion(rule_id=rule.id, version="1.0", rule_content={"schema_version": "1.0"},
+                              changelog="", status="draft")
+        draft = RuleVersion(rule_id=rule.id, version="1.1", rule_content={"schema_version": "1.0"},
+                            changelog="", status="draft")
+        db.add_all([current, draft])
+        db.flush()
+        rule.current_version_id = current.id
+        db.commit()
+        rid, current_id, draft_id = rule.id, current.id, draft.id
+
+        resp = client.post(f"/api/v1/correlation-rules/{rid}/versions/{draft_id}/publish",
+                           headers=admin_headers)
+        assert resp.status_code == 404
+
+        # 非关联规则必须原封不动
+        db.expire_all()
+        persisted = db.query(Rule).get(rid)
+        assert persisted.status == "disabled"
+        assert persisted.current_version_id == current_id
+        assert db.query(RuleVersion).get(draft_id).status == "draft"
+    finally:
+        _delete_rule(db, NON_CORRELATION_RULE_KEY)
+
+
+def test_preview_rejects_invalid_stored_content(client, admin_headers, db, execution):
+    from app.models import RuleVersion
+
+    try:
+        content = dict(BUILTIN_CORRELATION_RULES[0]["content"])
+        content = {**content, "produce": {**content["produce"], "finding_code": "TEST_INVALID_CONTENT"}}
+        created = client.post("/api/v1/correlation-rules", headers=admin_headers, json={
+            "rule_key": INVALID_CONTENT_RULE_KEY, "name": "非法内容", "description": "", "content": content})
+        assert created.status_code == 200
+        rid = created.json()["data"]["id"]
+        vid = created.json()["data"]["version_id"]
+        published = client.post(f"/api/v1/correlation-rules/{rid}/versions/{vid}/publish",
+                                headers=admin_headers)
+        assert published.status_code == 200
+
+        # 绕过写接口的校验，模拟库里已存在的非法内容
+        db.query(RuleVersion).filter(RuleVersion.id == vid).update(
+            {"rule_content": {"schema_version": "1.0"}})
+        db.commit()
+
+        resp = client.post(f"/api/v1/correlation-rules/{rid}/preview", headers=admin_headers,
+                           json={"task_id": execution.task_id})
+        # 客户端可见的校验失败必须是 4xx，不能变成 500
+        assert resp.status_code == 422, resp.text
+    finally:
+        _delete_rule(db, INVALID_CONTENT_RULE_KEY)
