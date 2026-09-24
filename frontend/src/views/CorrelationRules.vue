@@ -375,7 +375,11 @@ let detailSeq = 0
 function openCreate() {
   isCreate.value = true
   ruleId.value = null
+  // 作废在途的详情/预览请求，并清掉它们的加载态，避免新建抽屉出现假加载
   detailSeq += 1
+  detailLoading.value = false
+  previewSeq += 1
+  previewing.value = false
   rule.value = {}
   basic.value = { rule_key: '', name: '', description: '' }
   form.value = emptyForm()
@@ -389,6 +393,9 @@ async function openDetail(row: CorrelationRuleSummary) {
   ruleId.value = row.id
   // 先用列表行占位，避免上一规则的详情与预览结果残留到新打开的抽屉
   rule.value = { ...row, versions: [] }
+  // 作废在途的预览请求，否则它的响应会落到新规则的抽屉里
+  previewSeq += 1
+  previewing.value = false
   previewTaskId.value = undefined
   previewResult.value = null
   drawerVisible.value = true
@@ -572,6 +579,8 @@ async function publishVersion(row: { id: number; version: string }) {
   try {
     await correlationRuleApi.publish(ruleId.value, row.id)
     ElMessage.success(`版本 ${row.version} 已发布`)
+    // 已发布内容可能已改变，之前的预览结果不再代表当前生效版本
+    previewResult.value = null
     await loadDetail(true)
     loadData()
   } finally {
@@ -605,17 +614,23 @@ async function disableRule() {
 const previewTaskId = ref<number | undefined>()
 const previewing = ref(false)
 const previewResult = ref<CorrelationRulePreviewResult | null>(null)
+/** 预览请求序号：丢弃被后一次预览或切换规则取代的过期响应 */
+let previewSeq = 0
 
 async function runPreview() {
   if (ruleId.value == null) return
   const taskId = Number(previewTaskId.value)
   if (!taskId || taskId <= 0) { ElMessage.warning('请输入有效的任务 ID'); return }
+  const seq = ++previewSeq
   previewing.value = true
+  // 先清空旧结果，避免请求期间还显示上一次的预览
+  previewResult.value = null
   try {
     const res = await correlationRuleApi.preview(ruleId.value, taskId)
+    if (seq !== previewSeq) return
     previewResult.value = res.data
   } finally {
-    previewing.value = false
+    if (seq === previewSeq) previewing.value = false
   }
 }
 
