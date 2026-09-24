@@ -581,6 +581,8 @@ class PlatformFinding(Base):
     correlation_rule_id = Column(String(120))
     correlation_rule_version = Column(String(30))
     dedup_key = Column(String(200), nullable=False)
+    finding_uid = Column(String(64))
+    rule_snapshot = Column(JSONB, default=dict)
     observation_count = Column(Integer, default=0)
     schema_version = Column(String(30), nullable=False, default="1.0")
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)

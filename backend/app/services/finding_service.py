@@ -1,4 +1,5 @@
 """从 Observation 生成 Platform Finding。"""
+import hashlib
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -6,6 +7,11 @@ from sqlalchemy.orm import Session
 from app.models import EngineObservation, FindingObservation, PlatformFinding
 from app.services.correlation import correlate
 from app.services.finding_baseline import apply_mas_mapping, baseline_state
+
+
+def compute_finding_uid(finding_code: str, dedup_key: str) -> str:
+    """逻辑结论 ID：同一结论重复计算保持稳定。"""
+    return hashlib.sha256(f"{finding_code}|{dedup_key}".encode()).hexdigest()
 
 
 def generate_findings(db: Session, task_id: int) -> list[PlatformFinding]:
