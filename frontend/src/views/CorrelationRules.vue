@@ -192,7 +192,7 @@
             type="info"
             :closable="false"
             class="mb12"
-            title="预览基于该规则已发布版本的内容做只读评估，不写库，也不会预览未保存的修改。"
+            title="预览基于该规则已发布版本的内容做只读评估，不会预览未保存的修改。"
           />
           <div class="preview-row">
             <el-input-number v-model="previewTaskId" :min="1" :controls="false" placeholder="任务 ID" style="width: 160px" />
@@ -220,7 +220,9 @@
             <el-descriptions-item label="该任务已有问题">
               {{ previewResult.existing_findings?.length ? previewResult.existing_findings.join(', ') : '无' }}
             </el-descriptions-item>
-            <el-descriptions-item label="是否写库">否（仅预览）</el-descriptions-item>
+            <el-descriptions-item label="是否写库">
+              {{ previewResult.writes ? '会写库' : '不会写库（仅预览）' }}
+            </el-descriptions-item>
           </el-descriptions>
         </template>
       </div>
@@ -367,9 +369,13 @@ const drawerTitle = computed(() =>
 
 const hasUnknownField = computed(() => form.value.conditions.some(c => !FIELD_OPTIONS.includes(c.field)))
 
+/** 详情请求序号：丢弃被后一次请求或新建操作取代的过期响应 */
+let detailSeq = 0
+
 function openCreate() {
   isCreate.value = true
   ruleId.value = null
+  detailSeq += 1
   rule.value = {}
   basic.value = { rule_key: '', name: '', description: '' }
   form.value = emptyForm()
@@ -381,6 +387,10 @@ function openCreate() {
 async function openDetail(row: CorrelationRuleSummary) {
   isCreate.value = false
   ruleId.value = row.id
+  // 先用列表行占位，避免上一规则的详情与预览结果残留到新打开的抽屉
+  rule.value = { ...row, versions: [] }
+  previewTaskId.value = undefined
+  previewResult.value = null
   drawerVisible.value = true
   await loadDetail()
 }
@@ -388,13 +398,15 @@ async function openDetail(row: CorrelationRuleSummary) {
 /** keepForm=true 时只刷新状态/版本/命中数，保留编辑器中的工作副本 */
 async function loadDetail(keepForm = false) {
   if (ruleId.value == null) return
+  const seq = ++detailSeq
   detailLoading.value = true
   try {
     const res = await correlationRuleApi.get(ruleId.value)
+    if (seq !== detailSeq) return
     rule.value = res.data || {}
     if (!keepForm) form.value = parseContent(rule.value.current_content)
   } finally {
-    detailLoading.value = false
+    if (seq === detailSeq) detailLoading.value = false
   }
 }
 
