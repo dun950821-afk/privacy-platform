@@ -1,0 +1,4 @@
+[
+  {"observation_type": "fact.permission", "subject": "android.permission.READ_CONTACTS", "payload": {}},
+  {"observation_type": "dataflow.privacy", "subject": "Contacts", "payload": {"sink": {"category": "log"}}}
+]
