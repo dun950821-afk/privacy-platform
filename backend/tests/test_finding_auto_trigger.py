@@ -1,4 +1,5 @@
 from app.services.finding_service import generate_findings
+from app.services.rule_seed import seed_correlation_rules
 from app.models import EngineObservation, DetectionTask, SubTask, EngineExecution
 from app.core.security import generate_uid
 from sqlalchemy import text
@@ -26,6 +27,7 @@ def test_observations_produce_platform_finding(db):
                              observation_type="dataflow.privacy", subject="Contacts",
                              payload={"sink": {"category": "network"}}, evidence_level="potential"))
     db.commit()
+    seed_correlation_rules(db)
 
     findings = generate_findings(db, task.id)
     assert len(findings) == 1

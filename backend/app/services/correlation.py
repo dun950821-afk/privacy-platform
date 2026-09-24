@@ -2,39 +2,53 @@
 from hashlib import sha256
 import json
 
-RULES = [
-    {
-        "id": "PRIVACY_CONTACTS_NETWORK",
-        "version": "1.0",
-        "required": {"fact.permission": "android.permission.READ_CONTACTS", "dataflow.privacy": "network"},
-        "finding_code": "PRIVACY_CONTACTS_NETWORK",
-        "category": "privacy",
-        "severity": "high",
-        "title": "通讯录信息存在潜在网络传输路径",
-        "recommendation": "确认用户授权和隐私政策披露，并对传输数据进行最小化和保护。",
-    },
-]
+from sqlalchemy.orm import Session
+
+from app.models import Rule, RuleVersion
+from app.services.rule_evaluator import evaluate_rule
 
 
 def observation_dedup_key(observation: dict) -> str:
-    payload = {"type": observation.get("observation_type"), "subject": observation.get("subject"), "payload": observation.get("payload")}
+    payload = {"type": observation.get("observation_type"), "subject": observation.get("subject"),
+               "payload": observation.get("payload")}
     return sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 
 
-def correlate(observations: list[dict]) -> list[dict]:
+def load_active_rules(db: Session) -> list[dict]:
+    """读取已发布的关联规则。"""
+    rows = db.query(Rule, RuleVersion).join(
+        RuleVersion, Rule.current_version_id == RuleVersion.id
+    ).filter(Rule.category == "correlation", Rule.status == "active").all()
+    return [{"rule": rule, "version": version, "content": version.rule_content or {}}
+            for rule, version in rows]
+
+
+def correlate(observations: list[dict], rules: list[dict]) -> list[dict]:
     findings = []
-    for rule in RULES:
-        matched = []
-        for required_type, value in rule["required"].items():
-            candidates = [o for o in observations if o.get("observation_type") == required_type]
-            if value == "network":
-                candidates = [o for o in candidates if "network" in str(o.get("payload", {})).lower() or "network" in str(o.get("subject", "")).lower()]
-            else:
-                candidates = [o for o in candidates if value in str(o.get("subject", "")) or value in str(o.get("payload", {}))]
-            if not candidates:
-                break
-            matched.extend(candidates)
-        else:
-            key = sha256((rule["finding_code"] + "|" + "|".join(str(o.get("id", observation_dedup_key(o))) for o in matched)).encode()).hexdigest()
-            findings.append({"finding_code": rule["finding_code"], "title": rule["title"], "category": rule["category"], "severity": rule["severity"], "recommendation": rule["recommendation"], "dedup_key": key, "observation_ids": [o.get("id") for o in matched if o.get("id")]})
+    for entry in rules:
+        content = entry["content"]
+        matched = evaluate_rule(content, observations)
+        if not matched:
+            continue
+        produce = content.get("produce") or {}
+        standards = content.get("standards") or {}
+        key = sha256((produce.get("finding_code", "") + "|" + "|".join(
+            str(o.get("id", observation_dedup_key(o))) for o in matched)).encode()).hexdigest()
+        findings.append({
+            "finding_code": produce.get("finding_code"),
+            "title": produce.get("title"),
+            "category": produce.get("category"),
+            "severity": produce.get("severity", "medium"),
+            "confidence": produce.get("confidence", "medium"),
+            "recommendation": produce.get("recommendation"),
+            "masvs_controls": standards.get("masvs", []),
+            "maswe_ids": standards.get("maswe", []),
+            "mastg_test_ids": standards.get("mastg", []),
+            "cwe_ids": standards.get("cwe", []),
+            "correlation_rule_id": str(entry["rule"].id),
+            "correlation_rule_version": entry["version"].version,
+            "rule_snapshot": content,
+            "dedup_key": key,
+            "observation_ids": [o.get("id") for o in matched if o.get("id")],
+        })
     return findings

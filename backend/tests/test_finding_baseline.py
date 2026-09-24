@@ -1,11 +1,4 @@
-from app.services.finding_baseline import apply_mas_mapping, baseline_state
-
-
-def test_mas_mapping_adds_standard_ids():
-    result = apply_mas_mapping({"finding_code": "PRIVACY_CONTACTS_NETWORK"})
-    assert result["masvs_controls"]
-    assert result["maswe_ids"]
-    assert result["mastg_test_ids"]
+from app.services.finding_baseline import baseline_state
 
 
 def test_baseline_states():
