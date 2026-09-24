@@ -43,18 +43,40 @@
           </div>
         </el-alert>
         <div class="engine-actions">
-          <el-button
-            size="small"
-            :icon="Monitor"
-            :loading="checkingType === e.engine_type"
-            @click="handleHealthCheck(e.engine_type)"
-          >环境检查</el-button>
+          <el-button size="small" @click="openConfig(e)">配置</el-button>
+          <el-button size="small" :icon="Monitor" :loading="checkingType === e.engine_type" @click="handleHealthCheck(e.engine_type)">环境检查</el-button>
+          <el-button size="small" link @click="showHelp(e)">说明</el-button>
         </div>
       </el-card>
     </div>
     <el-card v-else shadow="never">
       <EmptyBox description="暂无已注册引擎" />
     </el-card>
+
+    <el-drawer v-model="configVisible" :title="`${selectedEngine?.name || ''} 配置`" size="480px">
+      <el-alert v-if="selectedEngine" :title="selectedEngine.description || ''" type="info" :closable="false" show-icon />
+      <el-form v-loading="configLoading" label-position="top" class="config-form">
+        <el-form-item v-for="field in configFields" :key="field.key" :label="field.label" :required="field.required">
+          <el-input v-model="configForm[field.key]" :type="field.type === 'password' ? 'password' : 'text'" :placeholder="field.help" :disabled="field.readonly" />
+          <div class="field-help">{{ field.help }}</div>
+        </el-form-item>
+        <el-form-item v-for="field in secretFields" :key="field.key" :label="field.label">
+          <el-input v-model="secretForm[field.key]" type="password" show-password :placeholder="secretStatus[field.key]?.configured ? '已配置，留空保持原值' : field.help" />
+          <div class="field-help">{{ secretStatus[field.key]?.configured ? '已配置（不会回显明文）' : '未配置' }}</div>
+          <el-button v-if="secretStatus[field.key]?.configured" link type="danger" @click="clearSecret(field.key)">清除</el-button>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="resetConfig">重置默认值</el-button>
+        <el-button @click="configVisible = false">取消</el-button>
+        <el-button type="primary" :loading="configSaving" @click="saveCurrentConfig">保存配置</el-button>
+      </template>
+    </el-drawer>
+
+    <el-dialog v-model="helpVisible" :title="helpContent?.title || '引擎说明'" width="520px">
+      <p>{{ helpContent?.text || '暂无说明' }}</p>
+      <el-link v-if="helpContent?.docs_url" :href="helpContent.docs_url" target="_blank">查看官方文档</el-link>
+    </el-dialog>
 
     <div class="section-title">执行历史</div>
     <div class="filter-bar">
@@ -112,7 +134,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Histogram, CircleCheck, CircleClose, Timer, Monitor } from '@element-plus/icons-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/StatCard.vue'
@@ -135,6 +157,18 @@ const execPageSize = 20
 const execTotal = ref(0)
 const filterEngine = ref('')
 const filterStatus = ref('')
+const configVisible = ref(false)
+const configLoading = ref(false)
+const configSaving = ref(false)
+const selectedEngine = ref<any>(null)
+const configFields = ref<any[]>([])
+const secretFields = ref<any[]>([])
+const configForm = ref<Record<string, any>>({})
+const secretForm = ref<Record<string, string>>({})
+const secretStatus = ref<Record<string, any>>({})
+const clearSecrets = ref<string[]>([])
+const helpVisible = ref(false)
+const helpContent = ref<any>(null)
 
 const successCount = computed(() => {
   const s = stats.value.by_status || {}
@@ -190,6 +224,56 @@ async function loadExecutions() {
   }
 }
 
+function showHelp(engine: any) {
+  helpContent.value = engine.help || { title: `${engine.name} 说明`, text: engine.install_guide }
+  helpVisible.value = true
+}
+
+async function openConfig(engine: any) {
+  selectedEngine.value = engine
+  configVisible.value = true
+  configLoading.value = true
+  try {
+    const res: any = await engineApi.getConfig(engine.engine_type)
+    const d = res.data
+    configFields.value = d.fields || []
+    secretFields.value = d.secret_fields || []
+    configForm.value = { ...(d.config || {}) }
+    secretForm.value = {}
+    secretStatus.value = d.secrets || {}
+    clearSecrets.value = []
+  } finally {
+    configLoading.value = false
+  }
+}
+
+function clearSecret(key: string) {
+  secretForm.value[key] = ''
+  if (!clearSecrets.value.includes(key)) clearSecrets.value.push(key)
+}
+
+async function saveCurrentConfig() {
+  if (!selectedEngine.value) return
+  configSaving.value = true
+  try {
+    await engineApi.saveConfig(selectedEngine.value.engine_type, { config: configForm.value, secrets: secretForm.value, clear_secrets: clearSecrets.value })
+    ElMessage.success('配置已保存')
+    configVisible.value = false
+    await loadEngines()
+  } finally {
+    configSaving.value = false
+  }
+}
+
+async function resetConfig() {
+  if (!selectedEngine.value) return
+  await ElMessageBox.confirm('确定恢复该引擎默认配置吗？', '确认操作', { type: 'warning' })
+  await engineApi.resetConfig(selectedEngine.value.engine_type)
+  ElMessage.success('已恢复默认配置')
+  await openConfig(selectedEngine.value)
+  await loadEngines()
+}
+
 function onFilter() {
   execPage.value = 1
   loadExecutions()
@@ -200,12 +284,9 @@ async function handleHealthCheck(engineType: string) {
   try {
     const res: any = await engineApi.healthCheck(engineType)
     const d = res.data
-    if (d.env_ready) {
-      ElMessage.success(`${d.name}: 环境就绪`)
-    } else {
-      ElMessage.warning(`${d.name}: 环境未配置`)
-    }
-    loadEngines()
+    if (d.env_ready) ElMessage.success(`${d.name}: 环境就绪`)
+    else ElMessage.warning(`${d.name}: ${d.message || '环境未配置'}`)
+    await loadEngines()
   } finally {
     checkingType.value = ''
   }
@@ -275,8 +356,12 @@ onMounted(loadAll)
   font-size: 12px;
   word-break: break-all;
 }
-.engine-actions {
-  display: flex;
-  justify-content: flex-end;
+.field-help {
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.config-form {
+  margin-top: 16px;
 }
 </style>

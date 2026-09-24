@@ -96,7 +96,7 @@ ROLE_PERMISSIONS = {
         "finding:read",
         "report:read",
         "sdk:read", "rule:read",
-        "system:audit:read",
+        "system:audit:read", "engine:read", "engine:health-check",
     },
 }
 

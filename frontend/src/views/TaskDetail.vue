@@ -142,6 +142,22 @@
           </el-table>
         </el-tab-pane>
 
+        <!-- ②.5 引擎队列 -->
+        <el-tab-pane :label="`引擎队列 (${engineQueue.items?.length || 0})`" name="engine_queue">
+          <el-timeline v-if="engineQueue.items?.length">
+            <el-timeline-item v-for="item in engineQueue.items" :key="item.id" :type="engineStatusType(item.status)" :timestamp="fmtDateTime(item.started_at || item.completed_at)">
+              <strong>{{ item.engine_name }}</strong>
+              <span class="sub-text"> · {{ engineStatusLabel(item.status) }} · {{ item.stage_message || item.stage || '-' }}</span>
+              <el-progress v-if="item.progress != null" :percentage="item.progress" :stroke-width="6" />
+              <div v-if="item.error_message" class="error-text">{{ item.error_message }}</div>
+              <div v-if="item.error_code" class="sub-text">错误码：{{ item.error_code }} · 可重试：{{ item.retryable ? '是' : '否' }}</div>
+              <el-button v-if="canRetryEngine(item)" size="small" type="warning" plain
+                         :loading="retryingId === item.id" @click="handleEngineRetry(item)">重新执行本引擎</el-button>
+            </el-timeline-item>
+          </el-timeline>
+          <EmptyBox v-else description="暂无引擎执行记录" />
+        </el-tab-pane>
+
         <!-- ③ 事件流 -->
         <el-tab-pane :label="`事件流 (${eventTotal})`" name="events">
           <div class="filter-bar">
@@ -679,6 +695,7 @@ import api from '@/api'
 import { taskApi } from '@/api/tasks'
 import { reportApi } from '@/api/reports'
 import { sdkApi } from '@/api/sdks'
+import { engineApi } from '@/api/engines'
 import { fmtDateTime, fmtDateTimeFull, fmtSize } from '@/utils/format'
 import {
   dictLabel, TASK_STATUS, EXEC_STATUS, SEVERITY, FINDING_STATUS,
@@ -696,6 +713,25 @@ const activeTab = ref('subtasks')
 
 const task = ref<any>({})
 const subTasks = computed<any[]>(() => task.value.sub_tasks || [])
+const engineQueue = computed<any>(() => task.value.engine_queue || { items: [] })
+const retryingId = ref<number | null>(null)
+const ENGINE_RETRYABLE = ['failed', 'timed_out', 'canceled']
+function canRetryEngine(item: any) {
+  return ENGINE_RETRYABLE.includes(item.status) && item.retryable
+}
+async function handleEngineRetry(item: any) {
+  retryingId.value = item.id
+  try {
+    await engineApi.retryExecution(item.id)
+    ElMessage.success(`已重新排队：${item.engine_name}`)
+    await loadTask()
+  } finally {
+    retryingId.value = null
+  }
+}
+const engineStatusLabel = (status: string) => ({ pending: '等待执行', running: '执行中', completed: '已完成', failed: '失败', canceled: '已取消' }[status] || status)
+const engineStatusType = (status: string) => ({ pending: 'info', running: 'primary', completed: 'success', failed: 'danger', canceled: 'warning' }[status] || 'info') as any
+
 const scenarios = ref<any[]>([])
 const events = ref<any[]>([])
 const eventPage = ref(1)

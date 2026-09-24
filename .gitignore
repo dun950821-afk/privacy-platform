@@ -43,3 +43,7 @@ data/pgdata/
 # Temp
 /tmp/
 *.tmp
+
+# Runtime output
+backend/out/
+.superpowers/

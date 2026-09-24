@@ -461,18 +461,48 @@ class EngineExecution(Base):
     engine_version = Column(String(50))
     node_id = Column(BigInteger, ForeignKey("agent_nodes.id"))
     status = Column(String(30), nullable=False, default="pending")
-    # pending/running/completed/failed/canceled
-    stage = Column(String(50))  # prepare/execute/normalize/cleanup
+    # queued/preparing/validating/running/collecting/normalizing/canceling/completed/failed/timed_out/canceled/skipped
+    stage = Column(String(80))
+    stage_message = Column(Text)
+    progress = Column(Integer)
     config_json = Column(JSONB, default=dict)
     result_summary = Column(JSONB, default=dict)
+    error_code = Column(String(60))
+    error_message = Column(Text)
+    debug_message = Column(Text)
+    retryable = Column(Boolean, default=False)
+    provider_status = Column(Integer)
+    queued_at = Column(DateTime(timezone=True))
+    stage_changed_at = Column(DateTime(timezone=True))
+    heartbeat_at = Column(DateTime(timezone=True))
+    finished_at = Column(DateTime(timezone=True))
+    worker_id = Column(String(120))
+    lease_token = Column(String(120))
+    lease_expires_at = Column(DateTime(timezone=True))
+    state_version = Column(Integer, nullable=False, default=0)
+    attempt_no = Column(Integer, nullable=False, default=1)
+    parent_execution_id = Column(BigInteger, ForeignKey("engine_executions.id"))
+    is_latest = Column(Boolean, nullable=False, default=True)
+    execution_fingerprint = Column(String(64))
+    cache_scope = Column(String(200))
+    cancel_requested = Column(Boolean, nullable=False, default=False)
+    provider_scan_id = Column(String(200))
+    provider_scan_hash = Column(String(200))
+    raw_result_hash = Column(String(64))
+    raw_result_size = Column(BigInteger)
+    parser_version = Column(String(50))
+    parser_status = Column(String(30))
+    parser_error = Column(Text)
+    normalized_at = Column(DateTime(timezone=True))
+    normalized_event_count = Column(Integer, default=0)
+    normalized_finding_count = Column(Integer, default=0)
     # {events_count, artifacts_count, findings_count, duration_seconds}
     event_count = Column(Integer, default=0)
     artifact_count = Column(Integer, default=0)
-    error_message = Column(Text)
     log_path = Column(String(500))
     raw_output_path = Column(String(500))
     started_at = Column(DateTime(timezone=True))
-    completed_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))  # compatibility alias of finished_at
     duration_ms = Column(Integer)  # 执行耗时(毫秒)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     __table_args__ = (
@@ -480,6 +510,108 @@ class EngineExecution(Base):
         Index("idx_engine_exec_engine", "engine_type"),
         Index("idx_engine_exec_status", "status"),
     )
+
+
+class EngineArtifact(Base):
+    """引擎原始输出或日志制品。"""
+    __tablename__ = "engine_artifacts"
+    id = Column(BigInteger, primary_key=True)
+    execution_id = Column(BigInteger, ForeignKey("engine_executions.id", ondelete="CASCADE"), nullable=False)
+    artifact_type = Column(String(60), nullable=False)
+    artifact_uri = Column(String(1000), nullable=False)
+    sha256 = Column(String(64), nullable=False)
+    size = Column(BigInteger, nullable=False, default=0)
+    content_type = Column(String(200))
+    storage_backend = Column(String(40), nullable=False, default="local")
+    schema_version = Column(String(30))
+    metadata_json = Column(JSONB, default=dict)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (Index("idx_engine_artifact_execution", "execution_id"),)
+
+
+class EngineObservation(Base):
+    """从引擎原始结果解析出的客观观察。"""
+    __tablename__ = "engine_observations"
+    id = Column(BigInteger, primary_key=True)
+    task_id = Column(BigInteger, ForeignKey("detection_tasks.id", ondelete="CASCADE"), nullable=False)
+    execution_id = Column(BigInteger, ForeignKey("engine_executions.id", ondelete="CASCADE"), nullable=False)
+    engine_type = Column(String(50), nullable=False)
+    observation_type = Column(String(80), nullable=False)
+    category = Column(String(80))
+    rule_code = Column(String(120))
+    rule_version = Column(String(30))
+    severity = Column(String(30))
+    confidence = Column(String(30))
+    evidence_level = Column(String(30), nullable=False, default="observed")
+    subject = Column(String(500))
+    location = Column(String(500))
+    fingerprint = Column(String(64))
+    evidence_refs = Column(JSONB, default=list)
+    payload = Column(JSONB, default=dict)
+    schema_version = Column(String(30), nullable=False, default="1.0")
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (Index("idx_engine_observation_task", "task_id"), Index("idx_engine_observation_execution", "execution_id"))
+
+
+class FindingObservationRelation(Base):
+    __tablename__ = "finding_observation_relations"
+    finding_id = Column(BigInteger, ForeignKey("findings.id", ondelete="CASCADE"), primary_key=True)
+    observation_id = Column(BigInteger, ForeignKey("engine_observations.id", ondelete="CASCADE"), primary_key=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+class PlatformFinding(Base):
+    """平台规则层生成的统一风险结论。"""
+    __tablename__ = "platform_findings"
+    id = Column(BigInteger, primary_key=True)
+    task_id = Column(BigInteger, ForeignKey("detection_tasks.id", ondelete="CASCADE"), nullable=False)
+    finding_code = Column(String(120), nullable=False)
+    title = Column(String(300), nullable=False)
+    category = Column(String(80), nullable=False)
+    subcategory = Column(String(80))
+    severity = Column(String(30), nullable=False, default="medium")
+    confidence = Column(String(30), nullable=False, default="medium")
+    triage_status = Column(String(30), nullable=False, default="needs_review")
+    baseline_state = Column(String(30), nullable=False, default="new")
+    description = Column(Text)
+    impact = Column(Text)
+    recommendation = Column(Text)
+    masvs_controls = Column(JSONB, default=list)
+    maswe_ids = Column(JSONB, default=list)
+    mastg_test_ids = Column(JSONB, default=list)
+    cwe_ids = Column(JSONB, default=list)
+    correlation_rule_id = Column(String(120))
+    correlation_rule_version = Column(String(30))
+    dedup_key = Column(String(200), nullable=False)
+    observation_count = Column(Integer, default=0)
+    schema_version = Column(String(30), nullable=False, default="1.0")
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+    __table_args__ = (Index("idx_platform_finding_task", "task_id"), Index("idx_platform_finding_dedup", "task_id", "dedup_key"))
+
+
+class FindingObservation(Base):
+    __tablename__ = "finding_observations"
+    finding_id = Column(BigInteger, ForeignKey("platform_findings.id", ondelete="CASCADE"), primary_key=True)
+    observation_id = Column(BigInteger, ForeignKey("engine_observations.id", ondelete="CASCADE"), primary_key=True)
+    relation_type = Column(String(40), nullable=False, default="evidence")
+    weight = Column(Float, default=1.0)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+
+class EngineConfig(Base):
+    """全局检测引擎配置，敏感字段独立加密保存。"""
+    __tablename__ = "engine_configs"
+    id = Column(BigInteger, primary_key=True)
+    engine_type = Column(String(50), nullable=False, unique=True)
+    config_json = Column(JSONB, nullable=False, default=dict)
+    secret_json = Column(JSONB, nullable=False, default=dict)
+    enabled = Column(Boolean, nullable=False, default=True)
+    last_health_status = Column(String(30))
+    last_health_message = Column(Text)
+    last_checked_at = Column(DateTime(timezone=True))
+    updated_by = Column(BigInteger, ForeignKey("users.id"))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
+    __table_args__ = (Index("idx_engine_config_health", "last_health_status"),)
 
 
 # 注册 privacy_kb / privacy_scan 模型（供 create_all 与查询使用）

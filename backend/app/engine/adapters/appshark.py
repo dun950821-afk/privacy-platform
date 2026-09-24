@@ -20,8 +20,18 @@ from typing import Any
 
 from app.core.config import settings
 from app.engine.base import EngineAdapter, TaskContext, AdapterResult
+from app.engine.runners.appshark_executor import AppSharkExecutor
+from app.engine.runners.appshark_rules import resolve_rule_groups
 
 logger = logging.getLogger(__name__)
+
+
+def _read_text(path: str, limit: int = 20000) -> str:
+    try:
+        with open(path, errors="ignore") as f:
+            return f.read(limit)
+    except OSError:
+        return ""
 
 APPSHARK_JAR = os.environ.get("APPSHARK_JAR", "/opt/appshark/AppShark-0.1.2-all.jar")
 APPSHARK_HOME = os.environ.get("APPSHARK_HOME", "/opt/appshark")
@@ -70,9 +80,15 @@ def _java_major_version(java_bin: str) -> int:
 class AppSharkAdapter(EngineAdapter):
     """AppShark适配器: 污点分析/隐私合规数据流"""
 
-    def __init__(self):
+    def __init__(self, config: dict | None = None):
+        config = config or {}
         self._artifacts = []
-        self._java = _find_java11()
+        self._java = config.get("java_path") or _find_java11()
+        self.jar_path = config.get("jar_path") or APPSHARK_JAR
+        self.home_path = config.get("home_path") or APPSHARK_HOME
+        self.sdk_path = config.get("sdk_path") or APPSHARK_SDK_PATH
+        self.rule_dir = config.get("rule_dir") or APPSHARK_RULE_DIR
+        self.java_opts = str(config.get("java_opts", " ".join(APPSHARK_JAVA_OPTS))).split()
 
     def get_capabilities(self) -> list[str]:
         return ["DATA_FLOW", "TAINT_ANALYSIS"]
@@ -82,17 +98,17 @@ class AppSharkAdapter(EngineAdapter):
         if _java_major_version(self._java) < 11:
             logger.warning(f"AppShark requires JRE 11+, got: {self._java}")
             return False
-        if not os.path.isfile(APPSHARK_JAR):
-            logger.warning(f"AppShark jar not found: {APPSHARK_JAR}")
+        if not os.path.isfile(self.jar_path):
+            logger.warning(f"AppShark jar not found: {self.jar_path}")
             return False
-        if not os.path.isfile(os.path.join(APPSHARK_HOME, "config", "EngineConfig.json5")):
-            logger.warning(f"EngineConfig.json5 not found under {APPSHARK_HOME}/config")
+        if not os.path.isfile(os.path.join(self.home_path, "config", "EngineConfig.json5")):
+            logger.warning(f"EngineConfig.json5 not found under {self.home_path}/config")
             return False
-        if not glob.glob(os.path.join(APPSHARK_SDK_PATH, "android-*", "android.jar")):
-            logger.warning(f"No android platform jars found in {APPSHARK_SDK_PATH}")
+        if not glob.glob(os.path.join(self.sdk_path, "android-*", "android.jar")):
+            logger.warning(f"No android platform jars found in {self.sdk_path}")
             return False
-        if not glob.glob(os.path.join(APPSHARK_RULE_DIR, "*.json")):
-            logger.warning(f"No rule files found in {APPSHARK_RULE_DIR}")
+        if not glob.glob(os.path.join(self.rule_dir, "*.json")):
+            logger.warning(f"No rule files found in {self.rule_dir}")
             return False
         return True
 
@@ -102,15 +118,19 @@ class AppSharkAdapter(EngineAdapter):
 
     async def execute(self, ctx: TaskContext) -> AdapterResult:
         out_dir = f"/tmp/appshark_out_{ctx.task_id}"
-        rule_files = sorted(os.path.basename(p)
-                            for p in glob.glob(os.path.join(APPSHARK_RULE_DIR, "*.json")))
+        stages = ["appshark_preparing"]
+        # 平台规则组映射到已验证的规则文件；未指定时使用目录下全部规则
+        rule_files = resolve_rule_groups(self.rule_dir, ctx.config.get("rule_groups"))
+        if not rule_files:
+            rule_files = sorted(os.path.basename(p)
+                                for p in glob.glob(os.path.join(self.rule_dir, "*.json")))
 
         # config.json5: JSON 是 JSON5 的子集, 直接写 JSON 即可
         config = {
             "apkPath": ctx.apk_path,
             "out": out_dir,
             "rules": ",".join(rule_files),
-            "rulePath": APPSHARK_RULE_DIR,
+            "rulePath": self.rule_dir,
             "logLevel": ctx.config.get("appshark_log_level", 1),
             "maxThread": min(os.cpu_count() or 2, 8),
             "maxPointerAnalyzeTime": ctx.config.get("appshark_pointer_timeout", 300),
@@ -130,13 +150,16 @@ class AppSharkAdapter(EngineAdapter):
         with open(config_path, "w") as f:
             json.dump(config, f, indent=2)
 
+        stages.append("appshark_analyzing")
+        executor = AppSharkExecutor(
+            java_path=self._java, jar_path=self.jar_path,
+            home_path=self.home_path, java_opts=self.java_opts,
+        )
         try:
-            proc = subprocess.run(
-                [self._java, *APPSHARK_JAVA_OPTS, "-jar", APPSHARK_JAR, config_path],
-                capture_output=True, text=True,
-                cwd=APPSHARK_HOME,
-                timeout=ctx.config.get("appshark_timeout", 1800),
-            )
+            proc = executor.run(config_path, out_dir, timeout=ctx.config.get("appshark_timeout", 1800))
+            stages.append("appshark_persisting")
+            stdout_text = _read_text(proc.stdout_path)
+            stderr_text = _read_text(proc.stderr_path)
 
             # 完整保留原始输出目录(results.json/profile.json/vuln HTML/运行日志),
             # /tmp 会被清理, 复制到证据存储下, 供审计和二次分析
@@ -146,13 +169,14 @@ class AppSharkAdapter(EngineAdapter):
             if not os.path.exists(result_file):
                 # AppShark 崩溃时退出码也是 0, 需检查 stdout 和日志里的异常
                 crash = self._find_log_exception(saved_dir) \
-                    or self._extract_exception(proc.stdout or "") \
-                    or self._extract_exception(proc.stderr or "")
+                    or self._extract_exception(stdout_text) \
+                    or self._extract_exception(stderr_text)
                 if crash:
-                    return AdapterResult(success=False, error=f"AppShark 执行异常: {crash}")
+                    return AdapterResult(success=False, error=f"AppShark 执行异常: {crash}", stage_events=stages)
                 return AdapterResult(
                     success=True,
                     summary={"vulnerability_count": 0},
+                    stage_events=stages,
                 )
 
             with open(result_file) as f:
@@ -162,6 +186,10 @@ class AppSharkAdapter(EngineAdapter):
             profile_file = os.path.join(saved_dir, "profile.json")
             if os.path.exists(profile_file):
                 self._artifacts.append({"path": profile_file, "type": "engine_output"})
+            for log_name in ("stdout.log", "stderr.log"):
+                log_file = os.path.join(saved_dir, log_name)
+                if os.path.exists(log_file):
+                    self._artifacts.append({"path": log_file, "type": "engine_log"})
 
             vuln_events = self.normalize_events(raw_result)
             scan_stats = self._load_scan_stats(raw_result)
@@ -183,7 +211,7 @@ class AppSharkAdapter(EngineAdapter):
                     "note": "未发现匹配的污点路径" if not vuln_events else None,
                 },
             }
-            events = [overview] + vuln_events
+            events = [overview] + vuln_events + self._auxiliary_events(raw_result)
 
             return AdapterResult(
                 success=True,
@@ -195,18 +223,41 @@ class AppSharkAdapter(EngineAdapter):
                     "rules": rule_files,
                     "scan_stats": scan_stats.get("ProcessMethodStatistics"),
                 },
+                stage_events=stages,
+                normalized_event_count=len(events),
             )
 
-        except subprocess.TimeoutExpired:
-            return AdapterResult(success=False, error="AppShark analysis timeout")
+        except TimeoutError:
+            return AdapterResult(success=False, error="AppShark analysis timeout", stage_events=stages)
         except FileNotFoundError:
             return AdapterResult(
                 success=False,
-                error=f"AppShark.jar not found at {APPSHARK_JAR}"
+                error=f"AppShark.jar not found at {self.jar_path}",
+                stage_events=stages,
             )
         except Exception as e:
             logger.error(f"AppShark analysis failed: {e}")
-            return AdapterResult(success=False, error=str(e))
+            return AdapterResult(success=False, error=str(e), stage_events=stages)
+
+    @staticmethod
+    def _auxiliary_events(raw_result: dict) -> list[dict]:
+        """AppShark 附带的客观事实（权限、HTTP API、深链、JS Bridge）。"""
+        ts = datetime.now(timezone.utc).isoformat()
+        events = []
+        for perm in raw_result.get("UsePermissions") or []:
+            events.append({"event_type": "static_permission", "timestamp": ts, "data_type": "PERMISSION",
+                           "api": str(perm)[:480], "event_data": {"permission": perm, "source": "appshark"}})
+        for entry in raw_result.get("HTTP_API") or []:
+            value = entry if isinstance(entry, str) else json.dumps(entry, ensure_ascii=False)
+            events.append({"event_type": "static_url", "timestamp": ts, "api": value[:480],
+                           "event_data": {"endpoint": entry, "source": "appshark"}})
+        for name in raw_result.get("DeepLinkInfo") or []:
+            events.append({"event_type": "static_deeplink", "timestamp": ts, "api": str(name)[:480],
+                           "event_data": {"deeplink": name}})
+        for bridge in raw_result.get("JsBridgeInfo") or []:
+            events.append({"event_type": "security_observation", "timestamp": ts, "data_type": "jsbridge",
+                           "api": str(bridge)[:480], "event_data": {"jsbridge": bridge}})
+        return events
 
     @staticmethod
     def _persist_output(out_dir: str, task_id: int) -> str:

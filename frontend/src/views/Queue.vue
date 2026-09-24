@@ -49,6 +49,22 @@
             <StatusTag :value="row.status" :map="TASK_STATUS" />
           </template>
         </el-table-column>
+        <el-table-column label="引擎进度" min-width="240">
+          <template #default="{ row }">
+            <div v-if="!row.engine_queue || !row.engine_queue.total" class="sub-text">-</div>
+            <template v-else>
+              <div v-if="row.engine_queue.current" class="engine-progress">{{ engineProgressText(row.engine_queue) }}</div>
+              <div v-if="row.engine_queue.current?.stage_message" class="sub-text">阶段：{{ row.engine_queue.current.stage_message }}</div>
+              <el-progress v-if="row.engine_queue.current?.progress != null" :percentage="row.engine_queue.current.progress" :stroke-width="6" />
+              <div v-if="row.engine_queue.waiting?.length" class="sub-text">
+                等待：{{ row.engine_queue.waiting.map((x: any) => x.engine_name).join('、') }}
+              </div>
+              <div v-if="row.engine_queue.failed?.length" class="sub-text error-text">
+                失败：{{ row.engine_queue.failed.map((x: any) => x.engine_name).join('、') }}
+              </div>
+            </template>
+          </template>
+        </el-table-column>
         <el-table-column prop="priority" label="优先级" width="80" align="center" />
         <el-table-column label="创建时间" width="150">
           <template #default="{ row }">{{ fmtDateTime(row.created_at) }}</template>
@@ -128,6 +144,13 @@ const statusCards = computed(() =>
     count: c.statuses.reduce((sum, s) => sum + (statusDist.value[s] || 0), 0),
   }))
 )
+
+function engineProgressText(queue: any) {
+  if (queue.current) return `正在执行 ${queue.current.engine_name}（第 ${queue.current_index}/${queue.total} 个）`
+  if (queue.finished >= queue.total) return `已完成 ${queue.finished}/${queue.total}`
+  if (queue.waiting?.length) return `等待执行（${queue.finished}/${queue.total}）`
+  return `引擎进度 ${queue.finished}/${queue.total}`
+}
 
 function filterByCard(c: (typeof CARD_DEFS)[number]) {
   filters.statuses = [...c.statuses]
@@ -246,5 +269,6 @@ onBeforeUnmount(() => {
   color: var(--el-text-color-secondary);
 }
 .mono { font-family: monospace; font-size: 13px; }
-.sub-text { font-size: 12px; color: var(--el-text-color-secondary); }
+.engine-progress { font-size: 13px; color: var(--el-text-color-primary); font-weight: 500; }
+.error-text { color: var(--el-color-danger); }
 </style>

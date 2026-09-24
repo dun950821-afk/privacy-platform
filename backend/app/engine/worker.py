@@ -25,6 +25,17 @@ from app.models import (
     AgentNode, EngineExecution, AppVersion, DetectionScenario
 )
 from app.engine.adapters import AndroguardAdapter, AppSharkAdapter, MobSFAdapter
+from app.engine.errors import AdapterError
+from app.engine.repository import (claim_execution, heartbeat_execution, request_cancel,
+                                   is_cancel_requested, recover_expired_leases,
+                                   find_tasks_with_queued_executions)
+from app.services.task_config import enabled_engine_types, resolved_task_config
+from app.services.observation_service import event_to_observation
+from app.engine.artifacts import LocalArtifactStore
+from app.core.config import settings as app_settings
+
+ARTIFACT_STORE = LocalArtifactStore(Path(app_settings.STORAGE_ROOT) / "artifacts")
+from app.services.engine_config import get_or_create, resolved, public, redacted, get_definition, display_name
 
 logging.basicConfig(
     level=logging.INFO,
@@ -62,6 +73,12 @@ ENGINE_REGISTRY = {
         "installed": False,
     },
 }
+def build_engine_adapter(db, engine_type: str):
+    """根据数据库中的全局配置创建引擎适配器。"""
+    info = ENGINE_REGISTRY.get(engine_type)
+    if not info:
+        raise KeyError(f"引擎类型 {engine_type} 不存在")
+    return info["adapter"](resolved(db, engine_type))
 
 
 class EngineWorker:
@@ -90,10 +107,17 @@ class EngineWorker:
         self.running = True
         logger.info(f"Engine Worker started: {self.worker_id}")
         logger.info(f"Registered engines: {', '.join(self.engine_types)}")
+        self._recover_expired()
+        await self._sweep_queued()
 
+        last_recovery = time.time()
         while self.running:
             try:
                 await self._consume_once()
+                if time.time() - last_recovery > 30:
+                    self._recover_expired()
+                    await self._sweep_queued()
+                    last_recovery = time.time()
             except asyncio.CancelledError:
                 logger.info("Worker cancelled, stopping...")
                 break
@@ -102,6 +126,34 @@ class EngineWorker:
                 await asyncio.sleep(5)
 
         logger.info(f"Engine Worker stopped: {self.worker_id}")
+
+    async def _sweep_queued(self):
+        """数据库轮询待执行任务，弥补 Redis 消息丢失或租约回收后的调度缺口。"""
+        db = SessionLocal()
+        try:
+            task_ids = find_tasks_with_queued_executions(db)
+        except Exception as e:
+            logger.error(f"Queued task sweep failed: {e}")
+            db.close()
+            return
+        db.close()
+        for task_id in task_ids:
+            try:
+                await self._process_task(task_id)
+            except Exception as e:
+                logger.error(f"Sweep processing task {task_id} failed: {e}", exc_info=True)
+
+    def _recover_expired(self):
+        """回收租约过期的执行，让崩溃后中断的任务重新排队。"""
+        db = SessionLocal()
+        try:
+            recovered = recover_expired_leases(db)
+            if recovered:
+                logger.warning(f"Recovered {len(recovered)} expired executions: {recovered}")
+        except Exception as e:
+            logger.error(f"Lease recovery failed: {e}")
+        finally:
+            db.close()
 
     def stop(self):
         """停止Worker"""
@@ -147,17 +199,16 @@ class EngineWorker:
                 logger.warning(f"Task {task_id} not found")
                 return
 
-            # 状态守卫：只处理排队中的任务，防止同一任务被重复消费导致结果叠加
+            # 状态守卫：只处理排队中的任务，防止同一任务被重复消费导致结果叠加。
+            # 崩溃恢复后任务会回到 queued；已有执行完成的任务其执行记录为终态，会被 claim 跳过。
             if task.status != "queued":
                 logger.warning(f"Task {task_id} status is {task.status}, skip duplicate dispatch")
                 return
 
             logger.info(f"Processing task {task.task_code} (id={task_id})")
 
-            # 幂等清理：重跑前删除该任务上一轮的事件和引擎执行记录
-            db.query(DetectionEvent).filter(DetectionEvent.task_id == task_id).delete(synchronize_session=False)
-            db.query(EngineExecution).filter(EngineExecution.task_id == task_id).delete(synchronize_session=False)
-            db.commit()
+            # 提交时已创建 pending 执行记录；不要删除它们，否则队列无法展示等待引擎。
+            # 仅保留任务重试时残留的旧记录兼容逻辑，由提交流程负责重建。
 
             # 获取APK路径
             version = db.query(AppVersion).get(task.app_version_id)
@@ -204,13 +255,7 @@ class EngineWorker:
 
             # 从任务配置中读取用户选择的引擎
             task_config = task.config_json or {}
-            selected_engines = task_config.get("engines")
-            if selected_engines is not None:
-                # 用户显式选择了引擎（包括空列表=不执行任何引擎）
-                engine_types_to_run = [e for e in selected_engines if e in ENGINE_REGISTRY]
-            else:
-                # 未指定引擎 → 执行全部
-                engine_types_to_run = self.engine_types
+            engine_types_to_run = enabled_engine_types(task_config, self.engine_types)
 
             logger.info(f"Task {task_id} engines to run: {engine_types_to_run}")
 
@@ -219,18 +264,28 @@ class EngineWorker:
                 if not engine_info:
                     continue
 
-                # 创建执行记录
-                execution = EngineExecution(
-                    task_id=task_id,
-                    sub_task_id=sub_task.id,
-                    engine_type=engine_type,
-                    engine_name=engine_info["name"],
-                    engine_version=engine_info["version"],
-                    status="running",
-                    stage="prepare",
-                    started_at=datetime.now(timezone.utc),
-                )
-                db.add(execution)
+                # 使用提交时创建的 pending 记录，避免重复创建并保留等待状态。
+                execution = db.query(EngineExecution).filter(
+                    EngineExecution.task_id == task_id,
+                    EngineExecution.sub_task_id == sub_task.id,
+                    EngineExecution.engine_type == engine_type,
+                ).first()
+                if execution is None:
+                    execution = EngineExecution(
+                        task_id=task_id, sub_task_id=sub_task.id, engine_type=engine_type,
+                        engine_name=display_name(db, engine_type), engine_version=engine_info["version"],
+                        status="pending", stage="prepare",
+                    )
+                    db.add(execution)
+                execution.engine_name = display_name(db, engine_type)
+                lease = claim_execution(db, execution.id, self.worker_id, lease_seconds=60)
+                if not lease:
+                    logger.warning(f"  -> {engine_type} claim failed, another worker owns execution")
+                    continue
+                execution = db.query(EngineExecution).get(execution.id)
+                execution.status = "running"
+                execution.stage = "prepare"
+                execution.started_at = datetime.now(timezone.utc)
                 db.commit()
                 db.refresh(execution)
 
@@ -239,7 +294,8 @@ class EngineWorker:
                 # 执行引擎
                 start_time = time.time()
                 try:
-                    adapter = engine_info["adapter"]()
+                    adapter = build_engine_adapter(db, engine_type)
+                    execution.config_json = redacted(db, engine_type)
                     from app.engine.base import TaskContext
 
                     ctx = TaskContext(
@@ -254,12 +310,13 @@ class EngineWorker:
                     if not adapter.validate_environment():
                         logger.warning(f"  -> {engine_info['name']} environment not ready, skipping")
                         execution.status = "failed"
+                        execution.error_code = "ENGINE_ENV_INVALID"
                         execution.error_message = "运行环境不满足"
                         execution.completed_at = datetime.now(timezone.utc)
                         execution.duration_ms = int((time.time() - start_time) * 1000)
                         db.commit()
                         engine_results.append({
-                            "engine": engine_info["name"],
+                            "engine": display_name(db, engine_type),
                             "status": "skipped",
                             "reason": "environment_not_ready"
                         })
@@ -278,7 +335,7 @@ class EngineWorker:
                     execution.stage = "normalize"
                     db.commit()
 
-                    # 写入事件到数据库
+                    # 写入事件和统一 Observation
                     for evt_data in events:
                         event = DetectionEvent(
                             event_uid=generate_uid("evt"),
@@ -289,10 +346,13 @@ class EngineWorker:
                             api=evt_data.get("api"),
                             caller=evt_data.get("caller"),
                             event_data=evt_data.get("event_data", {}),
-                            engine_name=engine_info["name"],
+                            engine_name=display_name(db, engine_type),
                             engine_version=engine_info["version"],
                         )
                         db.add(event)
+                        observation_data = event_to_observation(evt_data, task_id=task_id, execution_id=execution.id, engine_type=engine_type, engine_version=engine_info["version"])
+                        from app.models import EngineObservation
+                        db.add(EngineObservation(**{k: v for k, v in observation_data.items() if k in {"task_id", "execution_id", "engine_type", "observation_type", "category", "rule_code", "rule_version", "severity", "confidence", "evidence_level", "subject", "location", "evidence_refs", "payload", "schema_version"}}))
                         all_events.append(evt_data)
 
                     # 保存产出物为证据
@@ -300,6 +360,9 @@ class EngineWorker:
                         if artifact.get("path") and os.path.exists(artifact["path"]):
                             file_hash = storage.compute_hash(artifact["path"])
                             file_size = os.path.getsize(artifact["path"])
+                            artifact_ref = ARTIFACT_STORE.put(artifact["path"], task_id=task_id, execution_id=execution.id, artifact_type=artifact.get("type", "engine_output"), content_type="application/json")
+                            from app.models import EngineArtifact
+                            db.add(EngineArtifact(execution_id=execution.id, artifact_type=artifact.get("type", "engine_output"), artifact_uri=artifact_ref.uri, sha256=artifact_ref.sha256, size=artifact_ref.size, content_type=artifact_ref.content_type, storage_backend=artifact_ref.storage_backend, metadata_json=artifact_ref.metadata))
                             evidence = Evidence(
                                 evidence_uid=generate_uid("evi"),
                                 task_id=task_id,
@@ -308,7 +371,7 @@ class EngineWorker:
                                 artifact_hash=file_hash,
                                 artifact_size=file_size,
                                 metadata_json={
-                                    "engine": engine_info["name"],
+                                    "engine": display_name(db, engine_type),
                                     "engine_type": engine_type,
                                     "type": artifact.get("type", "engine_output"),
                                 }
@@ -319,15 +382,24 @@ class EngineWorker:
                     # 更新执行记录
                     duration_ms = int((time.time() - start_time) * 1000)
                     execution.status = "completed" if result.success else "failed"
-                    execution.error_message = result.error
-                    execution.completed_at = datetime.now(timezone.utc)
+                    execution.error_code = result.error.error_code if isinstance(result.error, AdapterError) else None
+                    execution.error_message = result.error.user_message if isinstance(result.error, AdapterError) else result.error
+                    execution.debug_message = result.error.debug_message if isinstance(result.error, AdapterError) else None
+                    execution.retryable = result.error.retryable if isinstance(result.error, AdapterError) else False
+                    execution.provider_status = result.error.provider_status if isinstance(result.error, AdapterError) else None
+                    execution.provider_scan_hash = result.provider_scan_hash
+                    execution.stage_message = result.stage_events[-1] if result.stage_events else None
+                    execution.normalized_event_count = result.normalized_event_count
+                    execution.raw_result_hash = result.raw_result_hash
+                    execution.finished_at = datetime.now(timezone.utc)
+                    execution.completed_at = execution.finished_at
                     execution.duration_ms = duration_ms
                     execution.result_summary = result.summary
                     execution.raw_output_path = result.raw_output_path
                     db.commit()
 
                     engine_results.append({
-                        "engine": engine_info["name"],
+                        "engine": display_name(db, engine_type),
                         "type": engine_type,
                         "status": "completed" if result.success else "failed",
                         "events": len(events),
@@ -340,6 +412,7 @@ class EngineWorker:
                 except Exception as e:
                     duration_ms = int((time.time() - start_time) * 1000)
                     execution.status = "failed"
+                    execution.error_code = "ENGINE_PROCESS_CRASHED"
                     execution.error_message = str(e)
                     execution.completed_at = datetime.now(timezone.utc)
                     execution.duration_ms = duration_ms
@@ -347,7 +420,7 @@ class EngineWorker:
                     logger.error(f"  -> {engine_info['name']} failed: {e}", exc_info=True)
 
                     engine_results.append({
-                        "engine": engine_info["name"],
+                        "engine": display_name(db, engine_type),
                         "type": engine_type,
                         "status": "failed",
                         "error": str(e),
@@ -363,6 +436,14 @@ class EngineWorker:
                 "total_artifacts": len(all_artifacts),
             }
             db.commit()
+
+            # 静态引擎全部结束后，用 Observation 关联生成平台风险结论
+            try:
+                from app.services.finding_service import generate_findings
+                produced = generate_findings(db, task_id)
+                logger.info(f"Task {task_id} produced {len(produced)} platform findings")
+            except Exception as exc:
+                logger.error(f"Finding generation failed for task {task_id}: {exc}")
 
             # 更新任务状态
             # 检查是否有动态子任务/场景需要执行
@@ -395,24 +476,34 @@ class EngineWorker:
         logger.error(f"Task {task.id} failed: {reason}")
 
 
-def list_engines() -> list[dict]:
-    """列出所有已注册引擎"""
+def list_engines(db=None) -> list[dict]:
+    """列出所有已注册引擎及配置摘要。"""
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+    else:
+        close_db = False
     engines = []
-    for engine_type, info in ENGINE_REGISTRY.items():
-        adapter = info["adapter"]()
-        env_ok = adapter.validate_environment()
-        engines.append({
-            "engine_type": engine_type,
-            "name": info["name"],
-            "version": info["version"],
-            "capabilities": info["capabilities"],
-            "description": info["description"],
-            "env_ready": env_ok,
-            "status": "ready" if env_ok else "not_configured",
-            "install_guide": info.get("install_guide", ""),
-            "installed": info.get("installed", False),
-        })
-    return engines
+    try:
+        for engine_type, info in ENGINE_REGISTRY.items():
+            adapter = build_engine_adapter(db, engine_type)
+            env_ok = adapter.validate_environment()
+            definition = get_definition(engine_type)
+            row = get_or_create(db, engine_type)
+            engines.append({
+                "engine_type": engine_type, "name": display_name(db, engine_type), "version": info["version"],
+                "capabilities": info["capabilities"], "description": info["description"],
+                "env_ready": env_ok, "status": "ready" if env_ok else "not_configured",
+                "message": getattr(adapter, "last_error", "") or ("环境就绪" if env_ok else "运行环境不满足"),
+                "install_guide": info.get("install_guide", ""), "installed": env_ok,
+                "config": public(db, engine_type), "last_health_status": row.last_health_status,
+                "last_checked_at": row.last_checked_at.isoformat() if row.last_checked_at else None,
+                "help": definition.get("help", {}),
+            })
+        return engines
+    finally:
+        if close_db:
+            db.close()
 
 
 async def run_worker(engine_types: list[str] = None):

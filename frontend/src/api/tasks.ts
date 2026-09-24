@@ -12,6 +12,9 @@ export const taskApi = {
   updateScenario: (tid: number, sid: number, data: any) =>
     api.put(`/tasks/${tid}/scenarios/${sid}`, data),
   findings: (id: number) => api.get(`/tasks/${id}/findings`),
+  platformFindings: (id: number) => api.get(`/tasks/${id}/platform-findings`),
+  observations: (id: number, params?: any) => api.get(`/tasks/${id}/observations`, { params }),
+  artifacts: (id: number) => api.get(`/tasks/${id}/artifacts`),
   evidence: (id: number, params?: any) => api.get(`/tasks/${id}/evidence`, { params }),
   reportOverview: (id: number) => api.get(`/tasks/${id}/report-overview`),
 }

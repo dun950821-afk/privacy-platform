@@ -8,6 +8,9 @@ from app.models import (DetectionTask, SubTask, DetectionScenario, DetectionEven
 from app.schemas import TaskCreate, ScenarioUpdate
 from app.api.deps import get_current_user, require_permission, get_request_id
 from app.tasks.orchestrator import TaskOrchestrator
+from app.services.engine_config import display_name
+from app.tasks.engine_queue import get_task_engine_queue
+from app.services.task_config import normalize_task_config, task_config_hash
 from fastapi import Request
 from datetime import datetime, timezone
 
@@ -31,7 +34,7 @@ def create_task(req: TaskCreate, request: Request,
         detection_type=req.detection_type,
         rule_pack_version=req.rule_pack_version,
         status="draft",
-        config_json=req.config,
+        config_json=normalize_task_config(req.config),
         created_by=user.id
     )
     db.add(task)
@@ -71,7 +74,8 @@ def list_tasks(project_id: int = None, status: str = None, app_version_id: int =
             "version_name": v.version_name if v else None,
             "created_at": str(t.created_at),
             "started_at": str(t.started_at) if t.started_at else None,
-            "completed_at": str(t.completed_at) if t.completed_at else None
+            "completed_at": str(t.completed_at) if t.completed_at else None,
+            "engine_queue": get_task_engine_queue(db, t.id),
         })
     return {"code": 0, "data": {"items": result, "total": total, "page": page, "page_size": page_size}}
 
@@ -90,7 +94,7 @@ def get_task(tid: int, user: User = Depends(get_current_user), db: Session = Dep
     return {"code": 0, "data": {
         "id": t.id, "task_code": t.task_code, "status": t.status,
         "detection_type": t.detection_type, "rule_pack_version": t.rule_pack_version,
-        "config_json": t.config_json, "priority": t.priority,
+        "config_json": t.config_json, "config_hash": task_config_hash(t.config_json), "priority": t.priority,
         "started_at": str(t.started_at) if t.started_at else None,
         "completed_at": str(t.completed_at) if t.completed_at else None,
         "failed_reason": t.failed_reason,
@@ -107,6 +111,7 @@ def get_task(tid: int, user: User = Depends(get_current_user), db: Session = Dep
         "scenarios": [{"id": s.id, "scenario_type": s.scenario_type,
                        "consent_status": s.consent_status, "status": s.status} for s in scenarios],
         "event_count": event_count, "finding_count": finding_count,
+        "engine_queue": get_task_engine_queue(db, tid),
         "created_by": t.created_by,
         "created_at": str(t.created_at)
     }}
@@ -159,6 +164,25 @@ def retry_task(tid: int, user: User = Depends(require_permission("task:write")),
     t.started_at = None
     t.completed_at = None
     db.commit()
+    # 重新为选定的静态引擎创建 pending 执行记录，恢复队列"等待/执行中"展示
+    from app.engine.worker import ENGINE_REGISTRY
+    config = t.config_json or {}
+    selected = config.get("engines")
+    engine_types = [e for e in (selected if selected is not None else ENGINE_REGISTRY.keys())
+                    if e in ENGINE_REGISTRY]
+    static_subtask = db.query(SubTask).filter(
+        SubTask.task_id == tid, SubTask.engine_type == "static"
+    ).first()
+    if static_subtask:
+        static_subtask.status = "pending"
+        static_subtask.stage = "prepare"
+        for et in engine_types:
+            db.add(EngineExecution(
+                task_id=tid, sub_task_id=static_subtask.id, engine_type=et,
+                engine_name=display_name(db, et), engine_version=ENGINE_REGISTRY[et]["version"],
+                status="pending", stage="queued",
+            ))
+        db.commit()
     orchestrator = TaskOrchestrator(db)
     orchestrator.dispatch_task(t)
     return {"code": 0, "data": {"id": t.id, "status": t.status}}
@@ -295,6 +319,64 @@ def list_events(tid: int, event_type: str = None, scenario_id: int = None,
     }}
 
 
+@router.get("/{tid}/observations")
+def task_observations(tid: int, engine_type: str = None, page: int = 1, page_size: int = 50,
+                      user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """任务统一观察结果，可按引擎过滤。"""
+    from app.models import EngineObservation
+    q = db.query(EngineObservation).filter(EngineObservation.task_id == tid)
+    if engine_type:
+        q = q.filter(EngineObservation.engine_type == engine_type)
+    total = q.count()
+    items = q.order_by(EngineObservation.id).offset((page - 1) * page_size).limit(page_size).all()
+    return {"code": 0, "data": {
+        "items": [{
+            "id": o.id, "execution_id": o.execution_id, "engine_type": o.engine_type,
+            "observation_type": o.observation_type, "rule_code": o.rule_code,
+            "rule_version": o.rule_version, "category": o.category,
+            "severity": o.severity, "confidence": o.confidence,
+            "evidence_level": o.evidence_level,
+            "subject": o.subject, "location": o.location,
+            "payload": o.payload, "schema_version": o.schema_version,
+        } for o in items],
+        "total": total, "page": page, "page_size": page_size,
+    }}
+
+
+@router.get("/{tid}/platform-findings")
+def task_platform_findings(tid: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """平台风险结论（Platform Finding），区别于旧的 Finding 表。"""
+    from app.models import PlatformFinding
+    from app.services.finding_service import generate_findings
+    generate_findings(db, tid)
+    rows = db.query(PlatformFinding).filter(PlatformFinding.task_id == tid).all()
+    return {"code": 0, "data": {
+        "items": [{
+            "id": f.id, "finding_code": f.finding_code, "title": f.title,
+            "category": f.category, "severity": f.severity, "confidence": f.confidence,
+            "triage_status": f.triage_status, "baseline_state": f.baseline_state,
+            "recommendation": f.recommendation, "observation_count": f.observation_count,
+            "masvs_controls": f.masvs_controls, "maswe_ids": f.maswe_ids, "mastg_test_ids": f.mastg_test_ids,
+            "schema_version": f.schema_version,
+        } for f in rows],
+        "total": len(rows),
+    }}
+
+
+@router.get("/{tid}/artifacts")
+def task_artifacts(tid: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """任务原始制品列表。"""
+    from app.models import EngineArtifact, EngineExecution
+    rows = db.query(EngineArtifact).join(
+        EngineExecution, EngineArtifact.execution_id == EngineExecution.id
+    ).filter(EngineExecution.task_id == tid).all()
+    return {"code": 0, "data": [{
+        "id": a.id, "execution_id": a.execution_id, "artifact_type": a.artifact_type,
+        "artifact_uri": a.artifact_uri, "sha256": a.sha256, "size": a.size,
+        "content_type": a.content_type, "storage_backend": a.storage_backend,
+    } for a in rows]}
+
+
 @router.get("/{tid}/scenarios")
 def list_scenarios(tid: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     scenarios = db.query(DetectionScenario).filter(DetectionScenario.task_id == tid).all()
@@ -404,7 +486,7 @@ def task_report_overview(tid: int, user: User = Depends(get_current_user),
 
     # 引擎执行情况
     engines = [{
-        "engine_name": x.engine_name, "engine_type": x.engine_type,
+        "engine_name": display_name(db, x.engine_type), "engine_type": x.engine_type,
         "engine_version": x.engine_version, "status": x.status,
         "event_count": x.event_count, "artifact_count": x.artifact_count,
         "duration_ms": x.duration_ms, "error_message": x.error_message,

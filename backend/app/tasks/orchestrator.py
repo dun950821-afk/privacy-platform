@@ -1,9 +1,10 @@
 """任务编排服务"""
 from sqlalchemy.orm import Session
 from app.models import (DetectionTask, SubTask, DetectionScenario, AppVersion,
-                        AgentNode, Device)
+                        AgentNode, Device, EngineExecution)
 from app.core.security import generate_uid
 from app.core.redis import redis_client, TASK_STREAM
+from app.services.task_config import normalize_task_config, enabled_engine_types
 from datetime import datetime, timezone
 import json
 
@@ -25,7 +26,8 @@ class TaskOrchestrator:
 
     def submit_task(self, task: DetectionTask):
         """提交任务: 根据检测类型创建子任务和场景, 推入队列"""
-        config = task.config_json or {}
+        config = normalize_task_config(task.config_json or {})
+        task.config_json = config
         det_type = task.detection_type
 
         # 始终创建静态检测子任务
@@ -92,6 +94,23 @@ class TaskOrchestrator:
                 self.db.add(dynamic_subtask)
         else:
             self.db.flush()
+
+        # 为本次提交选定的静态引擎创建 pending 执行记录，供队列展示"等待/执行中"
+        from app.engine.worker import ENGINE_REGISTRY
+        from app.services.engine_config import display_name
+        engine_types = enabled_engine_types(config, ENGINE_REGISTRY.keys())
+        self.db.flush()
+        for et in engine_types:
+            self.db.add(EngineExecution(
+                task_id=task.id,
+                sub_task_id=static_subtask.id,
+                engine_type=et,
+                engine_name=display_name(self.db, et),
+                engine_version=ENGINE_REGISTRY[et]["version"],
+                status="queued",
+                stage="queued",
+                queued_at=datetime.now(timezone.utc),
+            ))
 
         # 更新任务状态
         task.status = "queued"
