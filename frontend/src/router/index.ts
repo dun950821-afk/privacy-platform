@@ -46,6 +46,8 @@ const routes = [
         meta: { title: '规则管理', group: '知识库' } },
       { path: 'rules/:id', name: 'RuleDetail', component: () => import('@/views/RuleDetail.vue'),
         meta: { title: '规则详情', group: '知识库' } },
+      { path: 'correlation-rules', name: 'CorrelationRules', component: () => import('@/views/CorrelationRules.vue'),
+        meta: { title: '关联规则', group: '知识库' } },
       // 报告
       { path: 'reports', name: 'Reports', component: () => import('@/views/Reports.vue'),
         meta: { title: '报告中心', group: '报告' } },

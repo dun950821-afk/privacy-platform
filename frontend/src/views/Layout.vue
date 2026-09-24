@@ -101,6 +101,7 @@ import { USER_ROLE } from '@/utils/dict'
 import {
   DataAnalysis, Monitor, Warning, Box, Cpu, Document, Files,
   Setting, Fold, Expand, ArrowDown, Lock, User, SwitchButton, Stopwatch, MagicStick,
+  Connection,
 } from '@element-plus/icons-vue'
 
 interface MenuItem { path: string; title: string; icon: any }
@@ -118,6 +119,7 @@ const MENUS: MenuGroup[] = [
   { label: '知识库', items: [
     { path: '/sdks', title: 'SDK知识库', icon: Box },
     { path: '/rules', title: '规则管理', icon: Document },
+    { path: '/correlation-rules', title: '关联规则', icon: Connection },
     { path: '/engines', title: '检测引擎', icon: Cpu },
     { path: '/appshark-rules', title: 'AppShark规则', icon: MagicStick },
   ] },
