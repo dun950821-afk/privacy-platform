@@ -95,12 +95,21 @@ def test_import_updates_row_that_import_itself_wrote(db):
 
 
 def test_import_writes_audit_batch_named_per_platform(db):
+    """断言的是「本次导入新增一条该平台的审计批次」，不是「全表只有一条」。
+
+    真实导入用的就是这个标签（Task 7 实跑会往库里留下 `permission-import:IOS` 的行），
+    而 autouse 的清理只删本测试期间新增的批次（按 id 水位线），那些真实批次会**留在库里**。
+    原先写死 `n == 1` 等于假设「库里从没跑过真导入」——Task 7 跑完就必然翻红。
+    """
     _cleanup(db)
+    label = SOURCE_LABEL.format(platform="IOS")
+    before = db.execute(text("select count(*) from privacy_kb.import_batch where source_file=:s"),
+                        {"s": label}).scalar()
     try:
         import_platform(db, "IOS", [_row(P + "e", permission_type="用法描述键")])
-        n = db.execute(text("select count(*) from privacy_kb.import_batch where source_file=:s"),
-                       {"s": SOURCE_LABEL.format(platform="IOS")}).scalar()
-        assert n == 1
+        after = db.execute(text("select count(*) from privacy_kb.import_batch where source_file=:s"),
+                           {"s": label}).scalar()
+        assert after == before + 1
     finally:
         _cleanup(db)
 
