@@ -46,27 +46,33 @@ MASWE 官方站点与相关仓库（网络策略拦截，已实测），任何�
 
 安全类规则没有数据类目，但观察本身仍是完整结论——这正是「是否成结论不由类目决定」
 的证据（设计 §3.4）。**这 4 条全部来自上游官方规则**（`bytedance/appshark`
-commit `487fa2175c4a`，见 `backend/appshark/upstream-provenance.json`），因此其安全
-论断是否成立需逐条核实，属实施计划 Task 7；本矩阵只记录**检测是否在真实样本上触发**。
+commit `487fa2175c4a`）。
 
-| 类别 | 风险 | AppShark Rule | Observation | Finding | 真实命中 | 状态 |
-|---|---|---|---|---|---|---|
-| — | 路径穿越（file） | `ContentProviderPathTraversal` | `security.other` | `SECURITY_CONTENTPROVIDERPATHTRAVERSAL` | 11(3) | 待验证 |
-| — | Intent 重定向（ipc） | `IntentRedirectionBabyVersion` | `security.other` | `SECURITY_INTENTREDIRECTIONBABYVERSION` | 11(6) | 待验证 |
-| — | PendingIntent 可变（ipc） | `PendingIntentMutable` | `security.other` | `SECURITY_PENDINGINTENTMUTABLE` | 11(192)、12(9) | 待验证 |
-| — | 解压路径穿越（file） | `unZipSlip` | `security.other` | `SECURITY_UNZIPSLIP` | 11(15)、12(9) | 待验证 |
+官方 7 条规则的逐条核实已于 2026-09-28 完成（Task 7）：沿规则报告的方法签名定位到
+**真实 APK 字节码**，确认所声称的问题是否真实存在。「规则触发过」不构成已验证——
+`ContentProviderPathTraversal` 的命中经核实为误报，正是这条原则的反例。
 
-> **为什么有命中却仍是「待验证」**：命中证明的是「规则触发了」，不是「论断成立」。
-> 官方的 7 条规则在 `upstream-provenance.json` 里 `verified` 全为 `false`，而按计划
-> Task 7，只有逐条核实过论断的才计入覆盖度。把「触发」写成「已验证」就是拿检测
-> 覆盖度冒充安全结论的正确性——本项目此前吃过一次同类亏（设计 §1.1）。
+| 风险 | AppShark Rule | 真实命中 | 核实取样 | 核实结论 | 状态 |
+|---|---|---|---|---|---|
+| 路径穿越（file） | `ContentProviderPathTraversal` | 11(3) | 1/1 | **误报**：Uri→File 经 `FileProvider$a` 接口完成，其唯一实现 `FileProvider$b.a(Uri)` 会 `getCanonicalFile()` 并做包含校验（`startsWith(root)`，否则抛 `SecurityException("Resolved path jumped beyond configured root")`），`../` 会被拒绝。规则看不穿接口调用，只见到 Uri 流入 `open` | 待验证 |
+| Intent 重定向（ipc） | `IntentRedirectionBabyVersion` | 11(6) | 1/2 | 真阳性：`getIntent().getExtras().getParcelable("resolution")` 直接 `startActivityForResult`，无校验 | 已验证 |
+| PendingIntent 可变（ipc） | `PendingIntentMutable` | 11(192)、12(9) | 1/44 | 真阳性：`PendingIntent.getBroadcast(ctx, 0, intent, 0)`，flags=0 未带 `FLAG_IMMUTABLE`，且交给了 `SmsManager.sendTextMessage` | 已验证 |
+| 解压路径穿越（file） | `unZipSlip` | 11(15)、12(9) | 2/5 | 真阳性 + 1 处误报：`ZipUtil.unzip` 直接以 `destDir + separator + entry.getName()` 作输出路径，无规范化 → 真阳性；`WXFileUtils.extractSo` 只取条目名最后一段 → 误报 | 已验证 |
+
+**核实取样**列记录的是「命中的多个调用点中实际核实了几个」。未核实的调用点不得当作
+已核实——把 2/5 说成「该规则已验证」而不写取样覆盖，就是本文件开头禁止的那种冒充。
+完整证据（方法签名、字节码事实、可利用性保留意见）记在
+`backend/appshark/upstream-provenance.json` 的 `verification_note`。
+
+> `ContentProviderPathTraversal` 保持 `待验证`：它确实触发，但已核实的命中不成立，
+> 因此**该弱点类目的覆盖没有被证明**。`verified` 为 false 的规则不计入覆盖度。
 
 ## 3. 敏感 API 事实（只做证据增强，不产出结论）
 
 | 类别 | AppShark Rule | Observation | Finding | 真实命中 | 状态 |
 |---|---|---|---|---|---|
 | device_information | `DeviceId_APICall` | `security.sensitive_api` | —（增强） | 11(426)、12(216)、13(7) | 已验证 |
-| device_information | `MAC` | `security.sensitive_api` | —（增强） | 11(66)、12(63) | 待验证 |
+| device_information | `MAC` | `security.sensitive_api` | —（增强） | 11(66)、12(63) | 已验证 |
 | installed_apps | `InstalledApps_APICall` | `security.sensitive_api` | —（增强） | 11(885)、12(342) | 已验证 |
 | location | `Location_APICall` | `security.sensitive_api` | —（增强） | 11(957) | 已验证 |
 | network_information | `Network_APICall` | `security.sensitive_api` | —（增强） | 11(450)、12(171) | 已验证 |
@@ -76,7 +82,8 @@ commit `487fa2175c4a`，见 `backend/appshark/upstream-provenance.json`），因
 | camera | `Camera_APICall` | `security.sensitive_api` | —（增强） | 11(27)、12(4) | 已验证 |
 | media | `Media_APICall` | `security.sensitive_api` | —（增强） | 11(12) | 已验证 |
 
-> `MAC` 同为官方规则，论断核实同 Task 7，故标 `待验证`。
+> `MAC` 同为官方规则，其核实见 §2：它声称的只是「调用了取 MAC 地址的 API」，命中即
+> 成立——已核实 `WifiInfo.getMacAddress()` 与 `NetworkInterface.getHardwareAddress()` 两处。
 
 ## 4. 跨引擎：Androguard 敏感权限
 

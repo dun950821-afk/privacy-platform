@@ -15,7 +15,11 @@
       "source_file": "ContentProviderPathTraversal.json",
       "vendor": "upstream",
       "upstream_commit": "487fa2175c4a6ccbfb5a330b5e3ed0081de3bfeb",
-      "verified": false
+      "verified": false,
+      "verified_at": "2026-09-28",
+      "verified_sample": "app_version 11 (门户测试 3.4.24)",
+      "verified_call_sites": "1/1",
+      "verification_note": "误报。Uri→File 经 FileProvider$a 接口完成，其唯一实现 FileProvider$b.a(Uri) 会 getCanonicalFile() 并做包含校验（startsWith(root)，否则抛 SecurityException(\"Resolved path jumped beyond configured root\")），./ 会被规范化后拒绝。规则看不穿该接口调用，因此只要 Uri 流到 open 就报，未验证是否真的缺少校验。"
     },
     {
       "provider": "appshark",
@@ -23,7 +27,11 @@
       "source_file": "IntentRedirectionBabyVersion.json",
       "vendor": "upstream",
       "upstream_commit": "487fa2175c4a6ccbfb5a330b5e3ed0081de3bfeb",
-      "verified": false
+      "verified": true,
+      "verified_at": "2026-09-28",
+      "verified_sample": "app_version 11",
+      "verified_call_sites": "1/2",
+      "verification_note": "真阳性。BaseResolutionAdapter.onBridgeActivityCreate 取 getIntent().getExtras().getParcelable(\"resolution\")，直接 startActivityForResult(intent,1001) / startIntentSenderForResult，未做任何校验。可利用性还需该 bridge Activity 可被其他应用拉起，本环境未验证到这一步。"
     },
     {
       "provider": "appshark",
@@ -31,7 +39,11 @@
       "source_file": "PendingIntentMutable.json",
       "vendor": "upstream",
       "upstream_commit": "487fa2175c4a6ccbfb5a330b5e3ed0081de3bfeb",
-      "verified": false
+      "verified": true,
+      "verified_at": "2026-09-28",
+      "verified_sample": "app_version 11",
+      "verified_call_sites": "1/44",
+      "verification_note": "真阳性。PhoneUtils.sendSmsSilent：PendingIntent.getBroadcast(ctx,0,intent,0) —— flags=0 即未带 FLAG_IMMUTABLE，且该 PendingIntent 交给了 SmsManager.sendTextMessage。"
     },
     {
       "provider": "appshark",
@@ -39,7 +51,11 @@
       "source_file": "broadcastIMEI.json",
       "vendor": "upstream",
       "upstream_commit": "487fa2175c4a6ccbfb5a330b5e3ed0081de3bfeb",
-      "verified": false
+      "verified": false,
+      "verified_at": "2026-09-28",
+      "verified_sample": "—",
+      "verified_call_sites": "0/0",
+      "verification_note": "从未在任何真实样本上命中，无从核实。不计入覆盖度。"
     },
     {
       "provider": "appshark",
@@ -47,7 +63,11 @@
       "source_file": "logSerial.json",
       "vendor": "upstream",
       "upstream_commit": "487fa2175c4a6ccbfb5a330b5e3ed0081de3bfeb",
-      "verified": false
+      "verified": false,
+      "verified_at": "2026-09-28",
+      "verified_sample": "—",
+      "verified_call_sites": "0/0",
+      "verification_note": "从未在任何真实样本上命中，无从核实。不计入覆盖度。"
     },
     {
       "provider": "appshark",
@@ -55,7 +75,11 @@
       "source_file": "mac.json",
       "vendor": "upstream",
       "upstream_commit": "487fa2175c4a6ccbfb5a330b5e3ed0081de3bfeb",
-      "verified": false
+      "verified": true,
+      "verified_at": "2026-09-28",
+      "verified_sample": "app_version 11",
+      "verified_call_sites": "2/22",
+      "verification_note": "真阳性（事实型规则）。规则声称的只是「调用了取 MAC 地址的 API」，命中即成立：DeviceUtils.getMacAddressByWifiInfo → WifiInfo.getMacAddress()；getMacAddressByNetworkInterface → NetworkInterface.getHardwareAddress()。"
     },
     {
       "provider": "appshark",
@@ -63,7 +87,12 @@
       "source_file": "unZipSlip.json",
       "vendor": "upstream",
       "upstream_commit": "487fa2175c4a6ccbfb5a330b5e3ed0081de3bfeb",
-      "verified": false
+      "verified": true,
+      "verified_at": "2026-09-28",
+      "verified_sample": "app_version 11 / 12",
+      "verified_call_sites": "2/5",
+      "verification_note": "真阳性，同时发现 1 处误报。真阳性：ZipUtil.unzip 直接以 destDir + separator + entry.getName() 作为输出路径，无 getCanonicalFile / 包含校验，../ 条目可写到目标目录之外。误报：WXFileUtils.extractSo 只取条目名 split(\"/\") 的最后一段，目录分量（含 ../）被丢弃。3 处调用点未核实。"
     }
-  ]
+  ],
+  "verification_method": "verified=true 的判据：在真实样本（app_version 11/12 的 APK 字节码，来自 androguard 反编译）上，沿着规则报告的方法定位到具体实现，确认所声称的问题真实存在。「规则触发过」不构成 verified——ContentProviderPathTraversal 的命中经核实为误报即为反例。call_sites_inspected 记录取样覆盖：命中的多个调用点中实际核实了几个，未核实的不得当作已核实。"
 }
