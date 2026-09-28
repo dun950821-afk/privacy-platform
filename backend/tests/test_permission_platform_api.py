@@ -65,6 +65,26 @@ def test_applicable_filter_excludes_signature_level(client, admin_headers, db, s
     assert P + "sig" not in names
 
 
+def test_applicable_filter_is_tri_state(client, admin_headers, db, seeded):
+    """`applicable` 必须三态：true 只看可达、false 只看不可达、不传不筛。
+
+    写成 `if applicable:` 的话 false 会退化成「不筛选」——调用方要「不可达」却拿到全量，
+    是个不报错的错答案。
+    """
+    only_reachable = client.get("/api/v1/permissions", headers=admin_headers,
+                                params={"platform": "ANDROID", "applicable": "true",
+                                        "keyword": P}).json()["data"]["items"]
+    only_unreachable = client.get("/api/v1/permissions", headers=admin_headers,
+                                  params={"platform": "ANDROID", "applicable": "false",
+                                          "keyword": P}).json()["data"]["items"]
+    unfiltered = client.get("/api/v1/permissions", headers=admin_headers,
+                            params={"platform": "ANDROID", "keyword": P}).json()["data"]["items"]
+
+    assert [i["permission_name"] for i in only_reachable] == [P + "danger"]
+    assert [i["permission_name"] for i in only_unreachable] == [P + "sig"]
+    assert len(unfiltered) == 2, "不传 applicable 时两行都要在"
+
+
 def test_create_rejects_type_from_another_platform(client, admin_headers, db):
     _cleanup(db)
     try:

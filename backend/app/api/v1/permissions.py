@@ -97,7 +97,7 @@ def permission_meta(platform: str = None,
 @router.get("")
 def list_permissions(category: str = None, permission_type: str = None,
                      risk_level: str = None, keyword: str = None,
-                     platform: str = None, applicable: bool = None,
+                     platform: str = None, applicable: bool | None = None,
                      is_active: bool = None, page: int = 1, page_size: int = 50,
                      user: User = Depends(require_permission("permission:read")),
                      db: Session = Depends(get_db)):
@@ -121,17 +121,21 @@ def list_permissions(category: str = None, permission_type: str = None,
         q = q.filter(or_(KBPermission.normalized_name.like(like),
                          func.lower(KBPermission.capability).like(like)))
 
-    if applicable:
-        # 可达性不能只在 SQL 里判：鸿蒙还要看 grant_mode，SQL 里拼不干净。
-        # 取全量在 Python 侧过滤，分页放在过滤之后（数据量在千级，可以接受）。
-        rows = [r for r in q.order_by(KBPermission.permission_name).all()
-                if is_applicable(r.platform, r.permission_type, r.grant_mode)]
-        total = len(rows)
-        items = rows[(page - 1) * page_size: page * page_size]
-    else:
+    if applicable is None:
         total = q.count()
         items = q.order_by(KBPermission.permission_name) \
                  .offset((page - 1) * page_size).limit(page_size).all()
+    else:
+        # 可达性不能只在 SQL 里判：鸿蒙还要看 grant_mode，SQL 里拼不干净。
+        # 取全量在 Python 侧过滤，分页放在过滤之后（数据量在千级，可以接受）。
+        #
+        # **三态**：true = 只看可达，false = 只看**不可达**，不传 = 不筛。
+        # 不能写成 `if applicable:`——那样 false 会静默退化成「不筛选」，
+        # 调用方明确要「不可达」那一档却拿到全量，是个不报错的错答案。
+        rows = [r for r in q.order_by(KBPermission.permission_name).all()
+                if is_applicable(r.platform, r.permission_type, r.grant_mode) is applicable]
+        total = len(rows)
+        items = rows[(page - 1) * page_size: page * page_size]
 
     return {"code": 0, "data": {
         "items": [_brief(p) for p in items],
