@@ -1110,6 +1110,18 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
     seen_names: set[str] = set()
     inserted = updated = skipped = 0
 
+    # 本批统一用一个**数据库时钟**时刻：既作 INSERT 行的 updated_at，又作 batch.finished_at。
+    #
+    # 为什么不能只把 finished_at 换成 `select now()`：`now()` 是**事务开始**时刻，比 flush 还早；
+    # 而 INSERT 行的 updated_at 若留在 ORM 的 Python 默认值上（应用时钟、flush 时才求值），
+    # 实测会比 finished_at 晚 +14060 µs —— 于是下一轮把**导入自己写的行**判成「人工改过」
+    # 而永不再更新（`test_import_updates_row_that_import_itself_wrote` 正是挡这个）。
+    #
+    # 两处取同一个值后它们恒等，`updated_at > baseline` 不成立即可更新；
+    # 且 UPDATE 路径的行由触发器写 `CURRENT_TIMESTAMP`（= 同一个 DB 时钟），
+    # 全程只有一个时钟，应用时钟与数据库时钟的偏差窗口消失。
+    db_now = db.execute(text("select now()")).scalar()
+
     for row in rows:
         # 词表外的取值：跳过并计数，**不中止整批**。1018 行的导入不该死在最后一行；
         # 但也不能放它进库——受控词表就是这么失控的。API 侧（用户写）保持严格抛错。
@@ -1140,6 +1152,7 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
                 permission_name=name,
                 normalized_name=name.lower(),
                 platform=platform,
+                updated_at=db_now,        # 与 batch.finished_at 同源，见上方注释
                 permission_type=row.get("permission_type"),
                 category=row.get("category"),
                 capability=row.get("capability"),
@@ -1181,17 +1194,12 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
         existing.raw_data = incoming_raw
         updated += 1
 
-    # **先 flush 落盘，再盖 finished_at。顺序反了是个真 bug**：INSERT 路径的
-    # `updated_at` 是 ORM 的 Python 默认值，在 flush 时才求值，会晚于 finished_at
-    # （实测晚 4644 µs）——于是下一轮把**导入自己写的行**判成「人工改过」而永不再更新，
-    # 正是 `test_import_updates_row_that_import_itself_wrote` 要挡的失效。
+    # **先 flush 落盘再标 SUCCESS**：行全部落盘了才算这批做完。
     db.flush()
     batch.status = "SUCCESS"
     batch.statistics = {"platform": platform, "inserted": inserted,
                         "updated": updated, "skipped": skipped}
-    # finished_at 取**数据库时钟**：UPDATE 路径的行由触发器写 `CURRENT_TIMESTAMP`，
-    # 用应用时钟会让基线与被比较的行落在两个时钟上（同机部署偏差极小，但没有理由混用）。
-    batch.finished_at = db.execute(text("select now()")).scalar()
+    batch.finished_at = db_now
     db.commit()
     return {"inserted": inserted, "updated": updated, "skipped": skipped}
 ```
