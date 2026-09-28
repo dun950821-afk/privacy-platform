@@ -43,3 +43,24 @@ def test_android_parse_sets_official_reference():
     rows = {r["permission_name"]: r for r in parse_android_manifest(_read("android_manifest_sample.xml"))}
     assert rows["android.permission.CAMERA"]["official_reference"].startswith(
         "https://developer.android.com/reference/android/Manifest.permission#")
+
+
+def test_android_parse_duplicate_name_keeps_the_more_restrictive_level():
+    """同名但主级别不同时，取**更严**的那一级。
+
+    方向是刻意的：`is_applicable` 拿 `permission_type` 决定「普通 App 能不能申请」，
+    把签名级权限报成可达，会让默认视图里混进根本申请不到的条目。
+
+    fixture 里那条 CAMERA 重复项两次声明的主级别都是 `dangerous`，**触发不了这个分支**
+    ——所以必须在这里用不同主级别的重名钉住它，否则把 `>` 写成 `<` 也不会有测试变红。
+    """
+    xml = (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="android">'
+        '<permission android:name="android.permission.DUP" android:protectionLevel="normal" />'
+        '<permission android:name="android.permission.DUP" android:protectionLevel="signature" />'
+        '</manifest>'
+    )
+    rows = {r["permission_name"]: r for r in parse_android_manifest(xml)}
+    assert rows["android.permission.DUP"]["permission_type"] == "签名权限"
+    assert rows["android.permission.DUP"]["raw_data"]["protection_levels_seen"] == ["normal", "signature"]
