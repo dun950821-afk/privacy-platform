@@ -1,0 +1,87 @@
+<html><head><meta http-equiv="Content-Type" content="text/html" charset="UTF-8"><title>vulnerability scan result</title><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/default.min.css"><style>             .bgheader1{
+             background:#FFF;
+             color:#000;
+             }
+             .bgheader2{
+             background:#FFF;
+             color:#00F;
+             }
+     .background {
+      background-color: #272727;
+color: #ccc;
+     }
+     .code {
+         background-color: #272727;
+   color: #ccc;
+     }
+     .vulnerability-detail{
+     color:#F00;
+     }
+     .highlightcode {
+     background:#FF0;
+     color:#00F;
+     }
+ </style><script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body><a class="vulnerability-detail">vulnerability detail</a><pre class="java"><code>Name: 门户测试
+PackageName: cn.com.njcb.android.mobilehome.test
+ApplicationName: com.yitong.mbank.app.android.application.MyApplication
+VersionName: 3.4.24
+VersionCode: 2055
+MinSdk: 22
+TargetSdk: 26
+name: DeviceId_FileWrite
+category: ComplianceInfo
+detail: 设备标识符(IMEI/IMSI/OAID等)写入文件或SharedPreferences持久化
+complianceCategory: PersonalDeviceInformation_Persist
+complianceCategoryDetail: 个人设备信息_持久化存储
+scanTime: 2026-09-28T14:23:33.906451406
+engineVersion:0.1.1
+</code></pre><div><div class="vulnerability-detail">data flow:</div><pre><code class="java">&lt;com.intsig.view.ICCardAuthUtil: java.lang.String getDeviceId(android.content.Context,android.content.SharedPreferences)&gt;-&gt;$r4_5
+&lt;com.intsig.view.ICCardAuthUtil: java.lang.String getDeviceId(android.content.Context,android.content.SharedPreferences)&gt;-&gt;$r4_7
+</code></pre><div class="vulnerability-detail">call stack: </div><pre><code class="java">&lt;com.intsig.view.ICCardAuthUtil: java.lang.String getDeviceId(android.content.Context,android.content.SharedPreferences)&gt;
+</code></pre><div class="vulnerability-detail">code detail: </div><div><pre><code class="java"><div class="bgheader2">&lt;com.intsig.view.ICCardAuthUtil: java.lang.String getDeviceId(android.content.Context,android.content.SharedPreferences)&gt;-&gt;$r4_5</div><div class="bgheader1">&lt;com.intsig.view.ICCardAuthUtil: java.lang.String getDeviceId(android.content.Context,android.content.SharedPreferences)&gt;-&gt;$r4_7</div></code></pre><pre><code class="java">1:  r0 := @this: com.intsig.view.ICCardAuthUtil
+2:  $r3 := @parameter0: android.content.Context
+3:  $r1 := @parameter1: android.content.SharedPreferences
+4:  $r4 = interfaceinvoke $r1.&lt;android.content.SharedPreferences: java.lang.String getString(java.lang.String,java.lang.String)&gt;(&quot;DEVICEID&quot;, null)
+5: if $r4 == null   goto LABEL1
+6:  return $r4
+LABEL1:
+7:  $r5 = virtualinvoke $r3.&lt;android.content.Context: java.lang.Object getSystemService(java.lang.String)&gt;(&quot;phone&quot;)
+8:  $r6 = (android.telephony.TelephonyManager) $r5
+9:  $r7 = virtualinvoke $r6.&lt;android.telephony.TelephonyManager: java.lang.String getDeviceId()&gt;()
+10:  $r4_1 = $r7
+11:  $z0 = staticinvoke &lt;android.text.TextUtils: boolean isEmpty(java.lang.CharSequence)&gt;($r7)
+12: if $z0 != 0   goto LABEL2
+13:  $z0_1 = specialinvoke r0.&lt;com.intsig.view.ICCardAuthUtil: boolean isZeros(java.lang.String)&gt;($r7)
+14:  $r4_3 = $r4_1
+15: if $z0_1 == 0   goto LABEL3
+LABEL2:
+16:  $r8 = staticinvoke &lt;java.lang.Class: java.lang.Class forName(java.lang.String)&gt;(&quot;android.os.SystemProperties&quot;)
+17:  $r9 = newarray (java.lang.Class)[1]
+18:  $r9[0] = class &quot;Ljava/lang/String;&quot;
+19:  $r10 = virtualinvoke $r8.&lt;java.lang.Class: java.lang.reflect.Method getMethod(java.lang.String,java.lang.Class[])&gt;(&quot;get&quot;, $r9)
+20:  $r11 = newarray (java.lang.Object)[1]
+21:  $r11[0] = &quot;ro.serialno&quot;
+22:  $r5_1 = virtualinvoke $r10.&lt;java.lang.reflect.Method: java.lang.Object invoke(java.lang.Object,java.lang.Object[])&gt;($r8, $r11)
+23:  $r7_1 = (java.lang.String) $r5_1
+24:  $r4_3 = $r7_1
+LABEL3:
+25:  $z0_4 = staticinvoke &lt;android.text.TextUtils: boolean isEmpty(java.lang.CharSequence)&gt;($r4_3)
+26:  $r4_5 = $r4_3
+27: if $z0_4 == 0   goto LABEL4
+28:  $r12 = virtualinvoke $r3.&lt;android.content.Context: android.content.ContentResolver getContentResolver()&gt;()
+<div class="highlightcode">29:-&gt;[Source] $r4_5 = staticinvoke &lt;android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)&gt;($r12, &quot;android_id&quot;)</div>LABEL4:
+30:  $z0_5 = staticinvoke &lt;android.text.TextUtils: boolean isEmpty(java.lang.CharSequence)&gt;($r4_5)
+<div class="highlightcode">31:-&gt;[1] $r4_7 = $r4_5</div>32: if $z0_5 == 0   goto LABEL5
+33:  $r13 = new java.lang.StringBuilder
+34:  specialinvoke $r13.&lt;java.lang.StringBuilder: void &lt;init&gt;()&gt;()
+35:  $l0 = staticinvoke &lt;java.lang.System: long currentTimeMillis()&gt;()
+36:  virtualinvoke $r13.&lt;java.lang.StringBuilder: java.lang.StringBuilder append(long)&gt;($l0)
+37:  virtualinvoke $r13.&lt;java.lang.StringBuilder: java.lang.StringBuilder append(java.lang.String)&gt;(&quot;&quot;)
+38:  $r4_7 = virtualinvoke $r13.&lt;java.lang.StringBuilder: java.lang.String toString()&gt;()
+LABEL5:
+39:  $r14 = interfaceinvoke $r1.&lt;android.content.SharedPreferences: android.content.SharedPreferences$Editor edit()&gt;()
+<div class="highlightcode">40:-&gt;[Sink] $r14_1 = interfaceinvoke $r14.&lt;android.content.SharedPreferences$Editor: android.content.SharedPreferences$Editor putString(java.lang.String,java.lang.String)&gt;(&quot;DEVICEID&quot;, $r4_7)</div>41:  interfaceinvoke $r14_1.&lt;android.content.SharedPreferences$Editor: boolean commit()&gt;()
+42:  return $r4_7
+43:  $r2 := @caughtexception
+44:  $r4_3 = $r4_1
+</code></pre></div></div></body></html>

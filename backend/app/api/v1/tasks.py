@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import generate_uid
 from app.models import (DetectionTask, SubTask, DetectionScenario, DetectionEvent,
-                        Finding, Evidence, AppVersion, User, AgentNode, EngineExecution)
+                        Finding, Evidence, AppVersion, User, AgentNode, EngineExecution,
+                        EngineObservation)
 from app.schemas import TaskCreate, ScenarioUpdate
 from app.api.deps import get_current_user, require_permission, get_request_id
 from app.tasks.orchestrator import TaskOrchestrator
@@ -442,6 +443,46 @@ def task_evidence(tid: int, evidence_type: str = None,
 
 
 # ============ 任务检测报告汇总 ============
+
+MAX_ENGINE_REPORT_BYTES = 2 * 1024 * 1024
+
+
+@router.get("/{tid}/observations/{oid}/engine-report")
+def observation_engine_report(tid: int, oid: int, user: User = Depends(get_current_user),
+                              db: Session = Depends(get_db)):
+    """引擎为该条命中生成的报告，解析成结构化数据。
+
+    **只返回文本，不返回 HTML**：报告内容来自被检 APK（类名、方法名、字符串），
+    是不可信输入，把引擎生成的 HTML 直接交给浏览器渲染等于把 XSS 面开给样本。
+    前端用自家组件渲染这里返回的结构化代码。
+    """
+    from app.services.appshark_report import (find_report_file, parse_report,
+                                              report_name_from_url)
+
+    obs = db.query(EngineObservation).filter(
+        EngineObservation.id == oid, EngineObservation.task_id == tid).first()
+    if not obs:
+        raise HTTPException(status_code=404, detail="观察不存在")
+
+    report_name = report_name_from_url((obs.payload or {}).get("url"))
+    if not report_name:
+        raise HTTPException(status_code=404, detail="该观察没有对应的引擎报告")
+
+    path = find_report_file(db, tid, report_name)
+    if not path:
+        raise HTTPException(status_code=404, detail="引擎报告文件不在证据库中")
+    if path.stat().st_size > MAX_ENGINE_REPORT_BYTES:
+        raise HTTPException(status_code=413, detail="引擎报告过大，不予内联展示")
+
+    parsed = parse_report(path.read_text(encoding="utf-8", errors="replace"))
+    return {"code": 0, "data": {
+        "report_name": report_name,
+        "provider_rule_id": obs.provider_rule_id or (obs.payload or {}).get("rule"),
+        "fields": parsed["fields"],
+        "rule": parsed["rule"],
+        "code_blocks": parsed["code_blocks"],
+    }}
+
 
 @router.get("/{tid}/report-overview")
 def task_report_overview(tid: int, user: User = Depends(get_current_user),

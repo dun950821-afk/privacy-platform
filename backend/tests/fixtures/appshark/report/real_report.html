@@ -1,0 +1,46 @@
+<html><head><meta http-equiv="Content-Type" content="text/html" charset="UTF-8"><title>vulnerability scan result</title><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/default.min.css"><style>             .bgheader1{
+             background:#FFF;
+             color:#000;
+             }
+             .bgheader2{
+             background:#FFF;
+             color:#00F;
+             }
+     .background {
+      background-color: #272727;
+color: #ccc;
+     }
+     .code {
+         background-color: #272727;
+   color: #ccc;
+     }
+     .vulnerability-detail{
+     color:#F00;
+     }
+     .highlightcode {
+     background:#FF0;
+     color:#00F;
+     }
+ </style><script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script><script>hljs.initHighlightingOnLoad();</script></head><body><a class="vulnerability-detail">vulnerability detail</a><pre class="java"><code>Name: 门户测试
+PackageName: cn.com.njcb.android.mobilehome.test
+ApplicationName: com.yitong.mbank.app.android.application.MyApplication
+VersionName: 3.4.24
+VersionCode: 2055
+MinSdk: 22
+TargetSdk: 26
+name: Camera_APICall
+category: ComplianceInfo
+detail: 调用摄像头
+complianceCategory: PersonalMedia_APICall
+complianceCategoryDetail: 音视频采集_API调用
+scanTime: 2026-09-28T14:23:24.861561250
+engineVersion:0.1.1
+</code></pre><a class="vulnerability-detail">vulnerability postition:</a><pre><code class="java">&lt;com.megvii.livenesslib.util.ICamera: android.hardware.Camera getCameraSafely(int)&gt;{
+1: r0 := @this: com.megvii.livenesslib.util.ICamera
+2: $i0 := @parameter0: int
+<div class="highlightcode">3: $r1 = staticinvoke &lt;android.hardware.Camera: android.hardware.Camera open(int)&gt;($i0)</div>4: return $r1
+5: return null
+6: $r2 := @caughtexception
+7: goto [?= return null]
+}
+</code></pre></body></html>
