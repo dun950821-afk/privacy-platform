@@ -89,6 +89,60 @@ EXP_Iso_MediaUri      (MediaStore.Images.Media)     未命中
 
 **这条结论的实际约束**：只要 URI 常量机制不生效，`ContentResolver.query` 观测（#1，类目无关）就**没有配套的类目限定手段**，因而不得用于任何类目专属结论。
 
+## 能力边界 2：看不穿接口/多态调用，因此「X 流入 Y」型规则系统性高报
+
+**状态：VERIFIED（2026-09-28，Task 7 逐条核实官方规则时发现）**
+
+前一条边界说的是「检测不到」，这一条相反：**检测得到，但把「存在数据流」当成「存在漏洞」**。
+
+污点分析只跟踪值与调用点，不进入被调用方的实现。当校验逻辑藏在接口的实现类里时，
+规则看到的是「外部输入流入 sink」，看不到「实现里已经校验过」，于是报出漏洞。
+
+实测（app_version 11 门户测试 3.4.24，task 810）
+
+```text
+规则      ContentProviderPathTraversal        命中 3 条，1 个调用点
+调用点    <com.tencent.smtt.utils.FileProvider: ParcelFileDescriptor openFile(Uri, String)>
+规则报告  @parameter0 (Uri) → $r4 = FileProvider$a.a(Uri) → ParcelFileDescriptor.open($r4)
+```
+
+规则只看到 Uri 流入 `open`。但 `FileProvider$a` 是接口，其**唯一实现** `FileProvider$b.a(Uri)`
+里做了标准的包含校验：
+
+```text
+v5 = new File(root, attackerPath)
+v5 = v5.getCanonicalFile()                      ← 解析 ../
+if (v5.getPath().startsWith(root.getPath())) return v5
+else throw new SecurityException("Resolved path jumped beyond configured root")
+```
+
+`../` 会被规范化后拒绝，**该命中是误报**。
+
+### 影响范围与诠释方式
+
+- 这不是某一条规则写错了，而是**该类型的规则都如此**：凡是「外部输入 → sink」的
+  断言，其成立与否取决于被调用方是否校验，而这一点污点分析不覆盖
+- 反过来也不成立：`unZipSlip` 在同一批样本上确实检出了真阳性
+  （`ZipUtil.unzip` 直接以 `dest_dir + "/" + entry.getName()` 作输出路径，无规范化）。
+  所以命中**既不是**「必为漏洞」**也不是**「无意义」
+- 正确的诠释：**命中是一条线索，不是一条结论**。判定命中的真伪必须下沉到实现字节码
+  （Task 7 的做法），平台层面不得把「引擎报了这个规则」直接当成「存在该漏洞」
+
+### 对平台的一处直接后果（待决策，尚未改动）
+
+`ContentProviderPathTraversal` 这类官方安全规则在语义注册表里的
+`result_semantics = direct_finding`，于是平台会**直接把它转成用户可见的结论**——
+包括这个已被证实的误报。而本平台自有的数据流规则（`DeviceId_FileWrite` 等）不同：
+它们声称的只是「存在一条 source→sink 路径」，命中即为该论断本身，不存在同一问题。
+
+因此「哪些观察配得上 `direct_finding`」需要在官方安全规则上重新审视：可选做法是把它
+降为 `supporting_evidence`（只做证据、不直接成结论），或引入「引擎判定未核实」这一
+中间态。**这是语义层改动，会影响 Finding 生成与覆盖矩阵，需先定策略再动。**
+
+同类受影响规则（同属官方安全规则且论断为「漏洞存在」）：`IntentRedirectionBabyVersion`、
+`PendingIntentMutable`、`unZipSlip`。其中后两条已分别在真实样本上确认为真阳性，但
+**这条边界意味着它们同样可能报出误报**，只是本次取样中未遇到。
+
 ## 未完成
 
 - #6 跨类目隔离记为 `NOT_CONDUCTIBLE`：前提机制（URI 常量作 source）不生效，测试无信号。
