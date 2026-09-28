@@ -1,8 +1,11 @@
 """权限知识库路由 (基于 privacy_kb.permission)
 
-权限表是**受控词表**，不是自由文本：`permission_type` 只收这里列出的 8 个取值。
+权限表是**受控词表**，不是自由文本：`permission_type` 按平台各一套取值。
 这张表此前攒到过 39 个自由文本取值（「危险/已弱化」「普通/受限 API权限」…），
 根因就是没有写入侧的校验——所以枚举由后端给出（`/permissions/meta`），前端不硬编码。
+
+**词表只有一处定义**：`app.services.permission_taxonomy`。这里不再抄一份，
+免得两处各改各的、加了新取值只在一边生效。
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, or_, text
@@ -13,14 +16,12 @@ from app.core.database import get_db
 from app.models import User
 from app.models.kb import KBPermission
 from app.schemas import PermissionCreate, PermissionUpdate
+from app.services.permission_taxonomy import (
+    PERMISSION_TYPES_BY_PLATFORM, PLATFORMS, is_applicable, validate_permission_type,
+)
 
 router = APIRouter(prefix="/permissions", tags=["权限知识库"])
 
-# 受控词表：知识库归一后的取值，别再加自由文本
-PERMISSION_TYPES = (
-    "危险权限", "危险权限（受限）", "普通权限", "签名权限",
-    "特殊权限", "已弃用权限", "三方声明权限", "未标注",
-)
 RISK_LEVELS = ("LOW", "MEDIUM", "HIGH", "CRITICAL")
 
 
@@ -32,6 +33,7 @@ def _brief(p: KBPermission) -> dict:
     return {
         "id": p.id,
         "permission_name": p.permission_name,
+        "platform": p.platform,
         "category": p.category,
         "permission_type": p.permission_type,
         "risk_level": p.risk_level,
@@ -50,11 +52,11 @@ def _detail(p: KBPermission) -> dict:
     return data
 
 
-def _check_type(value: str | None):
-    if value is not None and value not in PERMISSION_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"permission_type 只能是受控词表里的取值：{'、'.join(PERMISSION_TYPES)}")
+def _check_type(platform: str, value: str | None):
+    try:
+        validate_permission_type(platform, value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 def _check_risk(value: str | None):
@@ -64,14 +66,29 @@ def _check_risk(value: str | None):
 
 
 @router.get("/meta")
-def permission_meta(user: User = Depends(require_permission("permission:read")),
+def permission_meta(platform: str = None,
+                    user: User = Depends(require_permission("permission:read")),
                     db: Session = Depends(get_db)):
-    """受控词表与现有分类取值。前端据此渲染下拉，避免把词表抄一份到前端。"""
-    categories = [r[0] for r in db.query(KBPermission.category)
-                  .filter(KBPermission.category.isnot(None), KBPermission.category != "")
-                  .distinct().order_by(KBPermission.category).all()]
+    """受控词表与现有分类取值。platform 给定则只返回该平台的词表。
+
+    不传 platform 时 permission_type 返回三平台并集——前端在「还没选平台」的阶段
+    只能这样兜底，别拿这个并集去校验任何单个平台的输入。
+    """
+    if platform and platform not in PERMISSION_TYPES_BY_PLATFORM:
+        # 未知平台没有词表可给。放它下去会命中 `.get()` 的 None 直接 500，
+        # 而退回并集又会让前端拿 Android 的词表去校验 iOS 的输入——两者都错，只能拒。
+        raise HTTPException(status_code=400,
+                            detail=f"platform 只能是：{'、'.join(PLATFORMS)}")
+    q = db.query(KBPermission.category).filter(
+        KBPermission.category.isnot(None), KBPermission.category != "")
+    if platform:
+        q = q.filter(KBPermission.platform == platform)
+    categories = sorted({r[0] for r in q.all()})
+    types = (PERMISSION_TYPES_BY_PLATFORM.get(platform) if platform
+             else tuple(t for ts in PERMISSION_TYPES_BY_PLATFORM.values() for t in ts))
     return {"code": 0, "data": {
-        "permission_types": list(PERMISSION_TYPES),
+        "platforms": list(PLATFORMS),
+        "permission_types": list(dict.fromkeys(types)),
         "risk_levels": list(RISK_LEVELS),
         "categories": categories,
     }}
@@ -80,10 +97,11 @@ def permission_meta(user: User = Depends(require_permission("permission:read")),
 @router.get("")
 def list_permissions(category: str = None, permission_type: str = None,
                      risk_level: str = None, keyword: str = None,
+                     platform: str = None, applicable: bool = None,
                      is_active: bool = None, page: int = 1, page_size: int = 50,
                      user: User = Depends(require_permission("permission:read")),
                      db: Session = Depends(get_db)):
-    """权限列表：支持分类/类型/风险/关键字/启停筛选与分页"""
+    """权限列表：支持平台/分类/类型/风险/关键字/可达性/启停筛选与分页"""
     page_size = min(max(page_size, 1), 200)
     page = max(page, 1)
 
@@ -94,6 +112,8 @@ def list_permissions(category: str = None, permission_type: str = None,
         q = q.filter(KBPermission.permission_type == permission_type)
     if risk_level:
         q = q.filter(KBPermission.risk_level == risk_level)
+    if platform:
+        q = q.filter(KBPermission.platform == platform)
     if is_active is not None:
         q = q.filter(KBPermission.is_active == is_active)
     if keyword:
@@ -101,9 +121,17 @@ def list_permissions(category: str = None, permission_type: str = None,
         q = q.filter(or_(KBPermission.normalized_name.like(like),
                          func.lower(KBPermission.capability).like(like)))
 
-    total = q.count()
-    items = q.order_by(KBPermission.permission_name) \
-             .offset((page - 1) * page_size).limit(page_size).all()
+    if applicable:
+        # 可达性不能只在 SQL 里判：鸿蒙还要看 grant_mode，SQL 里拼不干净。
+        # 取全量在 Python 侧过滤，分页放在过滤之后（数据量在千级，可以接受）。
+        rows = [r for r in q.order_by(KBPermission.permission_name).all()
+                if is_applicable(r.platform, r.permission_type, r.grant_mode)]
+        total = len(rows)
+        items = rows[(page - 1) * page_size: page * page_size]
+    else:
+        total = q.count()
+        items = q.order_by(KBPermission.permission_name) \
+                 .offset((page - 1) * page_size).limit(page_size).all()
 
     return {"code": 0, "data": {
         "items": [_brief(p) for p in items],
@@ -121,11 +149,12 @@ def create_permission(req: PermissionCreate,
     if db.query(KBPermission).filter(KBPermission.permission_name == name).first():
         raise HTTPException(status_code=400, detail="该权限名已存在")
 
-    _check_type(req.permission_type)
+    _check_type(req.platform, req.permission_type)
     _check_risk(req.risk_level)
 
     p = KBPermission(
         permission_name=name,
+        platform=req.platform,
         normalized_name=_normalize(name),
         category=req.category,
         permission_type=req.permission_type,
@@ -158,7 +187,9 @@ def update_permission(pid: int, req: PermissionUpdate,
     if not p:
         raise HTTPException(status_code=404, detail="权限不存在")
 
-    _check_type(req.permission_type)
+    # 平台取自**这一行自身**：PermissionUpdate 不含 platform——平台是行的身份，
+    # 和 permission_name 一样建后不可改，所以词表要按这一行的平台来校验。
+    _check_type(p.platform, req.permission_type)
     _check_risk(req.risk_level)
 
     # permission_name 不在这里改：它是扫描记录按名字匹配的主键，

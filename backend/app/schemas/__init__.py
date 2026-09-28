@@ -188,6 +188,7 @@ class ComponentFingerprintCreate(BaseModel):
 class PermissionCreate(BaseModel):
     """权限知识库新建。permission_name 是对外主键（扫描记录按名字匹配），建后不可改。"""
     permission_name: str
+    platform: str = "ANDROID"
     category: Optional[str] = None
     permission_type: Optional[str] = None
     risk_level: Optional[str] = None

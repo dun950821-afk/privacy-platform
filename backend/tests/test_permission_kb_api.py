@@ -1,8 +1,8 @@
 """权限知识库的维护接口。
 
-权限表是**受控词表**：`permission_type` 只允许归一后的 8 个取值。之前这张表里
-攒了 39 个自由文本取值（「危险/已弱化」「普通/受限 API权限」…），正是没有入口校验
-造成的。这里的用例把这条约束钉住，免得又从界面上污染回去。
+权限表是**受控词表**：`permission_type` 按平台各一套取值（Android 那套是归一后的 8 个）。
+之前这张表里攒了 39 个自由文本取值（「危险/已弱化」「普通/受限 API权限」…），
+正是没有入口校验造成的。这里的用例把这条约束钉住，免得又从界面上污染回去。
 """
 from sqlalchemy import text
 
@@ -34,13 +34,18 @@ def _row(db, name):
 
 
 def test_meta_exposes_controlled_vocabulary(client, admin_headers):
-    """枚举值由后端给，前端不硬编码——硬编码正是词表失控的起点。"""
-    resp = client.get("/api/v1/permissions/meta", headers=admin_headers)
+    """枚举值由后端给，前端不硬编码——硬编码正是词表失控的起点。
+
+    词表**按平台各一套**：不传 platform 时返回的是三平台并集，所以这里必须指定平台
+    再断言个数，否则 8 这个数字量的是并集、断言失去意义。
+    """
+    resp = client.get("/api/v1/permissions/meta", headers=admin_headers,
+                      params={"platform": "ANDROID"})
     assert resp.status_code == 200
     data = resp.json()["data"]
     assert "危险权限" in data["permission_types"]
     assert "三方声明权限" in data["permission_types"]
-    assert len(data["permission_types"]) == 8, "受控词表就是归一后的 8 个"
+    assert len(data["permission_types"]) == 8, "Android 受控词表就是归一后的 8 个"
     assert set(data["risk_levels"]) == {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
     assert isinstance(data["categories"], list)
 
