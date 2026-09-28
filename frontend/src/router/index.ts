@@ -41,7 +41,7 @@ const routes = [
       { path: 'engines', name: 'Engines', component: () => import('@/views/Engines.vue'),
         meta: { title: '检测引擎', group: '知识库' } },
       { path: 'appshark-rules', name: 'AppsharkRules', component: () => import('@/views/AppsharkRules.vue'),
-        meta: { title: 'AppShark规则', group: '知识库' } },
+        meta: { title: '静态规则', group: '知识库' } },
       { path: 'rules', name: 'Rules', component: () => import('@/views/Rules.vue'),
         meta: { title: '规则管理', group: '知识库' } },
       { path: 'rules/:id', name: 'RuleDetail', component: () => import('@/views/RuleDetail.vue'),

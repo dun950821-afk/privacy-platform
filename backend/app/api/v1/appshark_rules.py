@@ -17,7 +17,12 @@ from app.engine.adapters.appshark import APPSHARK_RULE_DIR
 router = APIRouter(prefix="/appshark-rules", tags=["AppShark规则"])
 
 RULE_DIR = Path(APPSHARK_RULE_DIR)
-FILENAME_RE = re.compile(r"^[a-z0-9_]+\.json$")
+# 文件名白名单：字母(含大写)/数字/下划线/连字符 + .json 结尾。
+# **必须容纳规则库里已有的名字**：上游规则的命名是 ContentProviderPathTraversal.json、
+# unZipSlip.json 这种驼峰，早先只允许小写，于是那批文件在界面上根本打不开
+# （读取即 400「文件名不合法」）。防路径穿越靠下面的 resolve/parent 校验，不靠这里的大小写。
+FILENAME_RE = re.compile(r"^[A-Za-z0-9_-]+\.json$")
+FILENAME_HINT = "文件名只能用字母/数字/下划线/连字符，且以 .json 结尾"
 
 
 class RuleFileIn(BaseModel):
@@ -70,10 +75,10 @@ def _safe_path(filename: str) -> Path:
     """校验文件名(防路径穿越), 返回完整路径"""
     base = filename[:-len(".disabled")] if filename.endswith(".disabled") else filename
     if not FILENAME_RE.match(base):
-        raise HTTPException(status_code=400, detail="文件名不合法(仅小写字母/数字/下划线, .json 结尾)")
+        raise HTTPException(status_code=400, detail=FILENAME_HINT)
     path = (RULE_DIR / filename).resolve()
     if path.parent != RULE_DIR.resolve():
-        raise HTTPException(status_code=400, detail="文件名不合法")
+        raise HTTPException(status_code=400, detail=FILENAME_HINT)
     return path
 
 

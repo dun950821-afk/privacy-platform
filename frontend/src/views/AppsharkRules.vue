@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <PageHeader title="AppShark规则" subtitle="污点分析引擎的检测规则集, 改动即时生效(下次扫描加载)">
+    <PageHeader title="静态规则" subtitle="静态分析引擎(AppShark)的检测规则集, 改动即时生效(下次扫描加载)">
       <el-button type="primary" :icon="Plus" @click="openCreate">新增规则</el-button>
     </PageHeader>
 
@@ -295,8 +295,10 @@ async function save() {
   let filename = editingFile.value
   if (isCreate.value) {
     const base = f.filename.trim().replace(/\.json$/, '')
-    if (!/^[a-z0-9_]+$/.test(base)) {
-      ElMessage.warning('文件名仅支持小写字母/数字/下划线')
+    // 与后端 _safe_path 的白名单保持一致：上游规则的命名是驼峰
+    // （ContentProviderPathTraversal.json、unZipSlip.json），只允许小写会让这类名字建不出来
+    if (!/^[A-Za-z0-9_-]+$/.test(base)) {
+      ElMessage.warning('文件名只能用字母/数字/下划线/连字符')
       return
     }
     filename = `${base}.json`

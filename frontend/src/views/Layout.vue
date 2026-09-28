@@ -121,7 +121,7 @@ const MENUS: MenuGroup[] = [
     { path: '/rules', title: '规则管理', icon: Document },
     { path: '/correlation-rules', title: '关联规则', icon: Connection },
     { path: '/engines', title: '检测引擎', icon: Cpu },
-    { path: '/appshark-rules', title: 'AppShark规则', icon: MagicStick },
+    { path: '/appshark-rules', title: '静态规则', icon: MagicStick },
   ] },
   { label: '报告', items: [
     { path: '/reports', title: '报告中心', icon: Files },
