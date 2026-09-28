@@ -85,6 +85,36 @@ def test_applicable_filter_is_tri_state(client, admin_headers, db, seeded):
     assert len(unfiltered) == 2, "不传 applicable 时两行都要在"
 
 
+def test_applicable_filter_happens_before_pagination(client, admin_headers, db, seeded):
+    """`page_size=1` + `applicable`：先过滤，后切片。
+
+    切片顺序写反（先按页取一条再过滤）不会报错，只会**静静少给**——所以这里造一个
+    排序在最前、但不可达的行（`P+"a0sig"`）：先切片的话第一页取到它、过滤完是空列表，
+    断言立刻红。名字前缀刻意排在 app1/app2/danger 之前，就是为了让两种顺序分道扬镳。
+    """
+    import_platform(db, "ANDROID", [
+        {"permission_name": P + "a0sig", "permission_type": "签名权限", "capability": None,
+         "grant_mode": None, "official_reference": None, "raw_data": {}},
+        {"permission_name": P + "app1", "permission_type": "普通权限", "capability": None,
+         "grant_mode": None, "official_reference": None, "raw_data": {}},
+        {"permission_name": P + "app2", "permission_type": "普通权限", "capability": None,
+         "grant_mode": None, "official_reference": None, "raw_data": {}},
+    ])
+
+    def page(n):
+        return client.get("/api/v1/permissions", headers=admin_headers,
+                          params={"platform": "ANDROID", "applicable": "true",
+                                  "keyword": P, "page": n, "page_size": 1}).json()["data"]
+
+    first, second = page(1), page(2)
+    # 可达的是 app1 / app2 / danger 三条，不可达的 sig / a0sig 已被滤掉
+    assert first["total"] == second["total"] == 3, "total 必须是过滤后的条数"
+    assert [i["permission_name"] for i in first["items"]] == [P + "app1"]
+    assert [i["permission_name"] for i in second["items"]] == [P + "app2"]
+    assert [i["permission_name"] for i in page(3)["items"]] == [P + "danger"]
+    assert page(4)["items"] == [], "按名排序翻到底就该是空的"
+
+
 def test_create_rejects_type_from_another_platform(client, admin_headers, db):
     _cleanup(db)
     try:

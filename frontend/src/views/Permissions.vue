@@ -270,9 +270,17 @@ function resetForm() {
 
 async function openCreate() {
   resetForm()
-  // 弹窗词表要按弹窗自己的平台取，不能沿用筛选栏那一份
-  await loadDialogMeta(form.platform)
+  // **先开弹窗，再取词表**：词表请求挡在 `showDialog = true` 之前时，它一失败
+  // （网络抖动、令牌过期）就是「点了按钮没反应」——弹窗不开、也没有任何提示，
+  // 只在控制台留一个未处理的 rejection。
   showDialog.value = true
+  try {
+    // 弹窗词表要按弹窗自己的平台取，不能沿用筛选栏那一份
+    await loadDialogMeta(form.platform)
+  } catch {
+    // 弹窗照开（权限名、平台、说明都还能填），但类型下拉此时是空的，必须说出来
+    ElMessage.error('权限类型词表加载失败，请稍后重试')
+  }
 }
 
 async function openEdit(row: PermissionItem) {
