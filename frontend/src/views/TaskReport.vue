@@ -123,218 +123,27 @@
         </el-row>
       </el-tab-pane>
 
-      <!-- ③ 隐私数据流 -->
-      <el-tab-pane :label="`隐私数据流 (${dataFlows.length})`" name="dataflow">
-        <el-card shadow="never" class="mb16">
-          <template #header><span class="card-title">数据流分析</span></template>
-          <el-alert v-if="appshark" type="info" :closable="false" class="mb16" :title="appsharkSummary" />
-          <el-row v-if="hasFlowData" :gutter="16">
-            <el-col :span="10">
-              <div class="sub-title">数据流（{{ dataFlows.length }}）</div>
-              <el-table :data="dataFlows" size="small" stripe max-height="380">
-                <el-table-column prop="category" label="合规分类" min-width="180" show-overflow-tooltip>
-                  <template #default="{ row }">{{ row.category || '-' }}</template>
-                </el-table-column>
-                <el-table-column prop="rule" label="规则" min-width="150" show-overflow-tooltip>
-                  <template #default="{ row }">{{ row.rule || '-' }}</template>
-                </el-table-column>
-                <el-table-column prop="count" label="路径数" width="90" align="center">
-                  <template #default="{ row }">{{ row.count ?? 0 }}</template>
-                </el-table-column>
-                <template #empty><EmptyBox description="暂无数据流" /></template>
-              </el-table>
-            </el-col>
-            <el-col :span="14">
-              <div class="sub-title">敏感 API（{{ sensitiveApis.length }}）</div>
-              <el-table :data="sensitiveApis" size="small" stripe max-height="380">
-                <el-table-column prop="category" label="分类" min-width="160" show-overflow-tooltip>
-                  <template #default="{ row }">{{ row.category || '-' }}</template>
-                </el-table-column>
-                <el-table-column prop="api" label="API" min-width="220" show-overflow-tooltip>
-                  <template #default="{ row }"><span class="mono">{{ row.api || '-' }}</span></template>
-                </el-table-column>
-                <el-table-column prop="count" label="调用点数" width="90" align="center">
-                  <template #default="{ row }">{{ row.count ?? 0 }}</template>
-                </el-table-column>
-                <el-table-column label="调用方" min-width="180" show-overflow-tooltip>
-                  <template #default="{ row }">
-                    <span v-if="row.callers?.length" class="mono">{{ row.callers.join('、') }}</span>
-                    <span v-else>-</span>
-                  </template>
-                </el-table-column>
-                <template #empty><EmptyBox description="暂无敏感API" /></template>
-              </el-table>
-            </el-col>
-          </el-row>
-          <EmptyBox v-else description="暂无数据流结果" />
-          <div class="evidence-note">
-            证据等级：潜在（potential）。第三方与加密状态在无运行时证据时保持未知。
+      <!-- 分引擎结果：复用工作台那套面板，但默认折叠明细——报告是交付物，先给结论与规模 -->
+      <el-tab-pane label="分引擎结果" name="engines">
+        <el-alert v-if="leadCount" type="info" :closable="false" show-icon class="mb16"
+          :title="`另有 ${leadCount} 条引擎判定为弱点的线索未经平台核实，未列入本报告结论；详见工作台「未核实线索」`" />
+
+        <div v-for="e in engineChapters" :key="e.type" class="engine-chapter">
+          <div class="chapter-head">
+            <span class="chapter-name">{{ e.name }}</span>
+            <span class="chapter-sub">{{ e.summary }}</span>
           </div>
-        </el-card>
-
-        <el-card shadow="never">
-          <template #header><span class="card-title">数据流观察（{{ dataflowObservations.length }}）</span></template>
-          <el-table :data="dataflowObservations" size="small" stripe>
-            <el-table-column prop="rule_code" label="规则" min-width="180" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.rule_code || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="Source" min-width="180" show-overflow-tooltip>
-              <template #default="{ row }"><span class="mono">{{ sourceOf(row) }}</span></template>
-            </el-table-column>
-            <el-table-column label="Sink" min-width="180" show-overflow-tooltip>
-              <template #default="{ row }"><span class="mono">{{ sinkOf(row) }}</span></template>
-            </el-table-column>
-            <el-table-column label="证据等级" width="110">
-              <template #default="{ row }">{{ row.evidence_level || 'potential' }}</template>
-            </el-table-column>
-            <template #empty><EmptyBox description="暂无数据流观察" /></template>
-          </el-table>
-        </el-card>
+          <el-collapse>
+            <el-collapse-item :name="e.type" :title="`查看 ${e.name} 明细`">
+              <AppSharkPanel v-if="e.type === 'appshark'" :task-id="taskId" />
+              <AndroguardPanel v-else-if="e.type === 'androguard'" :task-id="taskId"
+                               :execution-summary="e.resultSummary" />
+              <MobSFPanel v-else :task-id="taskId" />
+            </el-collapse-item>
+          </el-collapse>
+        </div>
       </el-tab-pane>
 
-      <!-- ④ 应用事实 -->
-      <el-tab-pane label="应用事实" name="facts">
-        <el-card shadow="never" class="mb16">
-          <template #header><span class="card-title">App 基础信息</span></template>
-          <el-descriptions :column="3" size="small" border>
-            <el-descriptions-item label="App名称">{{ app.name || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="包名">
-              <span class="mono">{{ app.package_name || '-' }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="版本">
-              {{ app.version_name || '-' }}（code {{ app.version_code ?? '-' }}）
-            </el-descriptions-item>
-            <el-descriptions-item label="文件大小">{{ fmtSize(app.file_size) }}</el-descriptions-item>
-            <el-descriptions-item label="minSdk / targetSdk">
-              {{ app.min_sdk ?? '-' }} / {{ app.target_sdk ?? '-' }}
-            </el-descriptions-item>
-            <el-descriptions-item label="检测类型">
-              <StatusTag :value="task.detection_type" :map="DETECTION_TYPE" />
-            </el-descriptions-item>
-            <el-descriptions-item label="规则包版本">{{ task.rule_pack_version || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="开始时间">{{ fmtDateTime(task.started_at) }}</el-descriptions-item>
-            <el-descriptions-item label="完成时间">{{ fmtDateTime(task.completed_at) }}</el-descriptions-item>
-            <el-descriptions-item label="SHA256" :span="3">
-              <span class="mono">{{ app.sha256 || '-' }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item v-for="item in basicInfoExtra" :key="item.key" :label="item.key">
-              <span class="mono">{{ item.value }}</span>
-            </el-descriptions-item>
-          </el-descriptions>
-        </el-card>
-
-        <el-card shadow="never" class="mb16">
-          <template #header><span class="card-title">权限明细</span></template>
-          <template v-if="permissions.sensitive.length || permissions.declared.length">
-            <div class="sub-title">敏感权限（{{ permissions.sensitive.length }}）</div>
-            <div class="perm-list">
-              <div v-for="p in permissions.sensitive" :key="p.name" class="perm-item">
-                <span class="mono perm-name danger">{{ p.name }}</span>
-                <span class="perm-cap">{{ p.capability || '知识库未收录该权限' }}</span>
-              </div>
-              <span v-if="!permissions.sensitive.length" class="no-data">-</span>
-            </div>
-            <div class="sub-title">声明权限（{{ permissions.declared.length }}）</div>
-            <div class="perm-list">
-              <div v-for="p in permissions.declared" :key="p.name" class="perm-item">
-                <span class="mono perm-name">{{ p.name }}</span>
-                <span class="perm-cap">{{ p.capability || '知识库未收录该权限' }}</span>
-              </div>
-              <span v-if="!permissions.declared.length" class="no-data">-</span>
-            </div>
-          </template>
-          <EmptyBox v-else description="暂无权限数据" />
-        </el-card>
-
-        <el-card shadow="never">
-          <template #header><span class="card-title">应用事实观察（{{ factObservations.length }}）</span></template>
-          <el-table :data="factObservations" size="small" stripe>
-            <el-table-column prop="observation_type" label="类型" width="190" />
-            <el-table-column prop="subject" label="对象" min-width="240" show-overflow-tooltip>
-              <template #default="{ row }"><span class="mono">{{ row.subject || '-' }}</span></template>
-            </el-table-column>
-            <el-table-column prop="engine_type" label="来源引擎" width="110" />
-            <template #empty><EmptyBox description="暂无事实观察" /></template>
-          </el-table>
-        </el-card>
-      </el-tab-pane>
-
-      <!-- ⑤ SDK 与第三方 -->
-      <el-tab-pane label="SDK 与第三方" name="sdk">
-        <el-row :gutter="16">
-          <el-col :span="14">
-            <el-card shadow="never" class="sdk-card">
-              <template #header>
-                <span class="card-title">已识别 SDK（{{ sdk.identified.length }}）</span>
-              </template>
-              <el-table :data="sdk.identified" size="small" stripe max-height="420">
-                <el-table-column prop="sdk_name" label="SDK名称" min-width="150" show-overflow-tooltip>
-                  <template #default="{ row }">{{ row.sdk_name || '-' }}</template>
-                </el-table-column>
-                <el-table-column prop="vendor" label="厂商" width="100" show-overflow-tooltip>
-                  <template #default="{ row }">{{ row.vendor || '-' }}</template>
-                </el-table-column>
-                <el-table-column prop="category" label="类别" width="110" show-overflow-tooltip>
-                  <template #default="{ row }">{{ row.category || '-' }}</template>
-                </el-table-column>
-                <el-table-column label="置信度" width="80">
-                  <template #default="{ row }">
-                    <StatusTag :value="row.confidence_level" :map="SENSITIVITY" />
-                  </template>
-                </el-table-column>
-                <el-table-column prop="total_score" label="得分" width="70" align="center">
-                  <template #default="{ row }">{{ row.total_score ?? '-' }}</template>
-                </el-table-column>
-                <el-table-column prop="evidence_count" label="证据数" width="80" align="center">
-                  <template #default="{ row }">{{ row.evidence_count ?? 0 }}</template>
-                </el-table-column>
-                <el-table-column label="涉及信息" min-width="140">
-                  <template #default="{ row }">
-                    <template v-if="row.involved_info?.length">
-                      <el-tag v-for="info in row.involved_info" :key="info" size="small"
-                              effect="plain" class="info-tag">{{ info }}</el-tag>
-                    </template>
-                    <span v-else>-</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="敏感权限" width="90" align="center">
-                  <template #default="{ row }">
-                    <el-tag v-if="row.sensitive_permission" type="danger" size="small">涉及</el-tag>
-                    <el-tag v-else type="info" size="small" effect="plain">否</el-tag>
-                  </template>
-                </el-table-column>
-                <template #empty><EmptyBox description="未识别到SDK" /></template>
-              </el-table>
-            </el-card>
-          </el-col>
-          <el-col :span="10">
-            <el-card shadow="never" class="sdk-card">
-              <template #header>
-                <span class="card-title">未识别包簇（{{ sdk.unidentified.length }}）</span>
-              </template>
-              <el-table :data="sdk.unidentified" size="small" stripe max-height="420">
-                <el-table-column label="包前缀" min-width="180" show-overflow-tooltip>
-                  <template #default="{ row }"><span class="mono">{{ row.package_prefix || '-' }}</span></template>
-                </el-table-column>
-                <el-table-column prop="class_count" label="类数量" width="90" align="center">
-                  <template #default="{ row }">{{ row.class_count ?? 0 }}</template>
-                </el-table-column>
-                <el-table-column label="初步判断" width="120">
-                  <template #default="{ row }">
-                    <el-tag v-if="row.guess_attr" size="small" effect="plain"
-                            :type="row.guess_attr.includes('加固') ? 'danger'
-                                  : row.guess_attr.includes('自研') ? 'success' : 'info'">
-                      {{ row.guess_attr }}
-                    </el-tag>
-                    <span v-else>-</span>
-                  </template>
-                </el-table-column>
-                <template #empty><EmptyBox description="无未识别包簇" /></template>
-              </el-table>
-            </el-card>
-          </el-col>
-        </el-row>
-      </el-tab-pane>
 
       <!-- ⑥ 证据 -->
       <el-tab-pane :label="`证据 (${artifacts.length})`" name="evidence">
@@ -403,6 +212,9 @@ import StatusTag from '@/components/StatusTag.vue'
 import StatCard from '@/components/StatCard.vue'
 import EmptyBox from '@/components/EmptyBox.vue'
 import VChart from '@/components/VChart.vue'
+import AppSharkPanel from '@/components/AppSharkPanel.vue'
+import AndroguardPanel from '@/components/AndroguardPanel.vue'
+import MobSFPanel from '@/components/MobSFPanel.vue'
 import { taskApi } from '@/api/tasks'
 import { fmtSize, fmtDateTime, fmtDuration } from '@/utils/format'
 import {
@@ -442,6 +254,47 @@ const permissions = computed<{ declared: PermDetail[]; sensitive: PermDetail[] }
 }))
 const eventsByType = computed<Record<string, number>>(() => report.value.events_by_type || {})
 const dataFlows = computed<any[]>(() => report.value.data_flows || [])
+
+/** 引擎章节：名称 + 一句规模摘要，明细默认折叠 */
+const engineChapters = computed(() => {
+  const queue = engineQueue.value
+  const ran = new Set(queue.map((i: any) => i.engine_type))
+  const summary = (type: string) => queue.find((i: any) => i.engine_type === type)?.result_summary || {}
+  const s = summary('appshark')
+  const a = summary('androguard')
+  const chapters = [
+    { type: 'appshark', name: 'AppShark', resultSummary: s, enabled: ran.has('appshark'),
+      summary: ran.has('appshark')
+        ? `污点分析：数据流 ${reported(s, 'vulnerability_count')} 处，扫描方法 ${s.scan_stats?.availableMethods ?? '—'}`
+        : '本次未启用' },
+    { type: 'androguard', name: 'Androguard', resultSummary: a, enabled: ran.has('androguard'),
+      summary: ran.has('androguard')
+        ? `APK 解析：组件 ${a.component_class_total ?? '—'} 个，DEX 类 ${a.class_count ?? '—'}`
+        : '本次未启用' },
+    { type: 'mobsf', name: 'MobSF', enabled: ran.has('mobsf'),
+      summary: ran.has('mobsf') ? '静态扫描：跟踪器/端点/导出组件' : '本次未启用' },
+  ]
+  return chapters.filter(c => c.enabled)
+})
+
+function reported(summary: any, key: string) {
+  return summary?.[key] ?? '—'
+}
+
+const engineQueue = ref<any[]>([])
+const leadCount = ref(0)
+
+/** 报告只统计「引擎判定为弱点但未经平台核实」的条数，不列条目（那是工作台的事） */
+async function loadLeadCount() {
+  try {
+    const res = await taskApi.observations(taskId, {
+      result_semantics: 'supporting_evidence', observation_type: 'security.other', page_size: 1,
+    })
+    leadCount.value = res.data?.total || 0
+  } catch {
+    leadCount.value = 0
+  }
+}
 const sensitiveApis = computed<any[]>(() => report.value.sensitive_apis || [])
 const appshark = computed<any>(() => report.value.appshark_overview || null)
 const sdk = computed<any>(() => ({
@@ -603,14 +456,19 @@ async function load() {
   try {
     const res: any = await taskApi.reportOverview(taskId)
     report.value = res.data || {}
-    const [findingsRes, observationsRes, artifactsRes] = await Promise.allSettled([
+    const [findingsRes, observationsRes, artifactsRes, taskRes] = await Promise.allSettled([
       taskApi.platformFindings(taskId),
       taskApi.observations(taskId, { page_size: 200 }),
       taskApi.artifacts(taskId),
+      taskApi.get(taskId),
     ])
+    if (taskRes.status === 'fulfilled') {
+      engineQueue.value = taskRes.value.data?.engine_queue?.items || []
+    }
     if (findingsRes.status === 'fulfilled') platformFindings.value = findingsRes.value.data?.items || []
     if (observationsRes.status === 'fulfilled') observations.value = observationsRes.value.data?.items || []
     if (artifactsRes.status === 'fulfilled') artifacts.value = artifactsRes.value.data || []
+    await loadLeadCount()
   } finally {
     loading.value = false
   }
