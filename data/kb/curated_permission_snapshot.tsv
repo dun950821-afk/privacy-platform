@@ -1,118 +1,124 @@
 # 人工整理的 ANDROID 权限字段快照（Task 7 首次实跑导入**之前**的库内原值）。
 #
-# 为什么必须入仓：capability / grant_mode / category 三个字段**任何解析器都产不出来**
-#   （AOSP 清单不提供描述文本），`已弃用权限` / `危险权限（受限）` / `三方声明权限` 这类
-#   permission_type 也推不出来——没有这张快照，从零重建就会丢掉这些人工作物，
-#   而 is_applicable 正是从 permission_type 推的。在这之前它们只存在于活库、
-#   /tmp 的临时快照和一份未跟踪的备份里（Ruling N 的可复现性缺口）。
+# 为什么必须入仓：capability / grant_mode / category / risk_level / compliance_focus
+#   五个字段**任何解析器都产不出来**（AOSP 清单不提供描述文本，更不提供风险定级），
+#   `已弃用权限` / `危险权限（受限）` / `三方声明权限` 这类 permission_type 也推不出来——
+#   没有这张快照，从零重建就会丢掉这些人工作物，而 is_applicable 正是从 permission_type
+#   推的、compliance_profile / sdk_analysis 又会按 risk_level 归一与判敏感。
+#   在这之前它们只存在于活库、/tmp 的临时快照和一份未跟踪的备份里（Ruling N 的可复现性缺口）。
 #
 # 回填脚本：scripts/restore_curated_permissions.py（幂等，不联网）。
+# 重建顺序见 data/kb/README.md。
 #
-# 格式：`|` 分隔（**不是** tab），无表头，5 列：
-#   permission_name|capability|grant_mode|category|permission_type
+# 格式：`|` 分隔（**不是** tab），无表头，7 列：
+#   permission_name|capability|grant_mode|category|permission_type|risk_level|compliance_focus
+#   后两列（risk_level / compliance_focus）是 2026-09-28 复查时补的：它们原先只在活库里，
+#   快照缺这两列会让「从仓库重建」重建出 risk_level 全为 NULL 的库，静默改变
+#   compliance_profile.py（按 risk_level != CRITICAL 归一）与 sdk_analysis.py
+#   （按 risk_level in (HIGH, CRITICAL) 判敏感权限）的输出。两列取值里不含 `|`。
 #
 # 快照时间：2026-09-28。共 103 行，其中 20 行不在 AOSP 清单里（com.* 三方声明权限、
 #   若干已废弃的 android.permission.*），重建时必须由回填脚本创建。
-android.permission.ACCESS_ADSERVICES_AD_ID|Privacy Sandbox 广告 ID 访问|系统授权|设备标识|普通权限
-android.permission.ACCESS_ASSISTED_GPS|辅助 GPS 能力（厂商/历史权限）|依设备实现|位置信息|已弃用权限
-android.permission.ACCESS_BACKGROUND_LOCATION|后台持续获取位置|单独运行时授权|位置信息|危险权限
-android.permission.ACCESS_COARSE_LOCATION|获取近似位置|运行时授权|位置信息|危险权限
-android.permission.ACCESS_DOWNLOAD_MANAGER|访问系统下载管理器（内部权限）|依系统实现|下载|签名权限
-android.permission.ACCESS_FINE_LOCATION|获取精确位置|运行时授权|位置信息|危险权限
-android.permission.ACCESS_GPS|GPS 访问（非标准/厂商权限）|依设备实现|位置信息|已弃用权限
-android.permission.ACCESS_LOCATION_EXTRA_COMMANDS|待补充解释|待核验|其他|未标注
-android.permission.ACCESS_MEDIA_LOCATION|读取媒体原始位置元数据|运行时授权|媒体与文件|危险权限
-android.permission.ACCESS_NETWORK_STATE|读取网络连接状态|安装时授权|网络信息|普通权限
-android.permission.ACCESS_WIFI_STATE|读取 Wi-Fi 状态|安装时授权|网络信息|普通权限
-android.permission.ACTIVITY_RECOGNITION|识别身体活动/步数|运行时授权|传感器与健康|危险权限
-android.permission.AUTHENTICATE_ACCOUNTS|作为账号认证器|账号服务声明|联系人与账号|签名权限
-android.permission.BAIDU_LOCATION_SERVICE|百度定位服务声明|SDK内部|位置信息|三方声明权限
-android.permission.BIND_ACCESSIBILITY_SERVICE|声明无障碍服务|用户设置授权|高风险系统能力|签名权限
-android.permission.BIND_DEVICE_ADMIN|声明设备管理员|用户激活/企业管理|设备管理|签名权限
-android.permission.BIND_INPUT_METHOD|声明输入法服务|用户选择输入法|输入法|签名权限
-android.permission.BIND_NOTIFICATION_LISTENER_SERVICE|声明通知监听服务|用户设置授权|高风险系统能力|签名权限
-android.permission.BIND_VPN_SERVICE|声明 VPN 服务|用户系统授权|网络与安全|签名权限
-android.permission.BLUETOOTH|旧版蓝牙连接能力|安装时授权|蓝牙与附近设备|已弃用权限
-android.permission.BLUETOOTH_ADVERTISE|蓝牙广播|运行时授权|蓝牙与附近设备|危险权限
-android.permission.BLUETOOTH_CONNECT|连接和读取已配对蓝牙设备|运行时授权|蓝牙与附近设备|危险权限
-android.permission.BLUETOOTH_SCAN|扫描附近蓝牙设备|运行时授权|蓝牙与附近设备|危险权限
-android.permission.BODY_SENSORS|读取身体传感器|运行时授权|传感器与健康|危险权限
-android.permission.BODY_SENSORS_BACKGROUND|后台读取身体传感器|安装器白名单+授权|传感器与健康|危险权限（受限）
-android.permission.BROADCAST_STICKY|发送粘性广播（历史）|安装时授权|广播|已弃用权限
-android.permission.CALL_PHONE|直接拨打电话|运行时授权|电话与SIM|危险权限
-android.permission.CAMERA|使用相机|运行时授权|相机与图像|危险权限
-android.permission.CHANGE_NETWORK_STATE|允许应用修改网络连接状态|安装时授权|网络控制|普通权限
-android.permission.CHANGE_WIFI_STATE|修改 Wi-Fi 状态|安装时授权|网络信息|普通权限
-android.permission.DISABLE_KEYGUARD|关闭键盘锁/键guard（旧）|版本限制|高风险系统能力|已弃用权限
-android.permission.DOWNLOAD_WITHOUT_NOTIFICATION|后台下载不显示系统通知|依系统实现|下载|签名权限
-android.permission.FLASHLIGHT|控制闪光灯（历史权限）|安装时授权|设备能力|已弃用权限
-android.permission.FOREGROUND_SERVICE|运行前台服务|安装时授权|后台运行|普通权限
-android.permission.FOREGROUND_SERVICE_CAMERA|相机前台服务类型|配合 CAMERA|后台运行|普通权限
-android.permission.FOREGROUND_SERVICE_LOCATION|位置前台服务类型|配合位置授权|后台运行|普通权限
-android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK|媒体播放前台服务类型|安装时授权|后台运行|普通权限
-android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION|屏幕录制前台服务类型|配合每次 MediaProjection 授权|后台运行|普通权限
-android.permission.FOREGROUND_SERVICE_MICROPHONE|麦克风前台服务类型|配合 RECORD_AUDIO|后台运行|普通权限
-android.permission.GET_ACCOUNTS|读取设备账号列表（旧版能力较强）|运行时或系统授权|联系人与账号|未标注
-android.permission.INSTALL_SHORTCUT|创建桌面快捷方式（旧）|安装时授权|桌面与启动器|已弃用权限
-android.permission.INTERNET|访问网络|安装时授权|网络通信|普通权限
-android.permission.MANAGE_ACCOUNTS|管理系统账号|系统/签名授权|联系人与账号|签名权限
-android.permission.MANAGE_EXTERNAL_STORAGE|管理所有文件|设置页授权+商店限制|媒体与文件|特殊权限
-android.permission.MODIFY_AUDIO_SETTINGS|修改音频路由和设置|安装时授权|音频|普通权限
-android.permission.MOUNT_UNMOUNT_FILESYSTEMS|挂载/卸载文件系统|系统应用|文件系统|签名权限
-android.permission.NEARBY_WIFI_DEVICES|访问附近 Wi-Fi 设备|运行时授权|网络与附近设备|危险权限
-android.permission.NFC|访问 NFC|安装时授权|附近设备与支付|普通权限
-android.permission.PACKAGE_USAGE_STATS|读取应用使用记录|设置页授权|应用与使用信息|特殊权限
-android.permission.POST_NOTIFICATIONS|发送通知|Android 13+ 运行时授权|通知|危险权限
-android.permission.PROCESS_OUTGOING_CALLS|监听外拨电话（旧）|版本限制|电话与SIM|危险权限（受限）
-android.permission.QUERY_ALL_PACKAGES|查询所有已安装应用|商店审核限制|应用与使用信息|特殊权限
-android.permission.READ_BASIC_PHONE_STATE|读取基础电话状态|系统控制|电话与SIM|普通权限
-android.permission.READ_CALENDAR|读取日历|运行时授权|日历|危险权限
-android.permission.READ_CALL_LOG|读取通话记录|运行时授权+商店限制|电话与SIM|危险权限（受限）
-android.permission.READ_CLIPBOARD_IN_BACKGROUND|后台读取剪贴板（特权/历史）|系统/特权应用|剪贴板|特殊权限
-android.permission.READ_CONTACTS|读取通讯录|运行时授权|联系人与账号|危险权限
-android.permission.READ_EXTERNAL_STORAGE|读取外部存储（旧版）|运行时授权|媒体与文件|危险权限
-android.permission.READ_LOGS|读取系统日志|系统/特权应用|日志与诊断|签名权限
-android.permission.READ_MEDIA_AUDIO|读取音频|运行时授权|媒体与文件|危险权限
-android.permission.READ_MEDIA_IMAGES|读取图片|运行时授权|媒体与文件|危险权限
-android.permission.READ_MEDIA_VIDEO|读取视频|运行时授权|媒体与文件|危险权限
-android.permission.READ_PHONE_NUMBERS|读取本机号码|运行时授权|电话与SIM|危险权限
-android.permission.READ_PHONE_STATE|读取电话状态和部分设备/SIM信息|运行时授权|电话与设备标识|危险权限
-android.permission.READ_PRIVILEGED_PHONE_STATE|读取 IMEI/序列号等特权电话状态|仅系统/特权应用|设备标识|特殊权限
-android.permission.READ_SETTINGS|待补充解释|待核验|其他|未标注
-android.permission.READ_SMS|读取短信|运行时授权+角色限制|短信与消息|危险权限（受限）
-android.permission.RECEIVE_BOOT_COMPLETED|开机后启动组件|安装时授权|后台运行|普通权限
-android.permission.RECEIVE_MMS|接收彩信|运行时授权|短信与消息|危险权限（受限）
-android.permission.RECEIVE_SMS|接收短信广播|运行时授权|短信与消息|危险权限（受限）
-android.permission.RECEIVE_USER_PRESENT|接收用户解锁广播（非标准/厂商）|依设备实现|设备状态|已弃用权限
-android.permission.RECORD_AUDIO|使用麦克风录音|运行时授权|麦克风与音频|危险权限
-android.permission.REORDER_TASKS|调整任务栈顺序|安装时授权|应用任务|普通权限
-android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS|请求忽略电池优化|系统设置授权|后台运行|特殊权限
-android.permission.REQUEST_INSTALL_PACKAGES|请求安装未知来源 APK|设置页按来源授权|应用安装|特殊权限
-android.permission.RESTART_PACKAGES|重启其他应用（已弃用/系统）|系统应用|应用管理|已弃用权限
-android.permission.SCHEDULE_EXACT_ALARM|申请精确闹钟特殊访问|系统设置/策略|系统调度|特殊权限
-android.permission.SEND_SMS|发送短信|运行时授权|短信与消息|危险权限（受限）
-android.permission.SYSTEM_ALERT_WINDOW|在其他应用上层显示窗口|设置页授权|高风险系统能力|特殊权限
-android.permission.SYSTEM_OVERLAY_WINDOW|厂商/历史悬浮窗权限|依设备实现|高风险系统能力|已弃用权限
-android.permission.UNINSTALL_SHORTCUT|删除桌面快捷方式（旧）|安装时授权|桌面与启动器|已弃用权限
-android.permission.USE_BIOMETRIC|调用系统生物识别认证|系统认证弹窗|生物识别与认证|普通权限
-android.permission.USE_CREDENTIALS|使用账号凭据（历史权限）|系统授权|联系人与账号|已弃用权限
-android.permission.USE_EXACT_ALARM|使用精确闹钟|安装时授权|系统调度|普通权限
-android.permission.USE_FINGERPRINT|旧版指纹认证|系统认证|生物识别与认证|普通权限
-android.permission.VIBRATE|控制振动|安装时授权|设备能力|普通权限
-android.permission.WAKE_LOCK|保持 CPU 唤醒|安装时授权|后台运行|普通权限
-android.permission.WRITE_CALENDAR|写入日历|运行时授权|日历|危险权限
-android.permission.WRITE_CALL_LOG|写入通话记录|运行时授权+角色限制|电话与SIM|危险权限（受限）
-android.permission.WRITE_CONTACTS|修改通讯录|运行时授权|联系人与账号|危险权限
-android.permission.WRITE_EXTERNAL_STORAGE|写外部存储（旧版）|运行时授权|媒体与文件|危险权限
-android.permission.WRITE_SETTINGS|修改系统设置|设置页授权|高风险系统能力|特殊权限
-com.android.launcher.permission.INSTALL_SHORTCUT|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限
-com.android.launcher.permission.READ_SETTINGS|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限
-com.android.launcher.permission.UNINSTALL_SHORTCUT|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限
-com.android.launcher.permission.WRITE_SETTINGS|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限
-com.android.launcher2.permission.READ_SETTINGS|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限
-com.android.launcher2.permission.WRITE_SETTINGS|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限
-com.android.launcher3.permission.READ_SETTINGS|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限
-com.android.launcher3.permission.WRITE_SETTINGS|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限
-com.coloros.mcs.permission.RECIEVE_MCS_MESSAGE|应用或厂商 SDK 自定义权限|依 protectionLevel|推送与消息|三方声明权限
-com.google.android.gms.permission.AD_ID|Google Play 广告 ID 权限|安装时授权|设备标识|三方声明权限
-com.heytap.mcs.permission.RECIEVE_MCS_MESSAGE|应用或厂商 SDK 自定义权限|依 protectionLevel|推送与消息|三方声明权限
+android.permission.ACCESS_ADSERVICES_AD_ID|Privacy Sandbox 广告 ID 访问|系统授权|设备标识|普通权限|HIGH|仅广告相关用途
+android.permission.ACCESS_ASSISTED_GPS|辅助 GPS 能力（厂商/历史权限）|依设备实现|位置信息|已弃用权限|MEDIUM|不能仅凭权限判定实际定位
+android.permission.ACCESS_BACKGROUND_LOCATION|后台持续获取位置|单独运行时授权|位置信息|危险权限|CRITICAL|仅核心功能使用，需显著说明和持续提示
+android.permission.ACCESS_COARSE_LOCATION|获取近似位置|运行时授权|位置信息|危险权限|HIGH|位置功能；可使用粗略位置时不得申请精确位置
+android.permission.ACCESS_DOWNLOAD_MANAGER|访问系统下载管理器（内部权限）|依系统实现|下载|签名权限|HIGH|普通应用不应依赖内部权限
+android.permission.ACCESS_FINE_LOCATION|获取精确位置|运行时授权|位置信息|危险权限|HIGH|精确位置属于敏感信息，需按需申请
+android.permission.ACCESS_GPS|GPS 访问（非标准/厂商权限）|依设备实现|位置信息|已弃用权限|MEDIUM|需结合定位 API 和 SDK 证据
+android.permission.ACCESS_LOCATION_EXTRA_COMMANDS|待补充解释|待核验|其他|未标注|MEDIUM|结合 Android API 参考和 Manifest protectionLevel 核验
+android.permission.ACCESS_MEDIA_LOCATION|读取媒体原始位置元数据|运行时授权|媒体与文件|危险权限|HIGH|可能读取 EXIF GPS
+android.permission.ACCESS_NETWORK_STATE|读取网络连接状态|安装时授权|网络信息|普通权限|MEDIUM|常用于网络适配
+android.permission.ACCESS_WIFI_STATE|读取 Wi-Fi 状态|安装时授权|网络信息|普通权限|MEDIUM|SSID/BSSID 仍受位置和版本限制
+android.permission.ACTIVITY_RECOGNITION|识别身体活动/步数|运行时授权|传感器与健康|危险权限|HIGH|行为和健康信息
+android.permission.AUTHENTICATE_ACCOUNTS|作为账号认证器|账号服务声明|联系人与账号|签名权限|HIGH|需识别 AccountAuthenticator
+android.permission.BAIDU_LOCATION_SERVICE|百度定位服务声明|SDK内部|位置信息|三方声明权限|HIGH|可作为百度定位辅助识别特征 （非 Android 平台权限，由百度定位 SDK 自行声明，Android 官方文档不收录）
+android.permission.BIND_ACCESSIBILITY_SERVICE|声明无障碍服务|用户设置授权|高风险系统能力|签名权限|CRITICAL|可读取界面和执行操作
+android.permission.BIND_DEVICE_ADMIN|声明设备管理员|用户激活/企业管理|设备管理|签名权限|CRITICAL|可执行锁屏和策略
+android.permission.BIND_INPUT_METHOD|声明输入法服务|用户选择输入法|输入法|签名权限|CRITICAL|可能处理用户输入
+android.permission.BIND_NOTIFICATION_LISTENER_SERVICE|声明通知监听服务|用户设置授权|高风险系统能力|签名权限|CRITICAL|可读取其他应用通知
+android.permission.BIND_VPN_SERVICE|声明 VPN 服务|用户系统授权|网络与安全|签名权限|HIGH|可观察和转发设备流量
+android.permission.BLUETOOTH|旧版蓝牙连接能力|安装时授权|蓝牙与附近设备|已弃用权限|MEDIUM|Android 12+ 使用细分蓝牙权限
+android.permission.BLUETOOTH_ADVERTISE|蓝牙广播|运行时授权|蓝牙与附近设备|危险权限|HIGH|可使设备对外可见
+android.permission.BLUETOOTH_CONNECT|连接和读取已配对蓝牙设备|运行时授权|蓝牙与附近设备|危险权限|HIGH|按实际设备交互申请
+android.permission.BLUETOOTH_SCAN|扫描附近蓝牙设备|运行时授权|蓝牙与附近设备|危险权限|HIGH|可暴露附近设备和位置信息
+android.permission.BODY_SENSORS|读取身体传感器|运行时授权|传感器与健康|危险权限|CRITICAL|心率、体温等健康信息
+android.permission.BODY_SENSORS_BACKGROUND|后台读取身体传感器|安装器白名单+授权|传感器与健康|危险权限（受限）|CRITICAL|Android 13+ 高度受限
+android.permission.BROADCAST_STICKY|发送粘性广播（历史）|安装时授权|广播|已弃用权限|MEDIUM|避免使用
+android.permission.CALL_PHONE|直接拨打电话|运行时授权|电话与SIM|危险权限|HIGH|优先 ACTION_DIAL
+android.permission.CAMERA|使用相机|运行时授权|相机与图像|危险权限|HIGH|拍照、扫码、人脸等应按场景说明
+android.permission.CHANGE_NETWORK_STATE|允许应用修改网络连接状态|安装时授权|网络控制|普通权限|MEDIUM|结合网络切换、VPN、移动网络及后台联网行为判断实际用途
+android.permission.CHANGE_WIFI_STATE|修改 Wi-Fi 状态|安装时授权|网络信息|普通权限|MEDIUM|现代版本限制增强
+android.permission.DISABLE_KEYGUARD|关闭键盘锁/键guard（旧）|版本限制|高风险系统能力|已弃用权限|HIGH|检查锁屏绕过用途
+android.permission.DOWNLOAD_WITHOUT_NOTIFICATION|后台下载不显示系统通知|依系统实现|下载|签名权限|HIGH|检查静默下载和后续安装
+android.permission.FLASHLIGHT|控制闪光灯（历史权限）|安装时授权|设备能力|已弃用权限|LOW|现代相机 API 控制
+android.permission.FOREGROUND_SERVICE|运行前台服务|安装时授权|后台运行|普通权限|MEDIUM|需持续通知并声明服务类型
+android.permission.FOREGROUND_SERVICE_CAMERA|相机前台服务类型|配合 CAMERA|后台运行|普通权限|HIGH|使用场景受 while-in-use 限制
+android.permission.FOREGROUND_SERVICE_LOCATION|位置前台服务类型|配合位置授权|后台运行|普通权限|HIGH|不替代位置权限
+android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK|媒体播放前台服务类型|安装时授权|后台运行|普通权限|MEDIUM|常见于音频/视频播放
+android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION|屏幕录制前台服务类型|配合每次 MediaProjection 授权|后台运行|普通权限|CRITICAL|持续显示录屏状态
+android.permission.FOREGROUND_SERVICE_MICROPHONE|麦克风前台服务类型|配合 RECORD_AUDIO|后台运行|普通权限|CRITICAL|受 while-in-use 限制
+android.permission.GET_ACCOUNTS|读取设备账号列表（旧版能力较强）|运行时或系统授权|联系人与账号|未标注|HIGH|现代 Android 可见性受限
+android.permission.INSTALL_SHORTCUT|创建桌面快捷方式（旧）|安装时授权|桌面与启动器|已弃用权限|MEDIUM|现代应使用 ShortcutManager
+android.permission.INTERNET|访问网络|安装时授权|网络通信|普通权限|MEDIUM|不能证明实际上报；需结合域名和动态流量
+android.permission.MANAGE_ACCOUNTS|管理系统账号|系统/签名授权|联系人与账号|签名权限|CRITICAL|普通应用不应依赖
+android.permission.MANAGE_EXTERNAL_STORAGE|管理所有文件|设置页授权+商店限制|媒体与文件|特殊权限|CRITICAL|仅文件管理、备份、安全等核心场景
+android.permission.MODIFY_AUDIO_SETTINGS|修改音频路由和设置|安装时授权|音频|普通权限|MEDIUM|常见于音视频通话
+android.permission.MOUNT_UNMOUNT_FILESYSTEMS|挂载/卸载文件系统|系统应用|文件系统|签名权限|CRITICAL|普通应用声明通常无效
+android.permission.NEARBY_WIFI_DEVICES|访问附近 Wi-Fi 设备|运行时授权|网络与附近设备|危险权限|HIGH|Android 13+；不推断位置时可替代精确位置
+android.permission.NFC|访问 NFC|安装时授权|附近设备与支付|普通权限|HIGH|可能处理卡片和标签数据
+android.permission.PACKAGE_USAGE_STATS|读取应用使用记录|设置页授权|应用与使用信息|特殊权限|CRITICAL|可形成详细用户行为画像
+android.permission.POST_NOTIFICATIONS|发送通知|Android 13+ 运行时授权|通知|危险权限|MEDIUM|明确推送用途
+android.permission.PROCESS_OUTGOING_CALLS|监听外拨电话（旧）|版本限制|电话与SIM|危险权限（受限）|CRITICAL|高风险历史权限
+android.permission.QUERY_ALL_PACKAGES|查询所有已安装应用|商店审核限制|应用与使用信息|特殊权限|CRITICAL|应用列表属于敏感数据，安全工具等少数场景适用
+android.permission.READ_BASIC_PHONE_STATE|读取基础电话状态|系统控制|电话与SIM|普通权限|MEDIUM|版本相关，需核对 targetSdk
+android.permission.READ_CALENDAR|读取日历|运行时授权|日历|危险权限|HIGH|日程参与人、地点可能敏感
+android.permission.READ_CALL_LOG|读取通话记录|运行时授权+商店限制|电话与SIM|危险权限（受限）|CRITICAL|号码、时间、时长高度敏感
+android.permission.READ_CLIPBOARD_IN_BACKGROUND|后台读取剪贴板（特权/历史）|系统/特权应用|剪贴板|特殊权限|CRITICAL|普通应用不应具备
+android.permission.READ_CONTACTS|读取通讯录|运行时授权|联系人与账号|危险权限|HIGH|避免全量读取和上传
+android.permission.READ_EXTERNAL_STORAGE|读取外部存储（旧版）|运行时授权|媒体与文件|危险权限|HIGH|Android 13+ 应使用细分媒体权限或 Photo Picker
+android.permission.READ_LOGS|读取系统日志|系统/特权应用|日志与诊断|签名权限|CRITICAL|普通应用不应获得其他应用日志
+android.permission.READ_MEDIA_AUDIO|读取音频|运行时授权|媒体与文件|危险权限|HIGH|按需申请
+android.permission.READ_MEDIA_IMAGES|读取图片|运行时授权|媒体与文件|危险权限|HIGH|优先 Photo Picker
+android.permission.READ_MEDIA_VIDEO|读取视频|运行时授权|媒体与文件|危险权限|HIGH|优先 Photo Picker
+android.permission.READ_PHONE_NUMBERS|读取本机号码|运行时授权|电话与SIM|危险权限|HIGH|仅号码相关核心功能
+android.permission.READ_PHONE_STATE|读取电话状态和部分设备/SIM信息|运行时授权|电话与设备标识|危险权限|HIGH|具体可读字段受 Android 版本限制
+android.permission.READ_PRIVILEGED_PHONE_STATE|读取 IMEI/序列号等特权电话状态|仅系统/特权应用|设备标识|特殊权限|CRITICAL|普通第三方应用不应持有
+android.permission.READ_SETTINGS|待补充解释|待核验|其他|未标注|MEDIUM|结合 Android API 参考和 Manifest protectionLevel 核验
+android.permission.READ_SMS|读取短信|运行时授权+角色限制|短信与消息|危险权限（受限）|CRITICAL|仅默认短信或核心功能
+android.permission.RECEIVE_BOOT_COMPLETED|开机后启动组件|安装时授权|后台运行|普通权限|HIGH|检查是否未经用户交互初始化 SDK
+android.permission.RECEIVE_MMS|接收彩信|运行时授权|短信与消息|危险权限（受限）|CRITICAL|仅短信应用核心场景
+android.permission.RECEIVE_SMS|接收短信广播|运行时授权|短信与消息|危险权限（受限）|CRITICAL|验证码优先使用 SMS Retriever
+android.permission.RECEIVE_USER_PRESENT|接收用户解锁广播（非标准/厂商）|依设备实现|设备状态|已弃用权限|MEDIUM|可用于后台唤醒，需检查用途
+android.permission.RECORD_AUDIO|使用麦克风录音|运行时授权|麦克风与音频|危险权限|CRITICAL|后台或静默录音高风险
+android.permission.REORDER_TASKS|调整任务栈顺序|安装时授权|应用任务|普通权限|MEDIUM|可能影响界面跳转
+android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS|请求忽略电池优化|系统设置授权|后台运行|特殊权限|HIGH|可能导致长期后台运行
+android.permission.REQUEST_INSTALL_PACKAGES|请求安装未知来源 APK|设置页按来源授权|应用安装|特殊权限|CRITICAL|检查下载、校验、安装链路
+android.permission.RESTART_PACKAGES|重启其他应用（已弃用/系统）|系统应用|应用管理|已弃用权限|HIGH|普通应用声明通常无效
+android.permission.SCHEDULE_EXACT_ALARM|申请精确闹钟特殊访问|系统设置/策略|系统调度|特殊权限|HIGH|仅核心闹钟、日历等
+android.permission.SEND_SMS|发送短信|运行时授权|短信与消息|危险权限（受限）|CRITICAL|可能产生费用
+android.permission.SYSTEM_ALERT_WINDOW|在其他应用上层显示窗口|设置页授权|高风险系统能力|特殊权限|CRITICAL|可能诱导点击或覆盖敏感界面
+android.permission.SYSTEM_OVERLAY_WINDOW|厂商/历史悬浮窗权限|依设备实现|高风险系统能力|已弃用权限|CRITICAL|结合 WindowManager 类型判断
+android.permission.UNINSTALL_SHORTCUT|删除桌面快捷方式（旧）|安装时授权|桌面与启动器|已弃用权限|MEDIUM|现代已弃用
+android.permission.USE_BIOMETRIC|调用系统生物识别认证|系统认证弹窗|生物识别与认证|普通权限|HIGH|系统通常只返回认证结果，不暴露模板
+android.permission.USE_CREDENTIALS|使用账号凭据（历史权限）|系统授权|联系人与账号|已弃用权限|HIGH|关注旧 targetSdk 和账号组件
+android.permission.USE_EXACT_ALARM|使用精确闹钟|安装时授权|系统调度|普通权限|HIGH|Android 13+ 特定类别适用
+android.permission.USE_FINGERPRINT|旧版指纹认证|系统认证|生物识别与认证|普通权限|HIGH|已由 USE_BIOMETRIC 替代
+android.permission.VIBRATE|控制振动|安装时授权|设备能力|普通权限|LOW|一般低风险
+android.permission.WAKE_LOCK|保持 CPU 唤醒|安装时授权|后台运行|普通权限|MEDIUM|滥用影响电量和后台行为
+android.permission.WRITE_CALENDAR|写入日历|运行时授权|日历|危险权限|HIGH|仅用户明确添加
+android.permission.WRITE_CALL_LOG|写入通话记录|运行时授权+角色限制|电话与SIM|危险权限（受限）|CRITICAL|仅默认电话等核心场景
+android.permission.WRITE_CONTACTS|修改通讯录|运行时授权|联系人与账号|危险权限|HIGH|仅用户明确操作
+android.permission.WRITE_EXTERNAL_STORAGE|写外部存储（旧版）|运行时授权|媒体与文件|危险权限|HIGH|分区存储后能力受限
+android.permission.WRITE_SETTINGS|修改系统设置|设置页授权|高风险系统能力|特殊权限|HIGH|需明确核心功能
+com.android.launcher.permission.INSTALL_SHORTCUT|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限|MEDIUM|作为 SDK/组件识别特征，需解析定义方和 protectionLevel （非 Android 平台权限，由第三方应用/SDK 自行声明，Android 官方 Manifest.permission 文档不收录）
+com.android.launcher.permission.READ_SETTINGS|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限|MEDIUM|作为 SDK/组件识别特征，需解析定义方和 protectionLevel （非 Android 平台权限，由第三方应用/SDK 自行声明，Android 官方 Manifest.permission 文档不收录）
+com.android.launcher.permission.UNINSTALL_SHORTCUT|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限|MEDIUM|作为 SDK/组件识别特征，需解析定义方和 protectionLevel （非 Android 平台权限，由第三方应用/SDK 自行声明，Android 官方 Manifest.permission 文档不收录）
+com.android.launcher.permission.WRITE_SETTINGS|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限|MEDIUM|作为 SDK/组件识别特征，需解析定义方和 protectionLevel （非 Android 平台权限，由第三方应用/SDK 自行声明，Android 官方 Manifest.permission 文档不收录）
+com.android.launcher2.permission.READ_SETTINGS|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限|MEDIUM|作为 SDK/组件识别特征，需解析定义方和 protectionLevel （非 Android 平台权限，由第三方应用/SDK 自行声明，Android 官方 Manifest.permission 文档不收录）
+com.android.launcher2.permission.WRITE_SETTINGS|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限|MEDIUM|作为 SDK/组件识别特征，需解析定义方和 protectionLevel （非 Android 平台权限，由第三方应用/SDK 自行声明，Android 官方 Manifest.permission 文档不收录）
+com.android.launcher3.permission.READ_SETTINGS|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限|MEDIUM|作为 SDK/组件识别特征，需解析定义方和 protectionLevel （非 Android 平台权限，由第三方应用/SDK 自行声明，Android 官方 Manifest.permission 文档不收录）
+com.android.launcher3.permission.WRITE_SETTINGS|应用或厂商 SDK 自定义权限|依 protectionLevel|系统增强与工具|三方声明权限|MEDIUM|作为 SDK/组件识别特征，需解析定义方和 protectionLevel （非 Android 平台权限，由第三方应用/SDK 自行声明，Android 官方 Manifest.permission 文档不收录）
+com.coloros.mcs.permission.RECIEVE_MCS_MESSAGE|应用或厂商 SDK 自定义权限|依 protectionLevel|推送与消息|三方声明权限|MEDIUM|作为 SDK/组件识别特征，需解析定义方和 protectionLevel （非 Android 平台权限，由第三方应用/SDK 自行声明，Android 官方 Manifest.permission 文档不收录）
+com.google.android.gms.permission.AD_ID|Google Play 广告 ID 权限|安装时授权|设备标识|三方声明权限|HIGH|检查 AdvertisingIdClient （非 Android 平台权限，由第三方应用/SDK 自行声明，Android 官方 Manifest.permission 文档不收录）
+com.heytap.mcs.permission.RECIEVE_MCS_MESSAGE|应用或厂商 SDK 自定义权限|依 protectionLevel|推送与消息|三方声明权限|MEDIUM|作为 SDK/组件识别特征，需解析定义方和 protectionLevel （非 Android 平台权限，由第三方应用/SDK 自行声明，Android 官方 Manifest.permission 文档不收录）
