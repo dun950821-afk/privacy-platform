@@ -162,13 +162,17 @@ def test_preview_reports_match_and_writes_nothing(client, admin_headers, db, exe
                                 headers=admin_headers)
         assert published.status_code == 200
 
+        # 形状取自真实引擎产物（端到端任务 465）
         permission = EngineObservation(
-            task_id=execution.task_id, execution_id=execution.id, engine_type="mobsf",
-            observation_type="fact.permission", subject="android.permission.READ_CONTACTS", payload={})
+            task_id=execution.task_id, execution_id=execution.id, engine_type="androguard",
+            observation_type="fact.sensitive_permission", subject="READ_CONTACTS",
+            payload={"api": "READ_CONTACTS", "category": "CONTACTS", "permission": "READ_CONTACTS"})
         dataflow = EngineObservation(
-            task_id=execution.task_id, execution_id=execution.id, engine_type="mobsf",
-            observation_type="dataflow.privacy", subject="ContactsContract",
-            payload={"sink": {"category": "network"}})
+            task_id=execution.task_id, execution_id=execution.id, engine_type="appshark",
+            observation_type="dataflow.privacy",
+            subject="['<com.baidu.mobstat.ba: java.net.HttpURLConnection a(android.content.Context,java.lang.String,int,int)>->$r0']",
+            payload={"section": "ComplianceInfo", "rule": "DeviceId_NetworkTransfer", "level": "L3",
+                     "sink": ["<com.baidu.mobstat.ba: java.net.HttpURLConnection a(android.content.Context,java.lang.String,int,int)>->$r0"]})
         db.add_all([permission, dataflow])
         db.commit()
         db.refresh(permission)

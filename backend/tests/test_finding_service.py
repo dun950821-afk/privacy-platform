@@ -6,9 +6,14 @@ RULES = [{"rule": type("R", (), {"id": 1})(), "version": type("V", (), {"version
 
 
 def test_finding_payload_is_complete_for_persistence():
+    # 形状取自真实引擎产物（端到端任务 465）
     observations = [
-        {"id": 1, "observation_type": "fact.permission", "subject": "android.permission.READ_CONTACTS", "payload": {}},
-        {"id": 2, "observation_type": "dataflow.privacy", "subject": "Contacts", "payload": {"sink": {"category": "network"}}},
+        {"id": 1, "observation_type": "fact.sensitive_permission", "subject": "READ_CONTACTS",
+         "payload": {"api": "READ_CONTACTS", "category": "CONTACTS", "permission": "READ_CONTACTS"}},
+        {"id": 2, "observation_type": "dataflow.privacy",
+         "subject": "['<com.baidu.mobstat.ba: java.net.HttpURLConnection a(android.content.Context,java.lang.String,int,int)>->$r0']",
+         "payload": {"section": "ComplianceInfo", "rule": "DeviceId_NetworkTransfer", "level": "L3",
+                     "sink": ["<com.baidu.mobstat.ba: java.net.HttpURLConnection a(android.content.Context,java.lang.String,int,int)>->$r0"]}},
     ]
     findings = correlate(observations, RULES)
     assert len(findings) == 1

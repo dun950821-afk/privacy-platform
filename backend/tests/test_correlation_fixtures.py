@@ -18,3 +18,27 @@ def test_positive_fixture_matches(rule):
 def test_negative_fixture_does_not_match(rule):
     observations = json.loads((FIXTURES / rule["rule_key"] / "negative.json").read_text())
     assert evaluate_rule(rule["content"], observations) is None
+
+
+def test_builtin_fixtures_are_a_genuine_near_miss():
+    """正反例必须只差在决定性命中值(payload.rule)，否则负例证明不了条件本身在起作用。
+
+    两个观察对象都取自真实引擎产物：权限侧来自 androguard 的
+    fact.sensitive_permission，数据流侧来自 appshark 的 DeviceId_NetworkTransfer /
+    DeviceId_Log（同一 APK、同一污点源与入口方法，只有流向不同）。
+    """
+    rule_key = BUILTIN_CORRELATION_RULES[0]["rule_key"]
+    positive = json.loads((FIXTURES / rule_key / "positive.json").read_text())
+    negative = json.loads((FIXTURES / rule_key / "negative.json").read_text())
+
+    assert positive[0] == negative[0], "权限侧观察对象必须完全相同"
+
+    pos_flow, neg_flow = positive[1], negative[1]
+    assert pos_flow["observation_type"] == neg_flow["observation_type"] == "dataflow.privacy"
+    assert "_NetworkTransfer" in pos_flow["payload"]["rule"]
+    assert "_NetworkTransfer" not in neg_flow["payload"]["rule"]
+
+    # 除流向相关的字段外，两个数据流观察对象必须一致（同源、同入口、同层级）
+    for key in ("section", "level", "source", "entry_method", "caller"):
+        assert pos_flow["payload"].get(key) == neg_flow["payload"].get(key), f"payload.{key} 不应不同"
+    assert pos_flow["location"] == neg_flow["location"]

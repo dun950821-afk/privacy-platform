@@ -242,6 +242,9 @@ PGPASSWORD=privacy123 psql -h localhost -U privacy -d privacy_platform \
 cd backend && /tmp/venv/bin/python init_db.py
 ```
 
+> **已有业务数据的库**不要执行上面的命令,请按 §6.5「已有部署升级」用
+> `alembic upgrade head` + 幂等种子补齐。
+
 ### 4.8 一键启动脚本
 
 `scripts/start.sh` 会依次检测并启动 PostgreSQL / Redis / 后端 / 前端:
@@ -355,6 +358,40 @@ cd backend && PYTHONPATH=. /tmp/venv/bin/pytest tests/test_correlation_fixtures.
 cd backend && PYTHONPATH=. /tmp/venv/bin/pytest tests/test_rule_evaluator.py tests/test_correlation.py \
   tests/test_correlation_rules_api.py tests/test_correlation_fixtures.py tests/test_finding_auto_trigger.py -q
 ```
+
+### 6.5 已有部署升级(存量库,常见)
+
+**已有业务数据的库不要重新执行 §4.7 的 `init_db.py`**(会重复插入种子数据)。升级到本版本只需两步:
+
+```bash
+# 1. 应用数据库迁移: 补 platform_findings 表、finding_observations 表,
+#    以及 engine_observations 的 category/rule_version/evidence_level/subject/location/fingerprint 列
+cd backend && PYTHONPATH=. /tmp/venv/bin/alembic upgrade head
+
+# 2. 幂等写入内置关联规则(已存在同名 rule_key 则跳过, 不改动任何已有数据)
+cd backend && PYTHONPATH=. /tmp/venv/bin/python -c \
+  "from app.core.database import SessionLocal; from app.services.rule_seed import seed_correlation_rules; \
+   print('created:', seed_correlation_rules(SessionLocal()))"
+```
+
+两步都不可省,缺任何一步都是静默或半静默故障:
+
+| 漏做的步骤 | 后果 |
+|-----------|------|
+| 只跑第 2 步 | 代码要写 `platform_findings` 的列而库里没有 → `UndefinedColumn` → 关联/结论接口 500 |
+| 只跑第 1 步 | `load_active_rules()` 返回 `[]`,关联逻辑静默失效(不报错、不产出任何平台结论) |
+
+> 第 2 步是「缺则创建」,不会覆盖已有规则内容。若库里已存在 `PRIVACY_CONTACTS_NETWORK` 但它的
+> 启用版本仍是历史条件(旧版 `fact.permission` + `payload.sink.category`),关联会一直不命中:
+> 请在「知识库 → 关联规则」界面用 `backend/app/services/rule_seed.py` 中
+> `BUILTIN_CORRELATION_RULES[0]["content"]` 的条件保存新版本并发布(或调用
+> `PUT /api/v1/correlation-rules/{id}/versions` 后 `POST .../publish`)。
+
+自建关联规则也请顺手核对一遍 `produce`:`finding_code` ≤ 64 字符、`title` ≤ 200、`category` ≤ 60、
+`recommendation` ≤ 2000,`severity` 取 `critical/high/medium/low`,`confidence` 取
+`confirmed/probable/possible`(早期版本允许任意取值,例如把严重性词表的 `medium` 当成置信度)。
+这些字段会逐字写入 `platform_findings` 的定长 NOT NULL 列,取值越界或超长的规则会被关联逻辑
+记录一条 warning 后跳过(不产出结论),而不会写坏整个任务的结论生成。
 
 ## 7. 生产部署(Docker Compose)
 

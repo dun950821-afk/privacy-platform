@@ -34,14 +34,25 @@ def test_observations_produce_platform_finding(db, client, admin_headers):
                                     engine_name="AppShark", status="completed", attempt_no=1)
         db.add(execution)
         db.flush()
+        # 观察对象形状取自真实引擎产物（端到端任务 465）
         db.add(EngineObservation(task_id=task.id, execution_id=execution.id, engine_type="androguard",
-                                 observation_type="fact.permission", subject="android.permission.READ_CONTACTS",
-                                 payload={}, evidence_level="observed"))
+                                 observation_type="fact.sensitive_permission", subject="READ_CONTACTS",
+                                 payload={"api": "READ_CONTACTS", "category": "CONTACTS",
+                                          "permission": "READ_CONTACTS"}, evidence_level="observed"))
         db.add(EngineObservation(task_id=task.id, execution_id=execution.id, engine_type="appshark",
-                                 observation_type="dataflow.privacy", subject="Contacts",
-                                 payload={"sink": {"category": "network"}}, evidence_level="potential"))
+                                 observation_type="dataflow.privacy",
+                                 subject="['<com.baidu.mobstat.ba: java.net.HttpURLConnection a(android.content.Context,java.lang.String,int,int)>->$r0']",
+                                 payload={"section": "ComplianceInfo", "rule": "DeviceId_NetworkTransfer",
+                                          "level": "L3",
+                                          "sink": ["<com.baidu.mobstat.ba: java.net.HttpURLConnection a(android.content.Context,java.lang.String,int,int)>->$r0"]},
+                                 evidence_level="potential"))
         db.commit()
         seed_correlation_rules(db)
+
+        # 内置规则的内容来自库中启用版本（可能已被维护者升级），断言与之保持一致而非硬编码版本号
+        active_version = db.execute(text(
+            "select v.version from rules r join rule_versions v on v.id = r.current_version_id "
+            "where r.rule_key = 'PRIVACY_CONTACTS_NETWORK'")).scalar()
 
         findings = generate_findings(db, task.id)
         assert len(findings) == 1
@@ -57,7 +68,7 @@ def test_observations_produce_platform_finding(db, client, admin_headers):
         assert isinstance(persisted.rule_snapshot, dict) and persisted.rule_snapshot
         assert persisted.rule_snapshot["produce"]["finding_code"] == persisted.finding_code
         assert persisted.correlation_rule_id
-        assert persisted.correlation_rule_version == "1.0"
+        assert persisted.correlation_rule_version == active_version
 
         # 重复生成不应产生重复 Finding
         assert len(generate_findings(db, task.id)) == 1

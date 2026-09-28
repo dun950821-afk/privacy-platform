@@ -1,4 +1,78 @@
 [
-  {"observation_type": "fact.permission", "subject": "android.permission.READ_CONTACTS", "payload": {}},
-  {"observation_type": "dataflow.privacy", "subject": "Contacts", "payload": {"sink": {"category": "log"}}}
+  {
+    "observation_type": "fact.sensitive_permission",
+    "subject": "READ_CONTACTS",
+    "location": null,
+    "payload": {
+      "api": "READ_CONTACTS",
+      "category": "CONTACTS",
+      "permission": "READ_CONTACTS"
+    }
+  },
+  {
+    "observation_type": "dataflow.privacy",
+    "subject": "['<com.intsig.pdf.sdk.key.AppkeySDK: int a(android.content.Context,java.lang.String)>->$r2_17']",
+    "location": "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String getDeviceId(android.content.Context)>",
+    "payload": {
+      "section": "ComplianceInfo",
+      "rule": "DeviceId_Log",
+      "level": "L3",
+      "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+      "hash": "18dec5d950e7d139dce45d125cbade3c8d98a797",
+      "source": [
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String getDeviceId(android.content.Context)>->$r8_8"
+      ],
+      "sink": [
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int a(android.content.Context,java.lang.String)>->$r2_17"
+      ],
+      "entry_method": "<com.intsig.pdf.sdk.key.AppkeySDK: int a(android.content.Context,java.lang.String)>",
+      "taint_path": [
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String getDeviceId(android.content.Context)>->$r8_8",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String getDeviceId(android.content.Context)>->$r8_14",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String getDeviceId(android.content.Context)>->$r8_13",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int a(android.content.Context,java.lang.String)>->$r2_6",
+        "pf{obj{<CustomClass: void Main_Entry_CustomClass()>:0=>com.intsig.pdf.sdk.key.AppkeySDK}(java.lang.String)->h}",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String b()>->$r7",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String a(java.lang.String)>->@parameter0",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String a(java.lang.String)>->$r1",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String b()>->$r4_1",
+        "pf{obj{<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String b()>:19=>java.lang.StringBuilder}(unknown)->@data}",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String b()>->$r1_3",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String b()>->$r8",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String b()>->$r9",
+        "<com.networkbench.agent.impl.instrumentation.NBSInstrumentation: java.net.URLConnection openConnection(java.net.URLConnection)>->@parameter0",
+        "<com.networkbench.agent.impl.instrumentation.NBSInstrumentation: java.net.URLConnection openConnection(java.net.URLConnection)>->$r0",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int c(android.content.Context,java.lang.String,java.lang.String,java.lang.String,android.content.SharedPreferences)>->$r12_1",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int c(android.content.Context,java.lang.String,java.lang.String,java.lang.String,android.content.SharedPreferences)>->$r13",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int c(android.content.Context,java.lang.String,java.lang.String,java.lang.String,android.content.SharedPreferences)>->$r16",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String a(java.io.InputStream)>->@parameter0",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String a(java.io.InputStream)>->$r2",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String a(java.io.InputStream)>->$r3",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String a(java.io.InputStream)>->$r0",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String a(java.io.InputStream)>->$r5_1",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String a(java.io.InputStream)>->$r5_3",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String a(java.io.InputStream)>->$r1",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String a(java.io.InputStream)>->$r5_4",
+        "pf{obj{<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String a(java.io.InputStream)>:6=>java.lang.StringBuffer}(unknown)->@data}",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String a(java.io.InputStream)>->$r5_2",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int c(android.content.Context,java.lang.String,java.lang.String,java.lang.String,android.content.SharedPreferences)>->$r5_2",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int a(java.lang.String,java.lang.String)>->@parameter0",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int a(java.lang.String,java.lang.String)>->$r2",
+        "pf{obj{<com.intsig.pdf.sdk.key.AppkeySDK: int a(java.lang.String,java.lang.String)>:4=>org.json.JSONObject}(unknown)->@data}",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int a(java.lang.String,java.lang.String)>->$r2_1",
+        "pf{obj{<CustomClass: void Main_Entry_CustomClass()>:0=>com.intsig.pdf.sdk.key.AppkeySDK}(java.lang.String)->d}",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int a(android.content.Context,java.lang.String)>->$r2_13",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int b(android.content.Context,java.lang.String)>->@parameter1",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int b(android.content.Context,java.lang.String)>->$r1",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int b(android.content.Context,java.lang.String)>->$i0",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int a(android.content.Context,java.lang.String)>->$i2_3",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int a(android.content.Context,java.lang.String)>->$r2_16",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int a(android.content.Context,java.lang.String)>->$r9_3",
+        "<com.intsig.pdf.sdk.key.AppkeySDK: int a(android.content.Context,java.lang.String)>->$r2_17"
+      ],
+      "url": "/tmp/appshark_out_62/vulnerability/1050-DeviceId_Log.html",
+      "api": "['<com.intsig.pdf.sdk.key.AppkeySDK: int a(android.content.Context,java.lang.String)>->$r2_17']",
+      "caller": "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String getDeviceId(android.content.Context)>"
+    }
+  }
 ]

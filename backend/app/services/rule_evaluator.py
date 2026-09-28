@@ -4,6 +4,15 @@ import re
 ALLOWED_LOGIC = {"all", "any"}
 ALLOWED_OPERATORS = {"equals", "contains", "exists"}
 ALLOWED_FIELDS = {"subject", "location"}
+# produce.* 会逐字写入 platform_findings 的定长 NOT NULL 列。校验器必须在这里
+# 收口长度，否则一次超长写入会在 generate_findings 的最终 commit 抛错并回滚整个
+# 事务，导致该任务(甚至所有任务)的 /platform-findings 接口 500。
+ALLOWED_SEVERITIES = {"critical", "high", "medium", "low"}
+ALLOWED_CONFIDENCES = {"confirmed", "probable", "possible"}
+MAX_FINDING_CODE_LEN = 64     # 列宽 120
+MAX_TITLE_LEN = 200           # 列宽 300
+MAX_CATEGORY_LEN = 60         # 列宽 80
+MAX_RECOMMENDATION_LEN = 2000  # 列类型 Text, 仅防滥用
 MASVS_RE = re.compile(r"^MASVS-[A-Z]+-\d+$")
 MASWE_RE = re.compile(r"^MASWE-\d{4}$")
 MASTG_RE = re.compile(r"^MASTG-[A-Z]+-[A-Z0-9-]+$")
@@ -32,6 +41,26 @@ def _resolve_field(observation: dict, field: str):
             value = value[part]
         return value
     return observation.get(field)
+
+
+def _require_bounded_text(value, label: str, limit: int, *, required: bool) -> None:
+    """可选/必填文本字段：必须是字符串且不超过列宽允许的长度。"""
+    if value is None:
+        _require(not required, f"{label} 不能为空")
+        return
+    _require(isinstance(value, str), f"{label} 必须是字符串")
+    if required:
+        _require(bool(value.strip()), f"{label} 不能为空")
+    _require(len(value) <= limit, f"{label} 超过最大长度 {limit}")
+
+
+def _require_enum(produce: dict, key: str, allowed: set[str], default: str) -> None:
+    """可选枚举字段：缺省时由 correlate 填默认值，一旦出现就必须在受控取值内。"""
+    if key not in produce:
+        return
+    value = produce.get(key)
+    _require(isinstance(value, str) and value in allowed,
+             f"{key} 只能是 {'/'.join(sorted(allowed))} 之一（缺省为 {default}）")
 
 
 def _validate_standard_ids(standards: dict, key: str, pattern: re.Pattern, label: str) -> None:
@@ -65,9 +94,15 @@ def validate_rule_content(content: dict) -> None:
             _require(condition.get("value") not in (None, ""), "该操作符需要 value")
     produce = content.get("produce") or {}
     _require(isinstance(produce, dict), "produce 必须是对象")
-    _require(bool(FINDING_CODE_RE.match(str(produce.get("finding_code") or ""))), "finding_code 格式错误")
-    _require(bool(produce.get("title")), "produce.title 不能为空")
-    _require(bool(produce.get("category")), "produce.category 不能为空")
+    finding_code = str(produce.get("finding_code") or "")
+    _require(len(finding_code) <= MAX_FINDING_CODE_LEN, f"finding_code 超过最大长度 {MAX_FINDING_CODE_LEN}")
+    _require(bool(FINDING_CODE_RE.match(finding_code)), "finding_code 格式错误")
+    _require_bounded_text(produce.get("title"), "produce.title", MAX_TITLE_LEN, required=True)
+    _require_bounded_text(produce.get("category"), "produce.category", MAX_CATEGORY_LEN, required=True)
+    _require_bounded_text(produce.get("recommendation"), "produce.recommendation",
+                          MAX_RECOMMENDATION_LEN, required=False)
+    _require_enum(produce, "severity", ALLOWED_SEVERITIES, "medium")
+    _require_enum(produce, "confidence", ALLOWED_CONFIDENCES, "possible")
     standards = content.get("standards") or {}
     _require(isinstance(standards, dict), "standards 必须是对象")
     _validate_standard_ids(standards, "masvs", MASVS_RE, "MASVS")

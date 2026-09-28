@@ -94,6 +94,8 @@ def publish_version(rid: int, vid: int,
     rv = db.query(RuleVersion).get(vid)
     if not rv or rv.rule_id != rid:
         raise HTTPException(status_code=404, detail="规则版本不存在")
+    if db.query(Rule).get(rid).category == "correlation":
+        raise HTTPException(status_code=400, detail="关联规则请通过 /correlation-rules 接口发布")
     rv.status = "published"
     rv.published_by = user.id
     rv.published_at = datetime.now(timezone.utc)

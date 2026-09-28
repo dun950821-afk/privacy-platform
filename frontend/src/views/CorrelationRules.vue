@@ -111,14 +111,16 @@
         <div class="section-title">产出定义</div>
         <el-form label-width="90px">
           <el-form-item label="问题编号">
-            <el-input v-model="form.produce.finding_code" class="mono"
-                      placeholder="大写字母/数字/下划线，如 PRIVACY_CONTACTS_NETWORK" />
+            <el-input v-model="form.produce.finding_code" class="mono" :maxlength="MAX_FINDING_CODE_LEN"
+                      show-word-limit placeholder="大写字母/数字/下划线，如 PRIVACY_CONTACTS_NETWORK" />
           </el-form-item>
           <el-form-item label="标题">
-            <el-input v-model="form.produce.title" placeholder="命中后生成的问题标题" />
+            <el-input v-model="form.produce.title" :maxlength="MAX_TITLE_LEN" show-word-limit
+                      placeholder="命中后生成的问题标题" />
           </el-form-item>
           <el-form-item label="类别">
-            <el-input v-model="form.produce.category" class="mono" placeholder="如 privacy" />
+            <el-input v-model="form.produce.category" class="mono" :maxlength="MAX_CATEGORY_LEN"
+                      show-word-limit placeholder="如 privacy" />
           </el-form-item>
           <el-form-item label="严重性">
             <el-select v-model="form.produce.severity" style="width: 160px">
@@ -131,7 +133,8 @@
             </el-select>
           </el-form-item>
           <el-form-item label="整改建议">
-            <el-input v-model="form.produce.recommendation" type="textarea" :rows="2" />
+            <el-input v-model="form.produce.recommendation" type="textarea" :rows="2"
+                      :maxlength="MAX_RECOMMENDATION_LEN" show-word-limit />
           </el-form-item>
         </el-form>
 
@@ -280,7 +283,11 @@ import { RULE_STATUS, SEVERITY, CONFIDENCE, dictLabel } from '@/utils/dict'
 import { fmtDateTime } from '@/utils/format'
 
 /** 受控词表：条件字段与操作符固定，不提供自由编辑或原始 JSON 编辑 */
-const FIELD_OPTIONS = ['subject', 'location', 'payload.sink.category', 'payload.source.category', 'payload.rule']
+// 受控字段词表：取值必须能在真实引擎产物里解析出来。
+// 注意 payload.sink / payload.source 是**方法签名数组**（不是对象），
+// 因此 payload.sink.category 这类路径永远解析不到值，不能作为可选字段。
+const FIELD_OPTIONS = ['subject', 'location', 'payload.category', 'payload.rule', 'payload.detail',
+                       'payload.section', 'payload.level']
 const OPERATOR_OPTIONS = ['equals', 'contains', 'exists']
 const LOGIC_OPTIONS = [
   { label: '全部满足 (all)', value: 'all' },
@@ -294,6 +301,12 @@ const STANDARD_FIELDS = [
 ] as const
 const SEVERITY_KEYS = Object.keys(SEVERITY)
 const CONFIDENCE_KEYS = Object.keys(CONFIDENCE)
+
+// 与后端 rule_evaluator 的长度上限保持一致（platform_findings 为定长列，超长会在写库时截断报错）
+const MAX_FINDING_CODE_LEN = 64
+const MAX_TITLE_LEN = 200
+const MAX_CATEGORY_LEN = 60
+const MAX_RECOMMENDATION_LEN = 2000
 
 interface ConditionForm {
   observation_type: string
@@ -497,11 +510,16 @@ function validateForm(): string | null {
     if (c.operator !== 'exists' && !String(c.value ?? '').trim()) return `第 ${i + 1} 个条件缺少匹配值`
   }
   const p = form.value.produce
-  if (!/^[A-Z][A-Z0-9_]{2,}$/.test(p.finding_code.trim())) {
+  const code = p.finding_code.trim()
+  if (!/^[A-Z][A-Z0-9_]{2,}$/.test(code)) {
     return '问题编号需以大写字母开头，由大写字母/数字/下划线组成（至少 3 位）'
   }
+  if (code.length > MAX_FINDING_CODE_LEN) return `问题编号最长 ${MAX_FINDING_CODE_LEN} 个字符`
   if (!p.title.trim()) return '请填写产出标题'
+  if (p.title.length > MAX_TITLE_LEN) return `产出标题最长 ${MAX_TITLE_LEN} 个字符`
   if (!p.category.trim()) return '请填写产出类别'
+  if (p.category.length > MAX_CATEGORY_LEN) return `产出类别最长 ${MAX_CATEGORY_LEN} 个字符`
+  if (p.recommendation.length > MAX_RECOMMENDATION_LEN) return `整改建议最长 ${MAX_RECOMMENDATION_LEN} 个字符`
   return null
 }
 
