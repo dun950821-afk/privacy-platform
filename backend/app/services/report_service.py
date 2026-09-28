@@ -45,6 +45,9 @@ class ReportService:
                 "detection_type": task.detection_type,
                 "rule_pack_version": task.rule_pack_version,
                 "status": task.status,
+                # 报告必须能说清「这次分析算不算数」，否则 0 条结论会被读成「未发现风险」
+                "analysis_coverage": task.analysis_coverage,
+                "coverage_detail": task.coverage_detail or {},
                 "created_at": task.created_at.isoformat() if task.created_at else None,
                 "completed_at": task.completed_at.isoformat() if task.completed_at else None
             },

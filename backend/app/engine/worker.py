@@ -436,6 +436,11 @@ class EngineWorker:
             }
             db.commit()
 
+            # 先判定「这次分析有没有覆盖到这个应用」，再产结论。
+            # 顺序有意如此：结论一旦产生，用户就会看到；而覆盖度决定了这些结论
+            # 算不算数（见 docs/analysis-coverage-design.md）。
+            self._record_analysis_coverage(db, task, engine_types_to_run)
+
             # 静态引擎全部结束后，用 Observation 关联生成平台风险结论
             try:
                 from app.services.finding_service import generate_findings
@@ -465,6 +470,42 @@ class EngineWorker:
 
         finally:
             db.close()
+
+    def _record_analysis_coverage(self, db, task: DetectionTask, engine_types: list[str]):
+        """判定每个引擎执行（以及整个任务）的分析有效性。
+
+        APK 侧的判据来自 Androguard 的产物（它解析 manifest 与 DEX 类名表）；
+        未启用该引擎时判 UNKNOWN——**缺数据不判 FULL**，那正是此前故障的成因。
+        """
+        from app.services import analysis_coverage as coverage
+
+        executions = db.query(EngineExecution).filter(
+            EngineExecution.task_id == task.id,
+            EngineExecution.engine_type.in_(engine_types),
+        ).all()
+        if not executions:
+            return
+
+        artifact_summary = next((e.result_summary for e in executions
+                                 if e.engine_type == "androguard" and e.result_summary), None)
+        artifact, artifact_detail = coverage.artifact_verdict(artifact_summary)
+
+        verdicts = []
+        for execution in executions:
+            verdict, detail = coverage.engine_verdict(
+                execution.engine_type, execution.result_summary, artifact)
+            execution.analysis_coverage = verdict
+            execution.coverage_detail = detail
+            verdicts.append(verdict)
+
+        task.analysis_coverage = coverage.task_verdict(verdicts)
+        task.coverage_detail = {"artifact": artifact, "artifact_detail": artifact_detail,
+                                "engines": {e.engine_type: e.analysis_coverage for e in executions}}
+        db.commit()
+        if task.analysis_coverage == coverage.DEGRADED:
+            logger.warning(
+                f"Task {task.id} analysis DEGRADED: 本次分析未覆盖应用代码，"
+                f"结论不可用于判断风险（依据: {artifact_detail}）")
 
     def _fail_task(self, db, task: DetectionTask, reason: str):
         """标记任务失败"""

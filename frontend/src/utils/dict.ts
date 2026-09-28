@@ -33,6 +33,17 @@ export const TASK_STATUS: Dict = {
   canceled: { label: '已取消', type: 'info' },
 }
 
+/**
+ * 分析有效性：正交于任务状态。
+ * status 回答「引擎跑完了吗」，这里回答「结果算不算数」。UNKNOWN 表示无法判定，
+ * **不得**显示成「已覆盖」——缺数据不等于没问题。
+ */
+export const ANALYSIS_COVERAGE: Dict = {
+  FULL: { label: '分析有效', type: 'success' },
+  DEGRADED: { label: '分析未覆盖应用代码', type: 'danger' },
+  UNKNOWN: { label: '分析有效性未判定', type: 'info' },
+}
+
 /** 子任务 / 引擎执行 / 场景 状态 */
 export const EXEC_STATUS: Dict = {
   pending: { label: '待执行', type: 'info' },

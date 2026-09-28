@@ -3,8 +3,14 @@
     <!-- 页头 -->
     <PageHeader title="检测报告" :subtitle="headerSubtitle">
       <StatusTag v-if="task.status" :value="task.status" :map="TASK_STATUS" size="default" />
+      <StatusTag v-if="isDegraded" value="DEGRADED" :map="ANALYSIS_COVERAGE" size="default" />
       <el-button :icon="ArrowLeft" @click="router.push(`/tasks/${taskId}`)">返回</el-button>
     </PageHeader>
+
+    <!-- 分析没覆盖到应用时，本报告的任何「无风险」表述都不成立 -->
+    <el-alert v-if="isDegraded" type="error" :closable="false" show-icon class="mb16"
+      title="本次分析未覆盖应用代码，本报告不能用于判断是否存在风险"
+      :description="degradedReason" />
 
     <el-tabs v-model="activeTab">
       <!-- ① 概览 -->
@@ -97,7 +103,7 @@
             <el-card shadow="never">
               <template #header><span class="card-title">严重度分布</span></template>
               <VChart v-if="severityChartData.length" :option="severityOption" height="260px" />
-              <EmptyBox v-else description="未发现风险" />
+              <EmptyBox v-else :description="isDegraded ? '本次分析未生效，不能据此判断' : '未发现风险'" />
             </el-card>
           </el-col>
           <el-col :span="8">
@@ -401,6 +407,7 @@ import { taskApi } from '@/api/tasks'
 import { fmtSize, fmtDateTime, fmtDuration } from '@/utils/format'
 import {
   dictLabel, TASK_STATUS, EXEC_STATUS, SEVERITY, EVENT_TYPE, DETECTION_TYPE, SENSITIVITY,
+  ANALYSIS_COVERAGE,
 } from '@/utils/dict'
 
 const route = useRoute()
@@ -415,6 +422,15 @@ const observations = ref<any[]>([])
 const artifacts = ref<any[]>([])
 
 const task = computed<any>(() => report.value.task || {})
+const isDegraded = computed(() => task.value.analysis_coverage === 'DEGRADED')
+const degradedReason = computed(() => {
+  const detail = task.value.coverage_detail?.artifact_detail || {}
+  if (detail.criterion === 'component_classes_all_missing') {
+    return `依据：manifest 声明的 ${detail.component_class_total} 个组件类，在 DEX 声明的 `
+      + `${detail.class_count} 个类里一个都找不到——应用代码不在 DEX 中（加固/壳）。`
+  }
+  return '部分引擎未能分析到应用代码，详见任务详情的引擎执行记录。'
+})
 const app = computed<any>(() => report.value.app || {})
 const basicInfo = computed<Record<string, any>>(() => report.value.basic_info || {})
 const engines = computed<any[]>(() => report.value.engines || [])

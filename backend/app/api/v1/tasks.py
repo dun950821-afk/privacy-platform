@@ -75,6 +75,9 @@ def list_tasks(project_id: int = None, status: str = None, app_version_id: int =
             "created_at": str(t.created_at),
             "started_at": str(t.started_at) if t.started_at else None,
             "completed_at": str(t.completed_at) if t.completed_at else None,
+            # 分析有效性：DEGRADED 表示本次分析没覆盖到应用代码，列表页要能看出来
+            "analysis_coverage": t.analysis_coverage,
+            "coverage_detail": t.coverage_detail or {},
             "engine_queue": get_task_engine_queue(db, t.id),
         })
     return {"code": 0, "data": {"items": result, "total": total, "page": page, "page_size": page_size}}
@@ -98,6 +101,8 @@ def get_task(tid: int, user: User = Depends(get_current_user), db: Session = Dep
         "started_at": str(t.started_at) if t.started_at else None,
         "completed_at": str(t.completed_at) if t.completed_at else None,
         "failed_reason": t.failed_reason,
+        "analysis_coverage": t.analysis_coverage,
+        "coverage_detail": t.coverage_detail or {},
         "app": {"name": v.app.app_name, "package_name": v.app.package_name} if v else None,
         "version": {"version_name": v.version_name, "version_code": v.version_code,
                      "sha256": v.sha256[:16], "file_size": v.file_size,
@@ -529,6 +534,9 @@ def task_report_overview(tid: int, user: User = Depends(get_current_user),
             "detection_type": t.detection_type, "rule_pack_version": t.rule_pack_version,
             "started_at": str(t.started_at) if t.started_at else None,
             "completed_at": str(t.completed_at) if t.completed_at else None,
+            # 报告必须能说清「这次分析算不算数」，否则 0 条结论会被读成「未发现风险」
+            "analysis_coverage": t.analysis_coverage,
+            "coverage_detail": t.coverage_detail or {},
         },
         "app": {
             "name": app.app_name if app else None,

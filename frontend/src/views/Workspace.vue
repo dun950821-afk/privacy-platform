@@ -91,6 +91,8 @@
                      @click="router.push(`/tasks/${t.id}`)">
                   <span class="task-code">{{ t.task_code }}</span>
                   <StatusTag :value="t.status" :map="TASK_STATUS" />
+                  <StatusTag v-if="t.analysis_coverage === 'DEGRADED'"
+                             value="DEGRADED" :map="ANALYSIS_COVERAGE" />
                   <span class="task-type">{{ dictLabel(DETECTION_TYPE, t.detection_type) }}</span>
                   <span class="task-time">{{ fmtDateTime(t.created_at) }}</span>
                   <el-icon class="task-arrow"><ArrowRight /></el-icon>
@@ -254,7 +256,7 @@ import {
 import StatusTag from '@/components/StatusTag.vue'
 import EmptyBox from '@/components/EmptyBox.vue'
 import { fmtDate, fmtDateTime, fmtSize } from '@/utils/format'
-import { dictLabel, TASK_STATUS, DETECTION_TYPE } from '@/utils/dict'
+import { dictLabel, TASK_STATUS, DETECTION_TYPE, ANALYSIS_COVERAGE } from '@/utils/dict'
 import { projectApi } from '@/api/projects'
 import { appApi } from '@/api/apps'
 import { taskApi } from '@/api/tasks'

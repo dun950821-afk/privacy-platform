@@ -3,6 +3,8 @@
     <!-- 顶部：任务标题 + 操作 -->
     <PageHeader :title="task.task_code || '任务详情'" :subtitle="headerSubtitle">
       <StatusTag v-if="task.status" :value="task.status" :map="TASK_STATUS" size="default" />
+      <StatusTag v-if="task.analysis_coverage" :value="task.analysis_coverage"
+                 :map="ANALYSIS_COVERAGE" size="default" />
       <el-button v-if="canRetry" type="warning" plain :icon="RefreshRight" @click="handleRetry">
         重试
       </el-button>
@@ -425,7 +427,9 @@
             <el-table-column label="发现时间" width="150">
               <template #default="{ row }">{{ fmtDateTime(row.created_at) }}</template>
             </el-table-column>
-            <template #empty><EmptyBox description="未发现问题" /></template>
+            <template #empty>
+              <EmptyBox :description="task.analysis_coverage === 'DEGRADED' ? '本次分析未生效，不能据此判断' : '未发现问题'" />
+            </template>
           </el-table>
         </el-tab-pane>
 
@@ -700,7 +704,7 @@ import { fmtDateTime, fmtDateTimeFull, fmtSize } from '@/utils/format'
 import {
   dictLabel, TASK_STATUS, EXEC_STATUS, SEVERITY, FINDING_STATUS,
   SCENARIO_TYPE, CONSENT_STATUS, EVENT_TYPE, DETECTION_TYPE,
-  COMPONENT_KIND, SENSITIVITY, HIT_STATUS,
+  COMPONENT_KIND, SENSITIVITY, HIT_STATUS, ANALYSIS_COVERAGE,
 } from '@/utils/dict'
 
 const route = useRoute()

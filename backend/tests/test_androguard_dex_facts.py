@@ -1,7 +1,11 @@
 import struct
 import zipfile
 
-from app.engine.runners.androguard_runner import _dex_class_count, _scan_dex, collect_facts
+import pytest
+
+from app.engine.runners.androguard_runner import (
+    _dex_class_count, _dex_declared_classes, _dex_method_count, _missing_component_classes,
+    _scan_dex, collect_facts)
 
 # DEX 头部里 class_defs_size 在 0x60，class_defs_off 在 0x64。两者相邻、同为 4 字节
 # 小端，因此**必须给它们不同的值**，否则读错位置照样通过——本文件此前正是这样：
@@ -67,3 +71,94 @@ def test_scan_dex_respects_disabled_flags(tmp_path):
     facts = _scan_dex(str(apk), {"extract_endpoints": False, "analyze_sensitive_apis": False})
     assert facts["urls"] == []
     assert facts["sensitive_apis"] == []
+
+
+# ---------- DEX 类名表：与 manifest 组件类比对 ----------
+
+def _uleb(value: int) -> bytes:
+    out = bytearray()
+    while True:
+        byte = value & 0x7F
+        value >>= 7
+        out.append(byte | (0x80 if value else 0))
+        if not value:
+            return bytes(out)
+
+
+def _fake_dex_with_classes(descriptors: list[str], method_ids: int = 0) -> bytes:
+    """构造一个只含 headers/三张表的最小 DEX，用于验证类名解析。"""
+    blob, offsets = b"", []
+    for name in descriptors:
+        offsets.append(112 + len(blob))
+        raw = name.encode()
+        blob += _uleb(len(raw)) + raw + b"\0"
+    str_ids_off = 112 + len(blob)
+    str_ids = b"".join(struct.pack("<I", off) for off in offsets)
+    type_ids_off = str_ids_off + len(str_ids)
+    type_ids = b"".join(struct.pack("<I", i) for i in range(len(descriptors)))   # type i → string i
+    class_defs_off = type_ids_off + len(type_ids)
+    class_defs = b"".join(struct.pack("<I", i) + b"\0" * 28 for i in range(len(descriptors)))
+
+    header = bytearray(112)
+    header[0:8] = b"dex\n035\0"
+    struct.pack_into("<I", header, 0x38, len(descriptors))
+    struct.pack_into("<I", header, 0x3C, str_ids_off)
+    struct.pack_into("<I", header, 0x40, len(descriptors))
+    struct.pack_into("<I", header, 0x44, type_ids_off)
+    struct.pack_into("<I", header, 0x58, method_ids)
+    struct.pack_into("<I", header, 0x60, len(descriptors))
+    struct.pack_into("<I", header, 0x64, class_defs_off)
+    return bytes(header) + blob + str_ids + type_ids + class_defs
+
+
+def test_dex_method_count_reads_its_own_field():
+    """方法数在 0x58，与 0x60 的类数相邻——同样必须区分开。"""
+    dex = _fake_dex_with_classes(["Lcom/a/B;"], method_ids=777)
+    assert _dex_method_count(dex) == 777
+    assert _dex_class_count(dex) == 1
+    assert _dex_method_count(_fake_dex_with_classes(["Lcom/a/B;"], method_ids=1)) == 1
+
+
+def test_declared_classes_are_returned_as_descriptors():
+    names = {"Lcom/example/a/A;", "Lcom/example/a/B;", "Landroidx/core/C;"}
+    assert _dex_declared_classes(_fake_dex_with_classes(sorted(names))) == names
+
+
+def test_declared_classes_returns_none_when_unreadable():
+    """读不出来必须返回 None，不能返回空集——空集会被当成"没有类"，从而把正常的说成异常。"""
+    assert _dex_declared_classes(b"not a dex") is None
+    assert _dex_declared_classes(b"") is None
+    # 表规模明显不合理（等于文件被破坏）时放弃
+    broken = bytearray(_fake_dex_with_classes(["Lcom/a/B;"]))
+    struct.pack_into("<I", broken, 0x60, 10 ** 7)
+    assert _dex_declared_classes(bytes(broken)) is None
+
+
+def test_missing_component_classes_distinguishes_all_missing_from_normal():
+    """全部缺失 = 加固壳；部分缺失 ≠ 分析没覆盖到（活动别名、插件包都会造成个别缺失）。"""
+    all_classes = {"Lcom/a/A;", "Lcom/b/B;"}
+    components = {"com.a.A", "com.b.B"}
+    assert _missing_component_classes(components, all_classes, readable=True) == set()
+
+    shell = _missing_component_classes(components, {"Lcom/shell/S;"}, readable=True)
+    assert shell == components, "DEX 里没有应用自己的类时，组件类应全部缺失"
+
+
+def test_missing_component_classes_returns_none_when_not_readable():
+    """读不出类名表时返回 None——**不是空集**。空集表示"全都找到了"，会把未知伪装成正常。"""
+    result = _missing_component_classes({"com.a.A"}, set(), readable=False)
+    assert result is None
+
+
+def test_packed_sample_has_no_component_class_in_dex(sample_apk):
+    """真实加固样本：manifest 声明的组件类一个都不在 DEX 里。
+
+    app_version 8（360 加固）：classes.dex 只声明 4 个类，而 manifest 声明 225 个组件。
+    """
+    facts = collect_facts(sample_apk, {"extract_endpoints": False, "analyze_sensitive_apis": False})
+    stats = facts["stats"]
+    assert stats["component_class_total"] > 100
+    assert stats["component_class_missing"] == stats["component_class_total"], \
+        "加固样本的组件类应全部不在 DEX 中"
+    assert stats["class_count"] == 4
+    assert stats["method_count"] == 381

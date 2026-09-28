@@ -146,6 +146,10 @@ class DetectionTask(Base):
     started_at = Column(DateTime(timezone=True))
     completed_at = Column(DateTime(timezone=True))
     failed_reason = Column(Text)
+    # 分析有效性：正交于 status。status 回答「引擎跑完了吗」，这里回答「结果算不算数」——
+    # 两者都为真，压进一个字段会丢信息（且要改 51 处按状态分支的判断）。
+    analysis_coverage = Column(String(20))   # FULL / DEGRADED / UNKNOWN（NULL = 未判定）
+    coverage_detail = Column(JSONB, default=dict)
     created_by = Column(BigInteger, ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)
@@ -467,6 +471,10 @@ class EngineExecution(Base):
     progress = Column(Integer)
     config_json = Column(JSONB, default=dict)
     result_summary = Column(JSONB, default=dict)
+    # 本次分析有没有覆盖到这个应用。NULL = 未判定（不得当作 FULL），见
+    # docs/analysis-coverage-design.md：缺数据时把结果当成有效正是此前的故障成因。
+    analysis_coverage = Column(String(20))   # FULL / DEGRADED / UNKNOWN
+    coverage_detail = Column(JSONB, default=dict)
     error_code = Column(String(60))
     error_message = Column(Text)
     debug_message = Column(Text)
