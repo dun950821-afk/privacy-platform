@@ -453,6 +453,27 @@ def test_android_parse_sets_official_reference():
     rows = {r["permission_name"]: r for r in parse_android_manifest(_read("android_manifest_sample.xml"))}
     assert rows["android.permission.CAMERA"]["official_reference"].startswith(
         "https://developer.android.com/reference/android/Manifest.permission#")
+
+
+def test_android_parse_duplicate_name_keeps_the_more_restrictive_level():
+    """同名但主级别不同时，取**更严**的那一级。
+
+    方向是刻意的：`is_applicable` 拿 `permission_type` 决定「普通 App 能不能申请」，
+    把签名级权限报成可达，会让默认视图里混进根本申请不到的条目。
+
+    fixture 里那条 CAMERA 重复项两次声明的主级别都是 `dangerous`，**触发不了这个分支**
+    ——所以必须在这里用不同主级别的重名钉住它，否则把 `>` 写成 `<` 也不会有测试变红。
+    """
+    xml = (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="android">'
+        '<permission android:name="android.permission.DUP" android:protectionLevel="normal" />'
+        '<permission android:name="android.permission.DUP" android:protectionLevel="signature" />'
+        '</manifest>'
+    )
+    rows = {r["permission_name"]: r for r in parse_android_manifest(xml)}
+    assert rows["android.permission.DUP"]["permission_type"] == "签名权限"
+    assert rows["android.permission.DUP"]["raw_data"]["protection_levels_seen"] == ["normal", "signature"]
 ```
 
 - [ ] **Step 3: 跑测试确认失败**
@@ -538,7 +559,7 @@ def parse_android_manifest(xml_text: str) -> list[dict]:
 - [ ] **Step 5: 跑测试确认通过**
 
 Run: `cd backend && /tmp/venv/bin/python -m pytest tests/test_permission_sources.py -v`
-Expected: 5 passed
+Expected: 6 passed（全套应为 287 passed）
 
 - [ ] **Step 6: Commit**
 
@@ -941,6 +962,33 @@ def test_import_accepts_rows_with_empty_capability(db):
         assert cap is None
     finally:
         _cleanup(db)
+
+
+def test_import_does_not_blank_existing_value_with_none(db):
+    """解析结果为 None 的字段不得把库中已有的值抹掉。
+
+    AOSP 解析器按设计输出 capability=None（清单不提供描述文本），而库里 103 行
+    ANDROID 的 capability 与 grant_mode **全部**是人工整理的成果，其中 81 行的
+    权限名与 AOSP 清单重叠。少了这层保护，首次导入就会把它们静默抹成 NULL——
+    而首次导入没有基线可挡。
+    """
+    _cleanup(db)
+    try:
+        import_platform(db, "ANDROID", [
+            _row(P + "h", capability="人工整理的能力说明", grant_mode="运行时授权")])
+
+        # 模拟 AOSP 解析器：同一权限名，但 capability/grant_mode 都是 None
+        result = import_platform(db, "ANDROID",
+                                 [_row(P + "h", capability=None, grant_mode=None)])
+        assert result == {"inserted": 0, "updated": 0, "skipped": 1}, "内容没有实质变化，不该算更新"
+
+        row = db.execute(text("""
+            select capability, grant_mode from privacy_kb.permission where permission_name=:n
+        """), {"n": P + "h"}).mappings().first()
+        assert row["capability"] == "人工整理的能力说明", "已有值被 NULL 抹掉了"
+        assert row["grant_mode"] == "运行时授权", "已有值被 NULL 抹掉了"
+    finally:
+        _cleanup(db)
 ```
 
 - [ ] **Step 2: 跑测试确认失败**
@@ -1035,7 +1083,11 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
             skipped += 1
             continue
 
-        incoming = {f: row[f] for f in _UPDATABLE if f in row}
+        # 解析结果为 None 的字段**不动既有值**。这不是洁癖：AOSP 解析器按设计输出
+        # capability=None（清单不提供描述文本），而库里 103 行 ANDROID 的 capability 与
+        # grant_mode **全部**是人工/早期整理的成果，其中 81 行的权限名与 AOSP 清单重叠。
+        # 少了这层过滤，首次导入会把它们静默抹成 NULL——而首次导入没有基线可挡。
+        incoming = {f: row[f] for f in _UPDATABLE if f in row and row[f] is not None}
         incoming_raw = row.get("raw_data") or {}
 
         # 与库中完全一致 → 无操作。幂等**靠内容比较，不靠时间戳**：
