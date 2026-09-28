@@ -200,6 +200,7 @@ class KBPermission(Base):
 
     id = Column(BigInteger, primary_key=True)
     permission_name = Column(String(500), unique=True, nullable=False)
+    platform = Column(String(20), nullable=False, default="ANDROID", server_default="ANDROID")
     normalized_name = Column(String(500), nullable=False)
     category = Column(String(150))
     capability = Column(Text)
