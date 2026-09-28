@@ -38,6 +38,36 @@ SOURCES = [
      "https://developer.apple.com/tutorials/data/documentation/bundleresources/protected-resources.json", {}),
 ]
 
+# 仓库内的人工整理文件：一样是「重建输入」，必须登记进清单，否则只跑这个脚本 +
+# `import_permissions.py` 复现不出活库（人工判定的字段会整批丢失）。
+# 它们没有可抓的 URL，所以**不放进 SOURCES**——抓取循环碰不到；由 _repo_entries()
+# 按磁盘内容算 sha256 后追加。注意本脚本是**整份重写** SOURCES.json 的：
+# 这条登记必须在这里显式重建，手动往 JSON 里加一条会在下次抓取时被无声抹掉。
+REPO_SOURCES = [
+    {"platform": "android",
+     "file": "curated_permission_snapshot.tsv",
+     "path": "data/kb/curated_permission_snapshot.tsv",
+     "url": "repo://data/kb/curated_permission_snapshot.tsv",
+     "source_kind": "repo"},
+]
+
+
+def _repo_entries() -> list[dict]:
+    """仓库内文件的清单条目。`sha256`/`bytes` 由磁盘内容算，和抓来的条目一样可校验。
+
+    `path` 是相对仓库根的路径——快照不在 `data/kb/<platform>/` 下，不能按抓取条目的
+    `platform/file` 拼路径去猜。
+    """
+    entries = []
+    for item in REPO_SOURCES:
+        path = ROOT.parent.parent / item["path"]
+        if not path.exists():
+            raise SystemExit(f"清单里的仓库内文件 {item['path']} 不存在——先把它加回仓库")
+        body = path.read_bytes()
+        entries.append({**item, "sha256": hashlib.sha256(body).hexdigest(),
+                        "bytes": len(body)})
+    return entries
+
 
 def _load_previous(manifest_path: pathlib.Path) -> dict[tuple[str, str], dict]:
     """上一轮清单，按 (platform, file) 索引。
@@ -89,6 +119,10 @@ def main():
                          "bytes": len(body)})
         print(f"  ok {platform}/{filename} {len(body)} bytes"
               + ("（内容未变）" if unchanged else ""))
+
+    for item in _repo_entries():
+        manifest.append(item)
+        print(f"  repo {item['path']} {item['bytes']} bytes（仓库内文件，不抓取）")
 
     manifest_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

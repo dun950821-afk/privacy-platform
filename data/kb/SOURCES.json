@@ -78,5 +78,14 @@
     "fetched_at": "2026-09-28T19:50:30+0800",
     "sha256": "084ae066b43219353eff79e4c893424804ea133e46c0be20288631486d72b11a",
     "bytes": 123341
+  },
+  {
+    "platform": "android",
+    "file": "curated_permission_snapshot.tsv",
+    "path": "data/kb/curated_permission_snapshot.tsv",
+    "url": "repo://data/kb/curated_permission_snapshot.tsv",
+    "source_kind": "repo",
+    "sha256": "7a7552a652928c0c4fafb6967d5c6e98e72c2d0e2517c883460f57f3d522b4bd",
+    "bytes": 19261
   }
 ]
