@@ -41,11 +41,19 @@ IPV4_RE = re.compile(rb"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 MAX_STRINGS = 500
 
 
+# DEX 头部（按 DEX 格式规范）：
+#   0x60 (96)  class_defs_size —— 类定义**数量**
+#   0x64 (100) class_defs_off  —— 类定义区的**字节偏移**
+# 二者相邻且都是 4 字节小端，读错一个位置不会报错、只会得到一个看起来像数字的
+# 字节偏移（实测某加固样本：真实类数 4，被读成 9784）。
+DEX_CLASS_DEFS_SIZE_OFF = 0x60
+
+
 def _dex_class_count(data: bytes) -> int:
-    """读取 DEX 头部 class_defs_size（偏移 100），避免为计数做完整反编译。"""
+    """读取 DEX 头部 class_defs_size（偏移 0x60），避免为计数做完整反编译。"""
     if len(data) < 112 or not data.startswith(b"dex\n"):
         return 0
-    return int.from_bytes(data[100:104], "little")
+    return int.from_bytes(data[DEX_CLASS_DEFS_SIZE_OFF:DEX_CLASS_DEFS_SIZE_OFF + 4], "little")
 
 
 def _scan_dex(apk_path: str, flags: dict, max_strings: int = MAX_STRINGS) -> dict:
