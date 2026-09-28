@@ -134,6 +134,26 @@ def test_import_accepts_rows_with_empty_capability(db):
         _cleanup(db)
 
 
+def test_import_survives_duplicate_name_in_one_batch(db):
+    """同一批里出现同名，不得让整批回滚。
+
+    `autoflush=False` 让循环里的查询看不到本批 pending 的行，第二次 INSERT 会撞
+    `permission_name` 的全局唯一键，把**整批连同审计行**一起回滚——查不到、也不知道
+    发生过。上游鸿蒙解析器按计划不做去重（跨文件去重留给调用方），所以这道守卫
+    必须在导入器里，不能单点依赖调用方。
+    """
+    _cleanup(db)
+    try:
+        rows = [_row(P + "dup", capability="第一次"), _row(P + "dup", capability="第二次")]
+        result = import_platform(db, "ANDROID", rows)
+        assert result == {"inserted": 1, "updated": 0, "skipped": 1}
+        n = db.execute(text("select count(*) from privacy_kb.permission where permission_name=:n"),
+                       {"n": P + "dup"}).scalar()
+        assert n == 1, "同名只该进库一条"
+    finally:
+        _cleanup(db)
+
+
 def test_import_does_not_blank_existing_value_with_none(db):
     """解析结果为 None 的字段不得把库中已有的值抹掉。
 

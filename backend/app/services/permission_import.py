@@ -8,8 +8,8 @@
    人工改过，跳过。
 """
 import logging
-from datetime import datetime, timezone
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.kb import KBImportBatch, KBPermission
@@ -43,6 +43,12 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
 
     baseline = _last_import_finished_at(db, platform)
     inserted = updated = skipped = 0
+    seen_names: set[str] = set()
+    # 本事务的数据库时钟。`now()` = **事务开始时刻**，本事务内恒定不变——读一次即可。
+    # 本批写下的每一行（INSERT 显式带上它、UPDATE 由触发器写 CURRENT_TIMESTAMP）
+    # 与 batch.finished_at 都落在**这同一个 DB 时钟值**上，被比较的两个时间戳不再
+    # 一个是应用时钟、一个是数据库时钟。详见函数末尾。
+    db_now = db.execute(text("select now()")).scalar()
 
     for row in rows:
         # 词表外的取值：跳过并计数，**不中止整批**。1018 行的导入不该死在最后一行；
@@ -56,7 +62,17 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
 
         name = (row.get("permission_name") or "").strip()
         if not name:
+            skipped += 1        # 空名也要计数，否则审计数字对不上 len(rows)
             continue
+        if name in seen_names:
+            # 同一批里出现同名：`autoflush=False`（core/database.py）让循环里的查询
+            # 看不到本批 pending 的行，第二次 INSERT 会撞 permission_name 的全局唯一键，
+            # **整批连同审计行一起回滚且不留痕**——查不到、也不知道发生过。
+            # 上游解析器（Android/iOS）各自去重，但鸿蒙那支按计划把跨文件去重留给了
+            # 调用方；与其单点依赖调用方，不如在这里挡住。
+            skipped += 1
+            continue
+        seen_names.add(name)
 
         existing = db.query(KBPermission).filter(KBPermission.permission_name == name).first()
         if existing is None:
@@ -71,6 +87,9 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
                 compliance_focus=row.get("compliance_focus"),
                 official_reference=row.get("official_reference"),
                 raw_data=row.get("raw_data") or {},
+                # 别让 ORM 的 Python 默认值（应用时钟，在 flush 时才求值）写这个字段：
+                # 它必须与 batch.finished_at 同源，否则这一行下一轮会被判成「人工改过」。
+                updated_at=db_now,
             ))
             inserted += 1
             continue
@@ -105,16 +124,21 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
         existing.raw_data = incoming_raw
         updated += 1
 
-    # **先落盘本批的行，再盖 finished_at。** 顺序不能反：行的 updated_at 要么由
-    # Python 默认值在 flush 时求值、要么由 trg_permission_updated_at 取
-    # CURRENT_TIMESTAMP（= 本事务开始时刻），两者都早于「盖章」——只要盖章发生在
-    # 落盘之后。反过来（沿用 brief 里的原顺序）行的 updated_at 会**晚于**自己这批的
-    # finished_at，于是下一轮把本导入自己写的行判成「上次导入之后被人改过」而永远
-    # 不再更新——「第一版写错了就永远修不回来」。
+    # **先 flush 落盘，再盖 finished_at。** 顺序反了曾是个真 bug：INSERT 路径的
+    # `updated_at` 若由 ORM 的 Python 默认值给出（应用时钟，flush 时才求值），会晚于
+    # finished_at（实测 +4.6 ms），于是下一轮把**导入自己写的行**判成「人工改过」而
+    # 永不再更新。现在两个时间戳同源于 `db_now`（数据库时钟、本事务内恒定），相等而非
+    # 相减——顺序不再承重，但 flush 仍要在前：它保证「所有行都已落盘」才把批次标 SUCCESS，
+    # 也让写库错误在盖章之前抛出，批次不会挂着一个骗人的 SUCCESS。
     db.flush()
     batch.status = "SUCCESS"
     batch.statistics = {"platform": platform, "inserted": inserted,
                         "updated": updated, "skipped": skipped}
-    batch.finished_at = datetime.now(timezone.utc)
+    # finished_at 与行的 updated_at 取**同一个数据库时钟值**。基线判定是
+    # `existing.updated_at > baseline`：
+    #   本批写的行   → updated_at == finished_at（同一事务的 now()）→ `>` 不成立，可更新
+    #   人工改过的行 → 编辑事务的 now() 严格晚于本批        → `>` 成立，跳过
+    # 全程只有数据库时钟，不存在「应用时钟 vs 数据库时钟」的偏差窗口。
+    batch.finished_at = db_now
     db.commit()
     return {"inserted": inserted, "updated": updated, "skipped": skipped}
