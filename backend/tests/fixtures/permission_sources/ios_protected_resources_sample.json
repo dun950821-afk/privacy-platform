@@ -1,0 +1,20 @@
+{
+  "references": {
+    "doc://com.apple.bundleresources/documentation/BundleResources/Information-Property-List/NSCameraUsageDescription": {
+      "title": "NSCameraUsageDescription",
+      "abstract": [{"type": "text", "text": "A message that tells the user why the app is requesting access to the device’s camera."}]
+    },
+    "doc://com.apple.bundleresources/documentation/BundleResources/Information-Property-List/NSMicrophoneUsageDescription": {
+      "title": "NSMicrophoneUsageDescription",
+      "abstract": [{"type": "text", "text": "A message that tells the user why the app is requesting access to the device’s microphone."}]
+    },
+    "doc://com.apple.bundleresources/documentation/BundleResources/Information-Property-List/NSCalendarsUsageDescription": {
+      "title": "NSCalendarsUsageDescription",
+      "abstract": [{"type": "text", "text": "A message that tells the user why the app is requesting access to the user’s calendar data."}]
+    },
+    "doc://com.apple.bundleresources/documentation/BundleResources/Information-Property-List/SomeOtherKey": {
+      "title": "SomeOtherKey",
+      "abstract": [{"type": "text", "text": "不是用法描述键，应被跳过。"}]
+    }
+  }
+}

@@ -1,4 +1,5 @@
 """三个平台的来源文件解析器。纯函数：文本进、行字典出，不碰 IO 也不碰库。"""
+import json
 from pathlib import Path
 
 from app.services.permission_sources import parse_android_manifest
@@ -106,3 +107,32 @@ def test_harmonyos_parse_leaves_official_reference_empty():
     rows = parse_harmonyos_doc(_read("harmonyos_sample.md"))
     assert all(r["official_reference"] is None for r in rows)
     assert all(r["raw_data"]["platform_source"] == "openharmony_docs" for r in rows)
+
+
+from app.services.permission_sources import parse_ios_protected_resources
+
+
+def test_ios_parse_only_picks_usage_description_keys():
+    rows = parse_ios_protected_resources(_read("ios_protected_resources_sample.json"))
+    names = {r["permission_name"] for r in rows}
+    assert names == {"NSCameraUsageDescription", "NSMicrophoneUsageDescription",
+                     "NSCalendarsUsageDescription"}
+    assert "SomeOtherKey" not in names
+
+
+def test_ios_parse_uses_usage_key_type_and_carries_abstract():
+    rows = {r["permission_name"]: r for r in parse_ios_protected_resources(
+        _read("ios_protected_resources_sample.json"))}
+    cam = rows["NSCameraUsageDescription"]
+    assert cam["permission_type"] == "用法描述键"
+    assert cam["capability"].startswith("A message that tells the user")
+
+
+def test_ios_parse_accepts_nfc_reader_key():
+    """NFCReaderUsageDescription 不带 NS 前缀，但确实是用法描述键。"""
+    payload = json.dumps({"references": {
+        "doc://x/NFCReaderUsageDescription": {
+            "title": "NFCReaderUsageDescription",
+            "abstract": [{"type": "text", "text": "用于 NFC 读取。"}]}}})
+    rows = parse_ios_protected_resources(payload)
+    assert [r["permission_name"] for r in rows] == ["NFCReaderUsageDescription"]

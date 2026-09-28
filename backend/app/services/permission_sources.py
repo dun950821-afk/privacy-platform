@@ -118,3 +118,37 @@ def parse_harmonyos_doc(md_text: str) -> list[dict]:
                          "since_api": since_m.group(1).strip() if since_m else None},
         })
     return out
+
+
+_IOS_REF = ("https://developer.apple.com/documentation/bundleresources/"
+            "information-property-list/")
+
+
+def parse_ios_protected_resources(json_text: str) -> list[dict]:
+    """解析 Apple「Protected resources」文档 JSON 里的用法描述键。
+
+    只收 `*UsageDescription`。entitlements（`com.apple.developer.*`）与 TCC 服务名
+    不收——它们是「能力授权」而非「用户隐私授权」，混进来会让 permission_type 的
+    语义变浑（见 spec §3.3）。
+
+    注意 `NFCReaderUsageDescription` 不带 `NS` 前缀，所以用后缀匹配而非前缀匹配。
+    """
+    data = json.loads(json_text)
+    out = []
+    seen = set()
+    for ref in (data.get("references") or {}).values():
+        title = (ref.get("title") or "").strip()
+        if not title.endswith("UsageDescription") or title in seen:
+            continue
+        seen.add(title)
+        abstract = ref.get("abstract") or []
+        text = "".join(p.get("text", "") for p in abstract if isinstance(p, dict)).strip()
+        out.append({
+            "permission_name": title,
+            "permission_type": "用法描述键",
+            "capability": text or None,
+            "grant_mode": None,
+            "official_reference": _IOS_REF + title.lower(),
+            "raw_data": {"platform_source": "apple_protected_resources"},
+        })
+    return sorted(out, key=lambda r: r["permission_name"])
