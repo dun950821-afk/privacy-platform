@@ -161,6 +161,10 @@
         </el-tab-pane>
 
         <!-- ③ 事件流 -->
+        <el-tab-pane label="引擎结果 · AppShark" name="engine_appshark">
+          <AppSharkPanel :task-id="taskId" />
+        </el-tab-pane>
+
         <el-tab-pane :label="`事件流 (${eventTotal})`" name="events">
           <div class="filter-bar">
             <el-select v-model="eventTypeFilter" placeholder="事件类型" clearable size="small"
@@ -695,6 +699,7 @@ import { ArrowLeft, RefreshRight, CircleClose, Document, Download, View, ArrowRi
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import EmptyBox from '@/components/EmptyBox.vue'
+import AppSharkPanel from '@/components/AppSharkPanel.vue'
 import api from '@/api'
 import { taskApi } from '@/api/tasks'
 import { reportApi } from '@/api/reports'

@@ -344,6 +344,10 @@ def task_observations(tid: int, engine_type: str = None, page: int = 1, page_siz
             "evidence_level": o.evidence_level,
             "subject": o.subject, "location": o.location,
             "payload": o.payload, "schema_version": o.schema_version,
+            # 平台语义字段：前端按引擎分区展示时要靠它们分组与标注
+            "data_category": o.data_category, "sink_type": o.sink_type,
+            "result_semantics": o.result_semantics, "observation_kind": o.observation_kind,
+            "provider_rule_id": o.provider_rule_id, "provider_level": o.provider_level,
         } for o in items],
         "total": total, "page": page, "page_size": page_size,
     }}
