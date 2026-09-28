@@ -90,19 +90,19 @@
         </el-form-item>
         <el-form-item label="平台" prop="platform">
           <el-select v-model="form.platform" :disabled="!!editingId" style="width:100%"
-                     @change="loadMeta">
+                     @change="onFormPlatformChange">
             <el-option v-for="p in meta.platforms" :key="p" :label="dictLabel(PLATFORM, p)" :value="p" />
           </el-select>
         </el-form-item>
         <el-form-item label="分类">
           <el-select v-model="form.category" clearable filterable allow-create style="width:100%"
                      placeholder="如：位置信息 / 设备标识">
-            <el-option v-for="c in meta.categories" :key="c" :label="c" :value="c" />
+            <el-option v-for="c in dialogMeta.categories" :key="c" :label="c" :value="c" />
           </el-select>
         </el-form-item>
         <el-form-item label="类型">
           <el-select v-model="form.permission_type" clearable style="width:100%">
-            <el-option v-for="t in meta.permission_types" :key="t" :label="t" :value="t" />
+            <el-option v-for="t in dialogMeta.permission_types" :key="t" :label="t" :value="t" />
           </el-select>
         </el-form-item>
         <el-form-item label="风险等级">
@@ -173,6 +173,15 @@ const filters = reactive({
 const meta = reactive({ platforms: [] as string[], permission_types: [] as string[],
                         risk_levels: [] as string[], categories: [] as string[] })
 
+/**
+ * 弹窗**自己一份**词表，不与筛选栏共用。
+ * 共用会让两侧互相改词表：筛选栏停在鸿蒙时新建（弹窗平台默认 Android）会列鸿蒙的 3 个取值，
+ * 选了必被后端按 `req.platform` 校验成 400；反过来弹窗切平台又会把筛选栏的类型下拉换掉，
+ * 而 `filters.platform` 没变——查不出东西且看不出原因。
+ * 词表必须与**它所属的那一侧当前选中的平台**一致，两侧平台可以不同，所以词表也要两份。
+ */
+const dialogMeta = reactive({ permission_types: [] as string[], categories: [] as string[] })
+
 const showDialog = ref(false)
 const saving = ref(false)
 const editingId = ref<number | null>(null)
@@ -185,25 +194,36 @@ const formRules: FormRules = {
   permission_name: [{ required: true, message: '请输入权限名', trigger: 'blur' }],
 }
 
-/**
- * 受控词表按平台取。platform 缺省时跟随筛选栏的平台——词表必须与「当前平台」一致，
- * 否则用户会拿别的平台的取值去查/去存。
- * 弹窗的平台下拉直接把它挂在 @change 上（el-select 会把新值作为参数传来）。
- */
-async function loadMeta(platform?: string) {
-  const p = platform ?? filters.platform
-  const res: any = await permissionApi.meta(p ? { platform: p } : undefined)
+/** 筛选栏的词表：跟随筛选栏的平台；不传 platform 时后端给三平台并集 */
+async function loadMeta() {
+  const res: any = await permissionApi.meta(
+    filters.platform ? { platform: filters.platform } : undefined)
   meta.platforms = res.data.platforms
   meta.permission_types = res.data.permission_types
   meta.risk_levels = res.data.risk_levels
   meta.categories = res.data.categories
 }
 
+/** 弹窗的词表：跟随**弹窗里**选中的平台，与筛选栏无关 */
+async function loadDialogMeta(platform: string) {
+  const res: any = await permissionApi.meta({ platform })
+  dialogMeta.permission_types = res.data.permission_types
+  dialogMeta.categories = res.data.categories
+}
+
 function onPlatformChange() {
-  // 平台变了，受控词表跟着变；已选的类型可能不再合法，清掉
+  // 平台变了，受控词表跟着变；已选的类型/分类可能不再合法，清掉
+  // （分类也是按平台取值的受控项，iOS/鸿蒙 的词表里根本没有 Android 那些分类）
   filters.permission_type = ''
+  filters.category = ''
   loadMeta()
   loadData(1)
+}
+
+function onFormPlatformChange() {
+  // 同上，弹窗内换平台也要清掉上一个平台的取值，否则提交时被后端 400 挡下
+  form.permission_type = ''
+  loadDialogMeta(form.platform)
 }
 
 async function loadData(p = 1) {
@@ -248,8 +268,10 @@ function resetForm() {
   formRef.value?.clearValidate()
 }
 
-function openCreate() {
+async function openCreate() {
   resetForm()
+  // 弹窗词表要按弹窗自己的平台取，不能沿用筛选栏那一份
+  await loadDialogMeta(form.platform)
   showDialog.value = true
 }
 
@@ -269,6 +291,8 @@ async function openEdit(row: PermissionItem) {
     compliance_focus: res.data.compliance_focus || '',
     official_reference: res.data.official_reference || '',
   })
+  // 按**这一行**的平台取词表：否则编辑 iOS 行时类型下拉列的是筛选栏平台的词表
+  await loadDialogMeta(form.platform)
   showDialog.value = true
 }
 
