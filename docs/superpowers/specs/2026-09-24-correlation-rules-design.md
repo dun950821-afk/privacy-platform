@@ -138,16 +138,16 @@ rule_versions
     "logic": "all",
     "conditions": [
       {
-        "observation_type": "fact.permission",
-        "field": "subject",
-        "operator": "contains",
-        "value": "android.permission.READ_CONTACTS"
+        "observation_type": "fact.sensitive_permission",
+        "field": "payload.category",
+        "operator": "equals",
+        "value": "CONTACTS"
       },
       {
         "observation_type": "dataflow.privacy",
-        "field": "payload.sink.category",
-        "operator": "equals",
-        "value": "network"
+        "field": "payload.rule",
+        "operator": "contains",
+        "value": "_NetworkTransfer"
       }
     ]
   },
@@ -177,6 +177,19 @@ field       subject / location / payload.<路径>
 ```
 
 `exists` 不使用 `value`；`payload.<路径>` 支持一层或多层点号路径，路径不存在视为不匹配。
+
+### 4.3 内置规则的条件必须取自引擎真实产物
+
+上面的条件不是示例值，而是与引擎实际输出对齐的取值：
+
+```text
+fact.sensitive_permission  subject 为短名（如 READ_CONTACTS），payload.category 为分类（如 CONTACTS）
+dataflow.privacy           payload.rule 为 AppShark 规则名，payload.sink/source 为方法签名列表
+```
+
+两个容易踩的坑：`fact.permission` 的条件依赖 `permissions.dangerous`，而 Androguard runner 不产出该键；`payload.sink` 是列表而非对象，用 `payload.sink.category` 永远解析为不匹配。
+
+因此新增或修改内置规则时，必须先取一次真实引擎产物确认字段路径与取值格式，再写条件；fixture 也应取自真实产物，否则测试会与规则互相验证同一个虚构。
 
 ## 5. 规则求值器
 
