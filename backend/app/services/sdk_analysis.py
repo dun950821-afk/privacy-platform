@@ -141,9 +141,14 @@ def analyze_task(db: Session, task: DetectionTask, refresh: bool = False) -> Sca
     """对任务执行 SDK 识别聚合分析（幂等，保留人工标记）"""
     job = ensure_scan_job(db, task)
 
+    # 「分析过了」的判据必须同时看两张结果表。只看命中数时，一个**一个指纹都没命中**
+    # 的 App（结果是 0 命中 + N 个未识别包簇）会被判成「没分析过」，于是既不提前返回、
+    # 也不清理旧结果，接着把同样的包簇再插一遍 → 唯一约束冲突 → 接口 500，且每次读取
+    # 都失败（线上 2026-09-28 的故障即此）。
     existing_hits = db.query(ScanComponentHit).filter(ScanComponentHit.scan_job_id == job.id).count()
     existing_clusters = db.query(ScanPackageCluster).filter(ScanPackageCluster.scan_job_id == job.id).count()
-    if existing_hits and not refresh:
+    analyzed = bool(existing_hits or existing_clusters)
+    if analyzed and not refresh:
         return job
 
     # 保留人工标记
@@ -158,7 +163,7 @@ def analyze_task(db: Session, task: DetectionTask, refresh: bool = False) -> Sca
     }
 
     # 清空重算
-    if refresh or existing_hits:
+    if refresh or analyzed:
         for h in db.query(ScanComponentHit).filter(ScanComponentHit.scan_job_id == job.id).all():
             db.query(ScanHitEvidence).filter(ScanHitEvidence.component_hit_id == h.id) \
                 .delete(synchronize_session=False)
