@@ -27,6 +27,14 @@ def upgrade():
         op.add_column(TABLE, sa.Column(COLUMN, sa.String(20), nullable=False,
                                        server_default="ANDROID"),
                       schema="privacy_kb")
+    # 索引**单独判存在**，不跟着上面那个 if 走：加列与建索引是两件事。
+    # 罩在同一个 if 里时，只要上一次迁移在 add_column 之后、create_index 之前失败
+    # （或者有人在已有列的库上补跑），列在 → 整个 if 跳过 → 索引**永远补不上**，
+    # 而且是静默的：迁移报成功，查询只是慢。
+    indexed = bind.execute(sa.text(
+        "select 1 from pg_indexes "
+        "where schemaname='privacy_kb' and indexname='idx_permission_platform'")).first()
+    if not indexed:
         op.create_index("idx_permission_platform", TABLE, [COLUMN], schema="privacy_kb")
 
 

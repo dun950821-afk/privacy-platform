@@ -7,7 +7,7 @@
 from datetime import datetime, timezone
 from sqlalchemy import (
     Column, BigInteger, Integer, SmallInteger, String, Text, Boolean,
-    DateTime, ForeignKey, UniqueConstraint
+    DateTime, ForeignKey, Index, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -196,7 +196,13 @@ class KBComponentRelation(Base):
 class KBPermission(Base):
     """权限知识库"""
     __tablename__ = "permission"
-    __table_args__ = {"schema": "privacy_kb"}
+    # 索引必须在这里也声明一份：迁移建了 `idx_permission_platform`（数据库里有），
+    # 模型不写就会 model/DB 漂移——autogenerate 会想把它删掉，而权限页按平台筛选
+    # 正是走这个索引。
+    __table_args__ = (
+        Index("idx_permission_platform", "platform"),
+        {"schema": "privacy_kb"},
+    )
 
     id = Column(BigInteger, primary_key=True)
     permission_name = Column(String(500), unique=True, nullable=False)
