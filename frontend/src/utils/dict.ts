@@ -246,3 +246,10 @@ export const BOOL_TAG: Dict = {
   true: { label: '是', type: 'success' },
   false: { label: '否', type: 'info' },
 }
+
+/** 权限所属平台 */
+export const PLATFORM: Dict = {
+  ANDROID: { label: 'Android', type: 'success' },
+  IOS: { label: 'iOS', type: 'primary' },
+  HARMONYOS: { label: '鸿蒙', type: 'warning' },
+}

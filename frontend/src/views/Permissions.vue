@@ -7,6 +7,11 @@
       <div class="filter-bar">
         <el-input v-model="filters.keyword" placeholder="搜索权限名 / 能力说明" clearable style="width:240px"
                   @keyup.enter="loadData(1)" @clear="loadData(1)" />
+        <el-select v-model="filters.platform" placeholder="全部平台" clearable style="width:130px"
+                   @change="onPlatformChange">
+          <el-option v-for="p in meta.platforms" :key="p" :label="dictLabel(PLATFORM, p)" :value="p" />
+        </el-select>
+        <el-checkbox v-model="filters.applicable">只看应用可申请</el-checkbox>
         <el-select v-model="filters.category" placeholder="全部分类" clearable filterable style="width:170px">
           <el-option v-for="c in meta.categories" :key="c" :label="c" :value="c" />
         </el-select>
@@ -27,6 +32,11 @@
         <el-table-column label="权限名" min-width="250" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="mono">{{ row.permission_name }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="平台" width="100">
+          <template #default="{ row }">
+            <StatusTag :value="row.platform" :map="PLATFORM" />
           </template>
         </el-table-column>
         <el-table-column label="分类" width="150" show-overflow-tooltip>
@@ -78,6 +88,12 @@
                     placeholder="如 android.permission.ACCESS_FINE_LOCATION" />
           <div v-if="editingId" class="form-hint">权限名是扫描记录的匹配依据，不可修改</div>
         </el-form-item>
+        <el-form-item label="平台" prop="platform">
+          <el-select v-model="form.platform" :disabled="!!editingId" style="width:100%"
+                     @change="loadMeta">
+            <el-option v-for="p in meta.platforms" :key="p" :label="dictLabel(PLATFORM, p)" :value="p" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="分类">
           <el-select v-model="form.category" clearable filterable allow-create style="width:100%"
                      placeholder="如：位置信息 / 设备标识">
@@ -128,11 +144,12 @@ import { permissionApi } from '@/api/permissions'
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import EmptyBox from '@/components/EmptyBox.vue'
-import { PERMISSION_TYPE, RISK_LEVEL, dictLabel } from '@/utils/dict'
+import { PERMISSION_TYPE, PLATFORM, RISK_LEVEL, dictLabel } from '@/utils/dict'
 
 interface PermissionItem {
   id: number
   permission_name: string
+  platform: string
   category: string | null
   permission_type: string | null
   risk_level: string | null
@@ -145,31 +162,48 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = 50
 const filters = reactive({
-  keyword: '', category: '', permission_type: '', risk_level: '',
+  keyword: '', platform: '', category: '', permission_type: '', risk_level: '',
   is_active: undefined as boolean | undefined,
+  // 三态由后端定义：true = 只看可达、false = 只看不可达、不传 = 不筛。
+  // 这里的勾选框只表达「只看可达」，取消勾选送 undefined（不筛），不送 false。
+  applicable: true,
 })
 
 /** 受控词表由后端给，前端不抄一份——词表抄到前端正是它失控的起点 */
-const meta = reactive({ permission_types: [] as string[], risk_levels: [] as string[],
-                        categories: [] as string[] })
+const meta = reactive({ platforms: [] as string[], permission_types: [] as string[],
+                        risk_levels: [] as string[], categories: [] as string[] })
 
 const showDialog = ref(false)
 const saving = ref(false)
 const editingId = ref<number | null>(null)
 const formRef = ref<FormInstance>()
 const form = reactive({
-  permission_name: '', category: '', permission_type: '', risk_level: '',
+  permission_name: '', platform: 'ANDROID', category: '', permission_type: '', risk_level: '',
   capability: '', grant_mode: '', compliance_focus: '', official_reference: '',
 })
 const formRules: FormRules = {
   permission_name: [{ required: true, message: '请输入权限名', trigger: 'blur' }],
 }
 
-async function loadMeta() {
-  const res: any = await permissionApi.meta()
+/**
+ * 受控词表按平台取。platform 缺省时跟随筛选栏的平台——词表必须与「当前平台」一致，
+ * 否则用户会拿别的平台的取值去查/去存。
+ * 弹窗的平台下拉直接把它挂在 @change 上（el-select 会把新值作为参数传来）。
+ */
+async function loadMeta(platform?: string) {
+  const p = platform ?? filters.platform
+  const res: any = await permissionApi.meta(p ? { platform: p } : undefined)
+  meta.platforms = res.data.platforms
   meta.permission_types = res.data.permission_types
   meta.risk_levels = res.data.risk_levels
   meta.categories = res.data.categories
+}
+
+function onPlatformChange() {
+  // 平台变了，受控词表跟着变；已选的类型可能不再合法，清掉
+  filters.permission_type = ''
+  loadMeta()
+  loadData(1)
 }
 
 async function loadData(p = 1) {
@@ -178,9 +212,12 @@ async function loadData(p = 1) {
   try {
     const res: any = await permissionApi.list({
       keyword: filters.keyword || undefined,
+      platform: filters.platform || undefined,
       category: filters.category || undefined,
       permission_type: filters.permission_type || undefined,
       risk_level: filters.risk_level || undefined,
+      // 取消勾选送 undefined（不筛），不是 false（只看不可达）
+      applicable: filters.applicable || undefined,
       is_active: filters.is_active,
       page: page.value, page_size: pageSize,
     })
@@ -191,17 +228,21 @@ async function loadData(p = 1) {
 
 function resetFilters() {
   filters.keyword = ''
+  filters.platform = ''
   filters.category = ''
   filters.permission_type = ''
   filters.risk_level = ''
   filters.is_active = undefined
+  filters.applicable = true
+  // 平台回到「全部」，词表要跟着回到三平台并集，否则留下的还是上一个平台的取值
+  loadMeta()
   loadData(1)
 }
 
 function resetForm() {
   editingId.value = null
   Object.assign(form, {
-    permission_name: '', category: '', permission_type: '', risk_level: '',
+    permission_name: '', platform: 'ANDROID', category: '', permission_type: '', risk_level: '',
     capability: '', grant_mode: '', compliance_focus: '', official_reference: '',
   })
   formRef.value?.clearValidate()
@@ -218,6 +259,8 @@ async function openEdit(row: PermissionItem) {
   const res: any = await permissionApi.get(row.id)
   Object.assign(form, {
     permission_name: res.data.permission_name || '',
+    // 平台是这一行的身份，编辑态禁用；填进来是为了让禁用框显示的是这一行真实的平台
+    platform: res.data.platform || 'ANDROID',
     category: res.data.category || '',
     permission_type: res.data.permission_type || '',
     risk_level: res.data.risk_level || '',
@@ -244,10 +287,12 @@ async function handleSubmit() {
       official_reference: form.official_reference || undefined,
     }
     if (editingId.value) {
+      // platform 不进 payload：后端 PUT 不接受它，平台和 permission_name 一样建后不可改
       await permissionApi.update(editingId.value, payload)
       ElMessage.success('保存成功')
     } else {
-      await permissionApi.create({ ...payload, permission_name: form.permission_name })
+      await permissionApi.create({ ...payload, permission_name: form.permission_name,
+                                   platform: form.platform })
       ElMessage.success('创建成功')
     }
     showDialog.value = false
