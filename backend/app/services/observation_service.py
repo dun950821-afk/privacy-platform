@@ -1,6 +1,7 @@
 """引擎事件到 Observation 的统一映射。"""
 import logging
 
+from app.models import EngineObservation
 from app.services.appshark_semantic_registry import MissingSemanticsError, semantics_for
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,24 @@ def event_to_observation(event: dict, *, task_id: int, execution_id: int, engine
             resolved_type, EVIDENCE_LEVELS.get(event_type, "observed"))
     result.update(semantic)
     return result
+
+
+# 归一化结果里唯一一个不是模型列的键，落库时丢弃是预期行为
+NON_COLUMN_KEYS = frozenset({"engine_version"})
+
+
+def observation_row(data: dict) -> EngineObservation:
+    """把归一化结果投影成 EngineObservation。
+
+    **按模型列投影，不手写字段白名单。** 手写白名单的失败方式是静默的：
+    新增字段没有报错、没有测试失败，只是永远不落库。Task 3 首次真实任务
+    验证就栽在这里——7 个语义字段全被白名单丢掉，139 条观察的 data_category
+    为 NULL，直接结论产出 0，而全部单测仍然是绿的（它们只验返回值，不验写库）。
+
+    以模型列为准之后，「模型加了列但忘了写进去」这类错误不可能再发生。
+    """
+    columns = {c.key for c in EngineObservation.__table__.columns}
+    return EngineObservation(**{k: v for k, v in data.items() if k in columns})
 
 
 def _semantic_fields(payload: dict, observation_type: str) -> dict:

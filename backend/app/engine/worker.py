@@ -30,7 +30,7 @@ from app.engine.repository import (claim_execution, heartbeat_execution, request
                                    is_cancel_requested, recover_expired_leases,
                                    find_tasks_with_queued_executions)
 from app.services.task_config import enabled_engine_types, resolved_task_config
-from app.services.observation_service import event_to_observation
+from app.services.observation_service import event_to_observation, observation_row
 from app.engine.artifacts import LocalArtifactStore
 from app.core.config import settings as app_settings
 
@@ -351,8 +351,7 @@ class EngineWorker:
                         )
                         db.add(event)
                         observation_data = event_to_observation(evt_data, task_id=task_id, execution_id=execution.id, engine_type=engine_type, engine_version=engine_info["version"])
-                        from app.models import EngineObservation
-                        db.add(EngineObservation(**{k: v for k, v in observation_data.items() if k in {"task_id", "execution_id", "engine_type", "observation_type", "category", "rule_code", "rule_version", "severity", "confidence", "evidence_level", "subject", "location", "evidence_refs", "payload", "schema_version"}}))
+                        db.add(observation_row(observation_data))
                         all_events.append(evt_data)
 
                     # 保存产出物为证据
