@@ -11,6 +11,7 @@ import json
 import time
 import asyncio
 import logging
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -471,12 +472,36 @@ class EngineWorker:
         finally:
             db.close()
 
-    def _record_analysis_coverage(self, db, task: DetectionTask, engine_types: list[str]):
-        """判定每个引擎执行（以及整个任务）的分析有效性。
+    def _artifact_facts(self, db, task: DetectionTask, executions: list) -> tuple[dict | None, str]:
+        """APK 侧的覆盖度事实（manifest 组件类 vs DEX 声明的类）。
 
-        APK 侧的判据来自 Androguard 的产物（它解析 manifest 与 DEX 类名表）；
-        未启用该引擎时判 UNKNOWN——**缺数据不判 FULL**，那正是此前故障的成因。
+        优先用 Androguard 执行的产物；**未启用该引擎时跑一次独立的输入端探针**——
+        否则 AppShark-only 的任务永远判 UNKNOWN，告警也永远发不出来，等于这个功能
+        对一半的配置不生效。探针只读 manifest 与 DEX 头部，关掉字符串/端点提取以省开销。
         """
+        summary = next((e.result_summary for e in executions
+                        if e.engine_type == "androguard" and e.result_summary), None)
+        if summary:
+            return summary, "androguard_execution"
+
+        version = db.query(AppVersion).get(task.app_version_id)
+        apk_path = version.artifact_path if version else None
+        if not apk_path or not os.path.exists(apk_path):
+            return None, "artifact_missing"
+        try:
+            from app.engine.runners.androguard_runner import run_in_process
+            out_path = os.path.join(tempfile.mkdtemp(prefix="coverage_probe_"), "facts.json")
+            facts = run_in_process(apk_path, out_path, timeout=180,
+                                   config={"extract_strings": False,
+                                           "extract_endpoints": False,
+                                           "analyze_sensitive_apis": False})
+            return facts.get("stats"), "standalone_probe"
+        except Exception as exc:
+            logger.warning(f"Task {task.id} 覆盖度探针失败，本次判 UNKNOWN: {exc}")
+            return None, f"probe_failed: {exc}"
+
+    def _record_analysis_coverage(self, db, task: DetectionTask, engine_types: list[str]):
+        """判定每个引擎执行（以及整个任务）的分析有效性。"""
         from app.services import analysis_coverage as coverage
 
         executions = db.query(EngineExecution).filter(
@@ -486,9 +511,9 @@ class EngineWorker:
         if not executions:
             return
 
-        artifact_summary = next((e.result_summary for e in executions
-                                 if e.engine_type == "androguard" and e.result_summary), None)
+        artifact_summary, artifact_source = self._artifact_facts(db, task, executions)
         artifact, artifact_detail = coverage.artifact_verdict(artifact_summary)
+        artifact_detail = dict(artifact_detail, source=artifact_source)
 
         verdicts = []
         for execution in executions:
