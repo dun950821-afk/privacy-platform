@@ -546,6 +546,14 @@ class EngineObservation(Base):
     subject = Column(String(500))
     location = Column(String(500))
     fingerprint = Column(String(64))
+    # ---- 平台语义字段（见设计文档 2026-09-28 §4）----
+    data_category = Column(String(60))       # 隐私数据类目，共享关联键
+    sink_type = Column(String(40))           # 流向类型
+    result_semantics = Column(String(30))    # fact / supporting_evidence / direct_finding
+    observation_kind = Column(String(30))    # fact / dataflow / security_finding
+    provider_rule_id = Column(String(120))   # Provider 原始规则名（回溯用，不作关联键）
+    provider_level = Column(String(10))      # Provider 原始 level，如 AppShark L2/L3/L4
+    entity_keys = Column(JSONB, default=dict)  # 通用连接键容器
     evidence_refs = Column(JSONB, default=list)
     payload = Column(JSONB, default=dict)
     schema_version = Column(String(30), nullable=False, default="1.0")
