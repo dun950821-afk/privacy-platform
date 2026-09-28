@@ -11,7 +11,15 @@
       "model": "middle",
       "complianceCategory": "unZipSlip",
       "complianceCategoryDetail": "ZIP Slip is a highly critical security vulnerability aimed at these kind of applications. ZIP Slip makes your application vulnerable to Path traversal attack and Sensitive data exposure.",
-      "level": "L4"
+      "level": "L4",
+      "provenance": {
+        "repo": "bytedance/appshark",
+        "commit": "487fa2175c4a6ccbfb5a330b5e3ed0081de3bfeb",
+        "source_path": "config/rules/unZipSlip.json",
+        "license": "Apache-2.0",
+        "vendor": "upstream",
+        "verified": false
+      }
     },
     "entry": {},
     "source": {

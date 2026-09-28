@@ -9,7 +9,15 @@
       "category": "ComplianceInfo",
       "complianceCategory": "serial_Log",
       "complianceCategoryDetail": "serial_Log",
-      "level": "L4"
+      "level": "L4",
+      "provenance": {
+        "repo": "bytedance/appshark",
+        "commit": "487fa2175c4a6ccbfb5a330b5e3ed0081de3bfeb",
+        "source_path": "config/rules/logSerial.json",
+        "license": "Apache-2.0",
+        "vendor": "upstream",
+        "verified": false
+      }
     },
     "source": {
       "Field": [
