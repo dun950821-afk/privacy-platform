@@ -81,7 +81,72 @@
           <el-descriptions-item label="描述" :span="2">{{ rule.description || '-' }}</el-descriptions-item>
         </el-descriptions>
 
+        <!-- 规则形态：决定编辑器长什么样，也决定保存出去的 schema_version -->
+        <div class="section-title">规则形态</div>
+        <el-radio-group v-model="form.mode" class="mb8">
+          <el-radio-button value="match">字面匹配（1.0）</el-radio-button>
+          <el-radio-button value="join">共享键增强（2.0）</el-radio-button>
+        </el-radio-group>
+        <el-alert
+          v-if="form.mode === 'match'"
+          type="info"
+          :closable="false"
+          class="mb16"
+          title="按字面值匹配观察字段，命中后新建结论。新增一个数据类目就要新增一条规则。"
+        />
+        <el-alert
+          v-else
+          type="success"
+          :closable="false"
+          class="mb16"
+          title="按共享语义键（data_category）连接同类目的证据，给已有结论补充证据并提升置信度，不新建结论。规则内不要写具体类目名。"
+        />
+
+        <!-- 增强规则的锚点与连接 -->
+        <template v-if="form.mode === 'join'">
+          <div class="section-title">锚点（被增强的结论所依赖的观察）</div>
+          <div class="cond-row">
+            <el-input v-model="form.anchorType" placeholder="观察类型，如 dataflow.privacy" />
+              <el-select v-model="form.action" style="width: 160px">
+                <el-option label="enrich（增强）" value="enrich" />
+              </el-select>
+          </div>
+          <div class="field-label mt8">锚点筛选（可留空；键写错只会静默不命中，请核对）</div>
+          <div v-for="(row, idx) in form.anchorWhere" :key="`aw${idx}`" class="cond-row">
+            <el-input v-model="row.key" placeholder="字段，如 sink_type" />
+            <el-input v-model="row.value" placeholder="值，如 network" />
+            <el-button link type="danger" :icon="Delete" @click="form.anchorWhere.splice(idx, 1)" />
+          </div>
+          <el-button link type="primary" :icon="Plus" @click="form.anchorWhere.push({ key: '', value: '' })">
+            添加锚点筛选
+          </el-button>
+
+          <div class="section-title">连接（证据侧）</div>
+          <div v-for="(item, idx) in form.joins" :key="`j${idx}`" class="join-block">
+            <div class="cond-row">
+              <el-input v-model="item.type" placeholder="证据观察类型，如 security.sensitive_api" />
+              <el-select v-model="item.on" multiple placeholder="连接键" style="width: 220px">
+                <el-option v-for="key in JOIN_KEYS" :key="key" :label="key" :value="key" />
+              </el-select>
+              <el-button link type="danger" :icon="Delete" @click="form.joins.splice(idx, 1)" />
+            </div>
+            <div v-for="(row, widx) in item.where" :key="`jw${idx}-${widx}`" class="cond-row indent">
+              <el-input v-model="row.key" placeholder="筛选字段（可选）" />
+              <el-input v-model="row.value" placeholder="值" />
+              <el-button link type="danger" :icon="Delete" @click="item.where.splice(widx, 1)" />
+            </div>
+            <el-button link type="primary" size="small" class="indent"
+                       @click="item.where.push({ key: '', value: '' })">添加筛选</el-button>
+          </div>
+          <EmptyBox v-if="!form.joins.length" description="至少需要一个连接" :image-size="60" />
+          <el-button link type="primary" :icon="Plus" @click="addJoin">添加连接</el-button>
+          <div class="vocab-warn">
+            作用范围固定为 app_version_id（同一次扫描内的观察）；增强规则不产出结论，因此没有产出定义与标准映射。
+          </div>
+        </template>
+
         <!-- 匹配条件 -->
+        <template v-if="form.mode === 'match'">
         <div class="section-title">匹配条件</div>
         <div class="logic-row">
           <span class="field-label">条件组合</span>
@@ -129,7 +194,8 @@
           </el-form-item>
           <el-form-item label="置信度">
             <el-select v-model="form.produce.confidence" style="width: 160px">
-              <el-option v-for="key in CONFIDENCE_KEYS" :key="key" :label="dictLabel(CONFIDENCE, key)" :value="key" />
+              <el-option v-for="key in PRODUCE_CONFIDENCE_KEYS" :key="key"
+                         :label="dictLabel(CONFIDENCE, key)" :value="key" />
             </el-select>
           </el-form-item>
           <el-form-item label="整改建议">
@@ -154,6 +220,7 @@
             />
           </el-form-item>
         </el-form>
+        </template>
 
         <template v-if="!isCreate">
           <!-- 版本历史 -->
@@ -213,14 +280,22 @@
                 {{ previewResult.would_match ? '命中' : '未命中' }}
               </el-tag>
             </el-descriptions-item>
-            <el-descriptions-item label="命中 Observation 数">
+            <el-descriptions-item :label="previewResult.action === 'enrich' ? '锚点 Observation 数' : '命中 Observation 数'">
               {{ previewResult.matched_observation_ids?.length || 0 }}
               <span v-if="previewResult.matched_observation_ids?.length" class="sub-text mono">
                 （ID: {{ previewResult.matched_observation_ids.join(', ') }}）
               </span>
             </el-descriptions-item>
-            <el-descriptions-item label="产出问题编号">{{ previewResult.finding_code || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="该任务已有问题">
+            <el-descriptions-item v-if="previewResult.action === 'enrich'" label="可补充的证据数">
+              {{ previewResult.evidence_observation_ids?.length || 0 }}
+              <span v-if="previewResult.evidence_observation_ids?.length" class="sub-text mono">
+                （ID: {{ previewResult.evidence_observation_ids.join(', ') }}）
+              </span>
+            </el-descriptions-item>
+            <el-descriptions-item v-if="previewResult.action !== 'enrich'" label="产出问题编号">
+              {{ previewResult.finding_code || '-' }}
+            </el-descriptions-item>
+            <el-descriptions-item :label="previewResult.action === 'enrich' ? '会被增强的问题' : '该任务已有问题'">
               {{ previewResult.existing_findings?.length ? previewResult.existing_findings.join(', ') : '无' }}
             </el-descriptions-item>
             <el-descriptions-item label="是否写库">
@@ -278,9 +353,16 @@ import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import EmptyBox from '@/components/EmptyBox.vue'
 import { correlationRuleApi } from '@/api/correlationRules'
-import type { CorrelationRuleContent, CorrelationRuleDetail, CorrelationRulePreviewResult, CorrelationRuleSummary } from '@/api/correlationRules'
+import type { CorrelationRuleDetail, CorrelationRulePreviewResult, CorrelationRuleSummary } from '@/api/correlationRules'
 import { RULE_STATUS, SEVERITY, CONFIDENCE, dictLabel } from '@/utils/dict'
 import { fmtDateTime } from '@/utils/format'
+// 表单 ⇄ 规则内容的映射抽在 correlationRuleForm.ts，便于直接对真实规则内容跑往返校验
+import {
+  JOIN_KEYS, MAX_CATEGORY_LEN, MAX_FINDING_CODE_LEN, MAX_RECOMMENDATION_LEN, MAX_TITLE_LEN,
+  buildContent as buildRuleContent, emptyCondition, emptyForm, emptyJoin, parseContent,
+  validateForm as validateRuleForm,
+} from './correlationRuleForm'
+import type { RuleForm } from './correlationRuleForm'
 
 /** 受控词表：条件字段与操作符固定，不提供自由编辑或原始 JSON 编辑 */
 // 受控字段词表：取值必须能在真实引擎产物里解析出来。
@@ -300,49 +382,12 @@ const STANDARD_FIELDS = [
   { key: 'cwe', label: 'CWE', placeholder: '如 CWE-359，回车添加' },
 ] as const
 const SEVERITY_KEYS = Object.keys(SEVERITY)
-const CONFIDENCE_KEYS = Object.keys(CONFIDENCE)
-
-// 与后端 rule_evaluator 的长度上限保持一致（platform_findings 为定长列，超长会在写库时截断报错）
-const MAX_FINDING_CODE_LEN = 64
-const MAX_TITLE_LEN = 200
-const MAX_CATEGORY_LEN = 60
-const MAX_RECOMMENDATION_LEN = 2000
-
-interface ConditionForm {
-  observation_type: string
-  field: string
-  operator: string
-  value: string
-}
-
-interface RuleForm {
-  logic: string
-  conditions: ConditionForm[]
-  produce: {
-    finding_code: string
-    title: string
-    category: string
-    severity: string
-    confidence: string
-    recommendation: string
-  }
-  standards: { masvs: string[]; maswe: string[]; mastg: string[]; cwe: string[] }
-}
-
-function emptyCondition(): ConditionForm {
-  return { observation_type: '', field: 'subject', operator: 'equals', value: '' }
-}
-
-function emptyForm(): RuleForm {
-  return {
-    logic: 'all',
-    conditions: [emptyCondition()],
-    produce: {
-      finding_code: '', title: '', category: 'privacy',
-      severity: 'medium', confidence: 'possible', recommendation: '',
-    },
-    standards: { masvs: [], maswe: [], mastg: [], cwe: [] },
-  }
+// 1.0 的 produce.confidence 仍是旧词表（后端 ALLOWED_CONFIDENCES 未变）；
+// CONFIDENCE 里新增的 high/medium_high/medium 属于平台结论的置信度（设计 §8），
+// 由增强规则按证据来源算出来，不是手填的，因此不出现在这里。
+const PRODUCE_CONFIDENCE_KEYS = ['confirmed', 'probable', 'possible']
+function addJoin() {
+  form.value.joins.push(emptyJoin())
 }
 
 // ============ 列表 ============
@@ -379,6 +424,14 @@ const createRules: FormRules = {
 
 const drawerTitle = computed(() =>
   isCreate.value ? '新建关联规则' : `关联规则 · ${rule.value.name || rule.value.rule_key || ''}`)
+
+function addCondition() {
+  form.value.conditions.push(emptyCondition())
+}
+
+function removeCondition(idx: number) {
+  form.value.conditions.splice(idx, 1)
+}
 
 const hasUnknownField = computed(() => form.value.conditions.some(c => !FIELD_OPTIONS.includes(c.field)))
 
@@ -430,103 +483,10 @@ async function loadDetail(keepForm = false) {
   }
 }
 
-function parseContent(content: CorrelationRuleContent | null | undefined): RuleForm {
-  const next = emptyForm()
-  if (!content) return next
-  const match = content.match || ({} as CorrelationRuleContent['match'])
-  next.logic = match.logic === 'any' ? 'any' : 'all'
-  next.conditions = (match.conditions || []).map(c => ({
-    observation_type: c.observation_type ?? '',
-    // 词表外的字段原样保留，避免保存时静默改写存量规则
-    field: c.field ?? 'subject',
-    operator: c.operator ?? 'equals',
-    value: c.value == null ? '' : String(c.value),
-  }))
-  const produce = content.produce || ({} as CorrelationRuleContent['produce'])
-  next.produce = {
-    finding_code: produce.finding_code ?? '',
-    title: produce.title ?? '',
-    category: produce.category ?? '',
-    severity: produce.severity ?? 'medium',
-    confidence: produce.confidence ?? 'possible',
-    recommendation: produce.recommendation ?? '',
-  }
-  const standards = content.standards || ({} as CorrelationRuleContent['standards'])
-  next.standards = {
-    masvs: [...(standards.masvs || [])],
-    maswe: [...(standards.maswe || [])],
-    mastg: [...(standards.mastg || [])],
-    cwe: [...(standards.cwe || [])],
-  }
-  return next
-}
-
-function buildContent(): CorrelationRuleContent {
-  const f = form.value
-  return {
-    schema_version: '1.0',
-    match: {
-      logic: f.logic,
-      conditions: f.conditions.map(c => ({
-        observation_type: c.observation_type.trim(),
-        field: c.field,
-        operator: c.operator,
-        value: c.operator === 'exists' ? '' : String(c.value ?? ''),
-      })),
-    },
-    produce: {
-      finding_code: f.produce.finding_code.trim(),
-      title: f.produce.title.trim(),
-      category: f.produce.category.trim(),
-      severity: f.produce.severity,
-      confidence: f.produce.confidence,
-      recommendation: f.produce.recommendation,
-    },
-    standards: {
-      masvs: [...f.standards.masvs],
-      maswe: [...f.standards.maswe],
-      mastg: [...f.standards.mastg],
-      cwe: [...f.standards.cwe],
-    },
-  }
-}
-
-function addCondition() {
-  form.value.conditions.push(emptyCondition())
-}
-
-function removeCondition(idx: number) {
-  form.value.conditions.splice(idx, 1)
-}
-
-/** 保存前的本地校验，与后端校验器保持同一套约束 */
-function validateForm(): string | null {
-  if (!form.value.conditions.length) return '至少需要一个匹配条件'
-  for (let i = 0; i < form.value.conditions.length; i++) {
-    const c = form.value.conditions[i]
-    if (!c.observation_type.trim()) return `第 ${i + 1} 个条件缺少观察类型`
-    if (!c.field) return `第 ${i + 1} 个条件缺少字段`
-    if (!c.operator) return `第 ${i + 1} 个条件缺少操作符`
-    if (c.operator !== 'exists' && !String(c.value ?? '').trim()) return `第 ${i + 1} 个条件缺少匹配值`
-  }
-  const p = form.value.produce
-  const code = p.finding_code.trim()
-  if (!/^[A-Z][A-Z0-9_]{2,}$/.test(code)) {
-    return '问题编号需以大写字母开头，由大写字母/数字/下划线组成（至少 3 位）'
-  }
-  if (code.length > MAX_FINDING_CODE_LEN) return `问题编号最长 ${MAX_FINDING_CODE_LEN} 个字符`
-  if (!p.title.trim()) return '请填写产出标题'
-  if (p.title.length > MAX_TITLE_LEN) return `产出标题最长 ${MAX_TITLE_LEN} 个字符`
-  if (!p.category.trim()) return '请填写产出类别'
-  if (p.category.length > MAX_CATEGORY_LEN) return `产出类别最长 ${MAX_CATEGORY_LEN} 个字符`
-  if (p.recommendation.length > MAX_RECOMMENDATION_LEN) return `整改建议最长 ${MAX_RECOMMENDATION_LEN} 个字符`
-  return null
-}
-
 async function submitCreate() {
   const valid = await createFormRef.value?.validate().catch(() => false)
   if (!valid) return
-  const err = validateForm()
+  const err = validateRuleForm(form.value)
   if (err) { ElMessage.warning(err); return }
   saving.value = true
   try {
@@ -534,7 +494,7 @@ async function submitCreate() {
       rule_key: basic.value.rule_key.trim(),
       name: basic.value.name.trim(),
       description: basic.value.description.trim() || undefined,
-      content: buildContent(),
+      content: buildRuleContent(form.value),
     })
     ElMessage.success('规则已创建，初始版本为草稿，发布后生效')
     isCreate.value = false
@@ -556,7 +516,7 @@ const versionRules: FormRules = {
 }
 
 function openVersionDialog() {
-  const err = validateForm()
+  const err = validateRuleForm(form.value)
   if (err) { ElMessage.warning(err); return }
   versionForm.value = { version: '', changelog: '' }
   versionVisible.value = true
@@ -570,7 +530,7 @@ async function submitVersion() {
   try {
     await correlationRuleApi.saveVersion(ruleId.value, {
       version: versionForm.value.version.trim(),
-      content: buildContent(),
+      content: buildRuleContent(form.value),
       changelog: versionForm.value.changelog.trim() || undefined,
     })
     ElMessage.success('新版本已保存，规则已置为停用，发布后生效')

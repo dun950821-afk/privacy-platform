@@ -8,10 +8,27 @@ export interface CorrelationRuleCondition {
   value?: string
 }
 
+/** 2.0：按共享语义键连接的证据侧。规则内不出现具体数据类目名。 */
+export interface CorrelationJoinItem {
+  type: string
+  on: string[]
+  where?: Record<string, string | boolean | number>
+}
+
+/**
+ * 两套 DSL 由 schema_version 区分：
+ * - '1.0' 字面匹配：match + produce + standards
+ * - '2.0' 共享键增强：anchor + where + join + scope + action
+ */
 export interface CorrelationRuleContent {
   schema_version: string
-  match: { logic: string; conditions: CorrelationRuleCondition[] }
-  produce: {
+  match?: { logic: string; conditions: CorrelationRuleCondition[] }
+  anchor?: { type: string }
+  where?: Record<string, string | boolean | number>
+  join?: CorrelationJoinItem[]
+  scope?: string[]
+  action?: string
+  produce?: {
     finding_code: string
     title: string
     category: string
@@ -19,7 +36,7 @@ export interface CorrelationRuleContent {
     confidence?: string
     recommendation?: string
   }
-  standards: { masvs: string[]; maswe: string[]; mastg: string[]; cwe: string[] }
+  standards?: { masvs: string[]; maswe: string[]; mastg: string[]; cwe: string[] }
 }
 
 export interface CorrelationRuleVersion {
@@ -49,8 +66,11 @@ export interface CorrelationRuleDetail extends CorrelationRuleSummary {
 
 export interface CorrelationRulePreviewResult {
   rule_key: string
+  /** create：命中后新建结论；enrich：只给已有结论补证据，不新建 */
+  action?: string
   would_match: boolean
   matched_observation_ids: number[]
+  evidence_observation_ids?: number[]
   finding_code: string | null
   existing_findings: string[]
   writes: boolean

@@ -393,6 +393,31 @@ cd backend && PYTHONPATH=. /tmp/venv/bin/python -c \
 这些字段会逐字写入 `platform_findings` 的定长 NOT NULL 列,取值越界或超长的规则会被关联逻辑
 记录一条 warning 后跳过(不产出结论),而不会写坏整个任务的结论生成。
 
+> 注意 `confirmed/probable/possible` 是**规则作者手填**的 v1 词表。`platform_findings.confidence`
+> 上还有一套由证据来源算出来的取值 `medium/medium_high/high`(设计文档 §8),那是 Evidence Join
+> 按证据数量与独立性推导的结果,不是手填的,两者不要混。
+
+### 6.6 两套规则形态(1.0 / 2.0)
+
+`rule_versions.rule_content` 的 `schema_version` 区分两套 DSL:
+
+| | 1.0 | 2.0 |
+|---|---|---|
+| 判定 | `match` 字面值条件 | `anchor` + `join` 共享语义键 |
+| 产出 | `produce` 新建结论 | `action: enrich` 只给已有结论补证据 |
+| 覆盖面 | 每个类目要写一条 | 规则内不出现类目名,一条覆盖全部类目 |
+
+2.0 的规则按 `data_category` 这类共享键连接观察。**键值为 NULL 时一律不连接**——否则
+所有「没有类目」的观察会连成一团,是跨类目误配最隐蔽的形态。`action: create`(组合推导)
+V1 未实现,保存时会被明确拒绝。
+
+前端「知识库 → 关联规则」的编辑器支持两套形态(规则形态单选),保存按所选形态输出对应
+`schema_version`。表单 ⇄ 规则内容的映射在 `frontend/src/views/correlationRuleForm.ts`,
+保存是结构化重建,新增形态若不映射就会被静默改写,改动该文件请一并核对往返。
+
+`backend/app/services/rule_seed.py` 的内置规则里,`PRIVACY_FLOW_FACT_ENRICHMENT` 是 2.0
+形态的示例。配置未生效或规则类型不匹配时的排查顺序同 §6.5。
+
 ## 7. 生产部署(Docker Compose)
 
 ```bash

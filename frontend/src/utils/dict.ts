@@ -64,8 +64,13 @@ export const FINDING_STATUS: Dict = {
   ignored: { label: '已忽略', type: 'info' },
 }
 
-/** 问题置信度 */
+/** 问题置信度：由证据来源数量与独立性决定（设计文档 §8） */
 export const CONFIDENCE: Dict = {
+  high: { label: '高', type: 'danger' },
+  medium_high: { label: '中高', type: 'warning' },
+  medium: { label: '中', type: 'info' },
+  // 历史取值：v1 关联规则产出的结论（如 Finding #45 / #53）仍是这套词表，
+  // 保留映射以免历史结论在界面显示成原始英文
   confirmed: { label: '已确认', type: 'danger' },
   probable: { label: '大概率', type: 'warning' },
   possible: { label: '疑似', type: 'info' },
