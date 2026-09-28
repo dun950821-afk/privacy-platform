@@ -604,6 +604,24 @@ NetworkTransfer 正确解析出 sink_type=network
 - 既有 Finding 的回填重算
 - AI 参与风险判定
 
+## 14.1 实现备注（2026-09-28，Task 3/4 落地后回填）
+
+以下三点是实现与真实数据碰撞后修正的结论，**优先于上文示例中的写法**：
+
+1. **§7.1 的示例 join 在当前数据上永不命中。** 它的证据侧是
+   `fact.sensitive_permission`，该类型来自 Androguard，而非 AppShark 观察目前不带
+   `data_category`（注册表按 `payload.rule` 查表，只有 AppShark 事件有这个字段）。
+   内置规则因此只声明今天真的生效的 join。缺口与补法见 `docs/rule-coverage.md` G1。
+
+2. **§7.2 的 `action: create` V1 不实现，且在校验期明确拒绝。** 存下一条永远不触发
+   的规则，比拒绝保存更糟：规则列表看起来覆盖了组合推导，实际一条都不会产出。
+
+3. **join 的分组粒度必须是「每个锚点」，不能按连接键合并锚点。** 实测
+   app_version 12：设备标识的数据流分成「落盘」与「日志」两条结论，按
+   `data_category` 合并锚点后，全部证据挂到了其中一条上，另一条纹丝不动——现象是
+   「证据不够」，实际是分组把两条结论当成了一条。证据的聚合只应发生在**找到结论
+   之后**（`finding_service.apply_enrichments` 按结论聚合）。
+
 ## 15. 验收
 
 ```text
