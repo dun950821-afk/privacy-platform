@@ -666,6 +666,25 @@ def test_harmonyos_parse_does_not_borrow_neighbour_level():
     assert all(r["capability"] is None or "非权限小节" not in r["capability"] for r in rows)
 
 
+def test_harmonyos_parse_accepts_multi_segment_permission_names():
+    """`ohos.permission.kernel.X` 这类**多段**名必须收得到。
+
+    正则原先写作 `[A-Za-z0-9_]+`，不容许 `.`，于是 kernel.* / cli.* / securityguard.* /
+    hsdr.* / sec.* / radio.* / vehicle.* / atomicService.* 整批被静默跳过——
+    **实测真实文档里因此丢了 41 条**（742 应为 783）。而「解析条数 > 0」这种断言挡不住它。
+    """
+    md = (
+        "## ohos.permission.kernel.ALLOW_MMAP_READ_ONLY\n\n"
+        "允许只读映射内核内存。\n\n"
+        "**权限级别**：system_basic\n\n"
+        "**授权方式**：系统授权（system_grant）\n\n"
+        "**起始版本**：12\n"
+    )
+    rows = parse_harmonyos_doc(md)
+    assert [r["permission_name"] for r in rows] == ["ohos.permission.kernel.ALLOW_MMAP_READ_ONLY"]
+    assert rows[0]["permission_type"] == "system_basic"
+
+
 def test_harmonyos_parse_leaves_official_reference_empty():
     """拼出来的 huawei 文档链接是猜的，很可能 404——错误的官方链接比没有更误导。"""
     rows = parse_harmonyos_doc(_read("harmonyos_sample.md"))
@@ -681,7 +700,7 @@ Expected: FAIL — `ImportError: cannot import name 'parse_harmonyos_doc'`
 - [ ] **Step 4: 写实现（追加到 `permission_sources.py`）**
 
 ```python
-_HARMONY_SECTION = re.compile(r"^##\s+(ohos\.permission\.[A-Za-z0-9_]+)\s*$", re.M)
+_HARMONY_SECTION = re.compile(r"^##\s+(ohos\.permission\.[A-Za-z0-9_.]+)\s*$", re.M)
 _HARMONY_ANY_HEADING = re.compile(r"^(?=##\s)", re.M)
 _HARMONY_LEVEL = re.compile(r"\*\*权限级别\*\*\s*[：:]\s*([A-Za-z_]+)")
 _HARMONY_GRANT = re.compile(r"\*\*授权方式\*\*\s*[：:]\s*(\S+)")
@@ -735,7 +754,7 @@ def parse_harmonyos_doc(md_text: str) -> list[dict]:
 - [ ] **Step 5: 跑测试确认通过**
 
 Run: `cd backend && /tmp/venv/bin/python -m pytest tests/test_permission_sources.py -v -k harmonyos`
-Expected: 5 passed（全套应为 292 passed）
+Expected: 6 passed（全套应为 293 passed）
 
 - [ ] **Step 6: Commit**
 
@@ -1175,6 +1194,15 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
         # grant_mode **全部**是人工/早期整理的成果，其中 81 行的权限名与 AOSP 清单重叠。
         # 少了这层过滤，首次导入会把它们静默抹成 NULL——而首次导入没有基线可挡。
         incoming = {f: row[f] for f in _UPDATABLE if f in row and row[f] is not None}
+
+        # `permission_type` 另有保护：库里已有的非空值不覆盖。
+        # 原有 103 行里有 28 行的类型是人工判定的，取值是 `已弃用权限` / `危险权限（受限）` /
+        # `三方声明权限` 这类 **AOSP 的 protectionLevel 推不出来**的——机器覆盖会把它们抹成
+        # AOSP 能表达的那几个值，信息不可逆地丢失，还会翻转 `is_applicable`（实测 14 行由
+        # 不可达翻成可达）。人工要改可以到权限知识库页面上改。
+        if existing.permission_type:
+            incoming.pop("permission_type", None)
+
         incoming_raw = row.get("raw_data") or {}
 
         # 与库中完全一致 → 无操作。幂等**靠内容比较，不靠时间戳**：
