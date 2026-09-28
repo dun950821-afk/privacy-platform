@@ -12,7 +12,7 @@
 | 3 | URI → query：证明该 URI 是 query 的参数 | **NOT_VERIFIED** | 依赖 #2，未单独验证 |
 | 4 | query → Cursor：保持返回对象语义 | **NOT_VERIFIED** | 未验证 |
 | 5 | Contacts Data → Sink | **NOT_EXPRESSIBLE** | 见「关键失败」 |
-| 6 | 跨类目隔离 | **NOT_VERIFIED** | 未验证；#1 的类目无关性使该风险具体存在 |
+| 6 | 跨类目隔离 | **NOT_CONDUCTIBLE** | 四类均无信号，无从隔离（见下） |
 
 ## 关键失败
 
@@ -70,6 +70,26 @@ contacts / sms / calllog 的「读取 → 外传」在当前 AppShark 规则语�
 
 这不是规则库缺口，是能力边界。不得通过扩大 Source 范围（例如用 `ContentResolver.query` 冒充通讯录来源）来制造覆盖假象。
 
+### 实验 E：跨类目隔离 —— 无法进行
+
+四类合并为一次运行（task 576，规则数 21，引擎 completed 无报错）：
+
+```text
+EXP_Iso_ContactsUri   (Contacts.CONTENT_URI)        未命中
+EXP_Iso_CalendarUri   (CalendarContract.Events)     未命中
+EXP_Iso_CallLogUri    (CallLog.Calls)               未命中
+EXP_Iso_MediaUri      (MediaStore.Images.Media)     未命中
+```
+
+四类**一致**未命中，说明 URI 常量作 source 的失效不是通讯录特有，而是该机制对所有内容提供者均不生效。
+
+**因此隔离无法验证**：没有信号，就没有可被误分类的对象。把它记作「隔离 VERIFIED」会是空通过（vacuous pass）——测试通过是因为什么都没发生，而不是因为隔离正确。
+
+故状态记为 `NOT_CONDUCTIBLE`（前提不成立，测试无法产生信号），不记为 VERIFIED，也不记为 FAILED。
+
+**这条结论的实际约束**：只要 URI 常量机制不生效，`ContentResolver.query` 观测（#1，类目无关）就**没有配套的类目限定手段**，因而不得用于任何类目专属结论。
+
 ## 未完成
 
-- #6 跨类目隔离未验证。若要使用 `ContentResolver.query` 观测，**必须先完成此验证**：至少覆盖 Contacts / Calendar / CallLog / Media，确认不会互相误判。
+- #6 跨类目隔离记为 `NOT_CONDUCTIBLE`：前提机制（URI 常量作 source）不生效，测试无信号。
+  若将来该机制被启用（例如通过 EngineConfig 的 PointerFlowRule），**必须重新执行本实验**，不得沿用当前结论。
