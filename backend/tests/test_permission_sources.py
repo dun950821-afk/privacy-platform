@@ -136,3 +136,22 @@ def test_ios_parse_accepts_nfc_reader_key():
             "abstract": [{"type": "text", "text": "用于 NFC 读取。"}]}}})
     rows = parse_ios_protected_resources(payload)
     assert [r["permission_name"] for r in rows] == ["NFCReaderUsageDescription"]
+
+
+def test_harmonyos_parse_accepts_multi_segment_permission_names():
+    """`ohos.permission.kernel.X` 这类**多段**名必须收得到。
+
+    正则原先写作 `[A-Za-z0-9_]+`，不容许 `.`，于是 kernel.* / cli.* / securityguard.* /
+    hsdr.* / sec.* / radio.* / vehicle.* / atomicService.* 整批被静默跳过——
+    **实测真实文档里因此丢了 41 条**（742 应为 783）。而「解析条数 > 0」这种断言挡不住它。
+    """
+    md = (
+        "## ohos.permission.kernel.ALLOW_MMAP_READ_ONLY\n\n"
+        "允许只读映射内核内存。\n\n"
+        "**权限级别**：system_basic\n\n"
+        "**授权方式**：系统授权（system_grant）\n\n"
+        "**起始版本**：12\n"
+    )
+    rows = parse_harmonyos_doc(md)
+    assert [r["permission_name"] for r in rows] == ["ohos.permission.kernel.ALLOW_MMAP_READ_ONLY"]
+    assert rows[0]["permission_type"] == "system_basic"

@@ -3,7 +3,7 @@
     "platform": "android",
     "file": "AndroidManifest.xml",
     "url": "https://raw.githubusercontent.com/aosp-mirror/platform_frameworks_base/master/core/res/AndroidManifest.xml",
-    "fetched_at": "2026-09-28T19:37:55+0800",
+    "fetched_at": "2026-09-28T19:50:24+0800",
     "sha256": "336cc3ed0c0182b9a6d9345f6003e042285b9bfbd67d74c5c5959d01186280fc",
     "bytes": 503122
   },
@@ -11,7 +11,7 @@
     "platform": "harmonyos",
     "file": "permissions-for-all.md",
     "url": "https://api.github.com/repos/openharmony/docs/contents/zh-cn/application-dev/security/AccessToken/permissions-for-all.md",
-    "fetched_at": "2026-09-28T19:37:56+0800",
+    "fetched_at": "2026-09-28T19:50:25+0800",
     "sha256": "f9e4318d99a1fb1072633c6c574d415ff12ffa1df5b48317a2d3adcf47613f8b",
     "bytes": 17848
   },
@@ -19,7 +19,7 @@
     "platform": "harmonyos",
     "file": "permissions-for-all-user.md",
     "url": "https://api.github.com/repos/openharmony/docs/contents/zh-cn/application-dev/security/AccessToken/permissions-for-all-user.md",
-    "fetched_at": "2026-09-28T19:37:57+0800",
+    "fetched_at": "2026-09-28T19:50:25+0800",
     "sha256": "833a6bb08ef29624cfa88592e538494ececbc4bd0d895d36483f577bb537608f",
     "bytes": 7374
   },
@@ -27,7 +27,7 @@
     "platform": "harmonyos",
     "file": "permissions-for-system-apps.md",
     "url": "https://api.github.com/repos/openharmony/docs/contents/zh-cn/application-dev/security/AccessToken/permissions-for-system-apps.md",
-    "fetched_at": "2026-09-28T19:37:58+0800",
+    "fetched_at": "2026-09-28T19:50:26+0800",
     "sha256": "08061d8fc2f8d1138a09dfcbbc93298bc2fbf6c1c84f104b927e031c5c9ef55f",
     "bytes": 128448
   },
@@ -35,7 +35,7 @@
     "platform": "harmonyos",
     "file": "permissions-for-system-apps-no-acl.md",
     "url": "https://api.github.com/repos/openharmony/docs/contents/zh-cn/application-dev/security/AccessToken/permissions-for-system-apps-no-acl.md",
-    "fetched_at": "2026-09-28T19:37:59+0800",
+    "fetched_at": "2026-09-28T19:50:27+0800",
     "sha256": "adb5096af7abc720053ef9649e81a0fc4fb0a62b646aabe1453e42d43904984c",
     "bytes": 4734
   },
@@ -43,7 +43,7 @@
     "platform": "harmonyos",
     "file": "permissions-for-system-apps-user.md",
     "url": "https://api.github.com/repos/openharmony/docs/contents/zh-cn/application-dev/security/AccessToken/permissions-for-system-apps-user.md",
-    "fetched_at": "2026-09-28T19:37:59+0800",
+    "fetched_at": "2026-09-28T19:50:27+0800",
     "sha256": "6b84556feb42328d9bb051607cdc1f61601e1761ddeb6a7f2cd52c07d5d88967",
     "bytes": 6301
   },
@@ -51,7 +51,7 @@
     "platform": "harmonyos",
     "file": "permissions-for-enterprise-apps.md",
     "url": "https://api.github.com/repos/openharmony/docs/contents/zh-cn/application-dev/security/AccessToken/permissions-for-enterprise-apps.md",
-    "fetched_at": "2026-09-28T19:38:00+0800",
+    "fetched_at": "2026-09-28T19:50:28+0800",
     "sha256": "080325d2867cabf2aa2fb04cdc37a3923e39d3935c3ae0f21751e4e2a16c003b",
     "bytes": 15981
   },
@@ -59,7 +59,7 @@
     "platform": "harmonyos",
     "file": "permissions-for-mdm-apps.md",
     "url": "https://api.github.com/repos/openharmony/docs/contents/zh-cn/application-dev/security/AccessToken/permissions-for-mdm-apps.md",
-    "fetched_at": "2026-09-28T19:38:01+0800",
+    "fetched_at": "2026-09-28T19:50:28+0800",
     "sha256": "f288b4852a6571f663cdd052be7a01ca9f0d9eb327567cda03bcc100e73487d0",
     "bytes": 17811
   },
@@ -67,7 +67,7 @@
     "platform": "harmonyos",
     "file": "restricted-permissions.md",
     "url": "https://api.github.com/repos/openharmony/docs/contents/zh-cn/application-dev/security/AccessToken/restricted-permissions.md",
-    "fetched_at": "2026-09-28T19:38:02+0800",
+    "fetched_at": "2026-09-28T19:50:29+0800",
     "sha256": "6a7f8c055230aa8a026ceca5554a1f8f129fbea20999f421030276b3ecee76ef",
     "bytes": 31139
   },
@@ -75,7 +75,7 @@
     "platform": "ios",
     "file": "protected-resources.json",
     "url": "https://developer.apple.com/tutorials/data/documentation/bundleresources/protected-resources.json",
-    "fetched_at": "2026-09-28T19:38:03+0800",
+    "fetched_at": "2026-09-28T19:50:30+0800",
     "sha256": "084ae066b43219353eff79e4c893424804ea133e46c0be20288631486d72b11a",
     "bytes": 123341
   }

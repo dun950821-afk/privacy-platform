@@ -105,6 +105,15 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
         # grant_mode **全部**是人工/早期整理的成果，其中 81 行的权限名与 AOSP 清单重叠。
         # 少了这层过滤，首次导入会把它们静默抹成 NULL——而首次导入没有基线可挡。
         incoming = {f: row[f] for f in _UPDATABLE if f in row and row[f] is not None}
+        # `permission_type` 另有保护：库里已有的非空值不覆盖。
+        # 原有 103 行里有 30 行的类型是人工判定的，取值是 `已弃用权限` / `危险权限（受限）` /
+        # `三方声明权限` 这类 **AOSP 的 protectionLevel 推不出来**的——机器覆盖会把它们抹成
+        # AOSP 能表达的那几个值，信息不可逆地丢失，还会翻转 `is_applicable`（实测 14 行由
+        # 不可达翻成可达）。人工要改可以到权限知识库页面上改。
+        # 与上面那层 `None` 过滤合起来才是完整的「不覆盖人工编辑」：可空字段靠 None，
+        # 恒非空字段（本字段）靠这里——首次导入没有时间戳基线可挡，两层都必须在。
+        if existing.permission_type:
+            incoming.pop("permission_type", None)
         incoming_raw = row.get("raw_data") or {}
 
         # 与库中完全一致 → 无操作。幂等**靠内容比较，不靠时间戳**：

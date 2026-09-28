@@ -69,7 +69,11 @@ def parse_android_manifest(xml_text: str) -> list[dict]:
     return [merged[k] for k in sorted(merged)]
 
 
-_HARMONY_SECTION = re.compile(r"^##\s+(ohos\.permission\.[A-Za-z0-9_]+)\s*$", re.M)
+# 名字段容许 `.`：`ohos.permission.kernel.X` / `cli.*` / `securityguard.*` / `hsdr.*` /
+# `sec.*` / `radio.*` / `vehicle.*` / `atomicService.*` 都是多段名。写成 `[A-Za-z0-9_]+`
+# 会把它们**整批静默跳过**（实测真实文档因此丢了 41 条，742 应为 783）——
+# 而「解析条数 > 0」这种断言挡不住部分丢失。
+_HARMONY_SECTION = re.compile(r"^##\s+(ohos\.permission\.[A-Za-z0-9_.]+)\s*$", re.M)
 _HARMONY_ANY_HEADING = re.compile(r"^(?=##\s)", re.M)
 _HARMONY_LEVEL = re.compile(r"\*\*权限级别\*\*\s*[：:]\s*([A-Za-z_]+)")
 _HARMONY_GRANT = re.compile(r"\*\*授权方式\*\*\s*[：:]\s*(\S+)")

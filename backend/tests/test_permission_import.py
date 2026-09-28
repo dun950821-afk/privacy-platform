@@ -188,3 +188,26 @@ def test_import_does_not_blank_existing_value_with_none(db):
         assert row["grant_mode"] == "运行时授权", "已有值被 NULL 抹掉了"
     finally:
         _cleanup(db)
+
+
+def test_import_does_not_overwrite_human_permission_type(db):
+    """人工判定的 permission_type 不得被机器抹掉。
+
+    原库有 30 行的类型是人工判定的，取值是 `已弃用权限` / `危险权限（受限）` 这类
+    AOSP 的 protectionLevel **推不出来**的。机器覆盖会把它们变成 AOSP 能表达的那几个值
+    ——信息不可逆地丢失，还会翻转 is_applicable。
+
+    `permission_type` 与 `capability`/`grant_mode` 的区别在于它**恒非空**（AOSP 解析器
+    对任何 protectionLevel 都会给出一个值），所以上面那层 `None` 过滤护不住它。
+    """
+    _cleanup(db)
+    try:
+        import_platform(db, "ANDROID", [_row(P + "t", permission_type="危险权限（受限）")])
+        # 同一行再来一次，机器这次给的是 AOSP 能推出来的值
+        result = import_platform(db, "ANDROID", [_row(P + "t", permission_type="危险权限")])
+        assert result == {"inserted": 0, "updated": 0, "skipped": 1}
+        got = db.execute(text("select permission_type from privacy_kb.permission where permission_name=:n"),
+                         {"n": P + "t"}).scalar()
+        assert got == "危险权限（受限）", "人工判定的类型被机器覆盖了"
+    finally:
+        _cleanup(db)
