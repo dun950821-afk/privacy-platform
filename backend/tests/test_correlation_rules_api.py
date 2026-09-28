@@ -64,8 +64,9 @@ def test_seed_database_wires_builtin_correlation_rule(db, monkeypatch):
     row = _builtin_rule_rows(db)[0]
     assert row.status == "active"
     assert row.current_version_id is not None
-    active = load_active_rules(db)
-    assert [entry["rule"].rule_key for entry in active] == [BUILTIN_RULE_KEY]
+    active = {entry["rule"].rule_key for entry in load_active_rules(db)}
+    assert active >= {rule["rule_key"] for rule in BUILTIN_CORRELATION_RULES}, \
+        "所有内置规则都必须处于启用状态，否则新装环境会静默少跑规则"
 
 
 def test_preview_without_observations_writes_nothing(client, admin_headers, db):

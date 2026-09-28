@@ -114,20 +114,88 @@ def _direct_title(observation) -> str:
     return "安全风险: %s" % (observation.provider_rule_id or "未知规则")
 
 
+# ============ Evidence Join ============
+# 跨引擎关联只做两件事：增强已有结论（enrich），或推导单个证据不具备的新结论
+# （composite，V1 未实现）。**增强绝不新增 Finding**（设计文档 §3.2）。
+
+def apply_enrichments(db: Session, task_id: int, enrichments: list[dict]) -> int:
+    """把证据增强挂到已有结论上，返回被增强的结论数。
+
+    找不到锚点对应的结论时**什么都不做**：这说明该结论不存在（例如负向样本上
+    数据流规则本来就没命中），此时凭空造一条结论就是设计文档明令禁止的同义重复。
+    """
+    from app.services.correlation import stronger_confidence
+
+    # 聚合的粒度是**结论**，不是「结论 + 规则」：一条规则可能有多个锚点命中同一条
+    # 结论（实测 app_version 12：设备标识的落盘结论有 2 个数据流锚点），两条规则也
+    # 可能命中同一批证据。按结论聚合才既保证证据不重复 INSERT，又保证计数正确。
+    # 每条规则各自留一条审计记录，用 by_rule 记下它贡献了哪些证据。
+    targets: dict[int, dict] = {}
+    for item in enrichments:
+        anchor_id = item.get("anchor_observation_id")
+        evidence_ids = item.get("evidence_observation_ids") or []
+        if not anchor_id or not evidence_ids:
+            continue
+        target = db.query(PlatformFinding).join(
+            FindingObservation, FindingObservation.finding_id == PlatformFinding.id
+        ).filter(
+            PlatformFinding.task_id == task_id,
+            FindingObservation.observation_id == anchor_id,
+            FindingObservation.relation_type == "evidence",
+        ).order_by(PlatformFinding.id).first()
+        if not target:
+            continue
+        bucket = targets.setdefault(target.id, {"finding": target, "confidence": None,
+                                                "evidence": set(), "by_rule": {}})
+        bucket["evidence"].update(evidence_ids)
+        bucket["confidence"] = stronger_confidence(bucket["confidence"], item["confidence"])
+        rule_key = (item["correlation_rule_id"], item["correlation_rule_version"])
+        bucket["by_rule"].setdefault(rule_key, set()).update(evidence_ids)
+
+    enriched = 0
+    for finding_id, bucket in targets.items():
+        finding = bucket["finding"]
+        linked = {row.observation_id for row in db.query(FindingObservation).filter(
+            FindingObservation.finding_id == finding_id)}
+        added = bucket["evidence"] - linked
+        if not added:
+            continue
+        for oid in sorted(added):
+            db.add(FindingObservation(finding_id=finding_id, observation_id=oid,
+                                      relation_type="enriched_evidence"))
+        finding.confidence = stronger_confidence(finding.confidence, bucket["confidence"])
+        finding.observation_count = len(linked) + len(added)
+        # 增强来源记进 rule_snapshot 的 enrichments，不动结论本身的来源（source/规则）。
+        # 不记的话，一个结论为什么是 medium_high 就无从复现了。
+        snapshot = dict(finding.rule_snapshot or {})
+        records = [{"correlation_rule_id": rule_id, "correlation_rule_version": rule_version,
+                    "confidence": bucket["confidence"],
+                    "evidence_observation_ids": sorted(added & contributed)}
+                   for (rule_id, rule_version), contributed in bucket["by_rule"].items()
+                   if added & contributed]
+        replayed = {r["correlation_rule_id"] for r in records}
+        history = [r for r in snapshot.get("enrichments", [])
+                   if r["correlation_rule_id"] not in replayed]
+        snapshot["enrichments"] = history + records
+        finding.rule_snapshot = snapshot
+        enriched += 1
+    db.commit()
+    return enriched
+
+
 def generate_findings(db: Session, task_id: int) -> list[PlatformFinding]:
     from app.services.correlation import correlate, load_active_rules
+    from app.services.observation_service import observation_view
 
     # 先产出直接结论，再跑关联器做证据增强
     direct = generate_direct_findings(db, task_id)
 
     rows = db.query(EngineObservation).filter(EngineObservation.task_id == task_id).all()
-    observations = [{
-        "id": o.id, "observation_type": o.observation_type,
-        "subject": o.subject, "payload": o.payload or {},
-        "location": o.location, "engine_type": o.engine_type,
-    } for o in rows]
+    observations = [observation_view(o) for o in rows]
+    correlation = correlate(observations, load_active_rules(db))
+    apply_enrichments(db, task_id, correlation.enrichments)
     produced = []
-    for finding in correlate(observations, load_active_rules(db)):
+    for finding in correlation.findings:
         existing = db.query(PlatformFinding).filter(
             PlatformFinding.task_id == task_id, PlatformFinding.dedup_key == finding["dedup_key"]
         ).first()

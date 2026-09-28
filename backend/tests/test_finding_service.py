@@ -15,7 +15,7 @@ def test_finding_payload_is_complete_for_persistence():
          "payload": {"section": "ComplianceInfo", "rule": "DeviceId_NetworkTransfer", "level": "L3",
                      "sink": ["<com.baidu.mobstat.ba: java.net.HttpURLConnection a(android.content.Context,java.lang.String,int,int)>->$r0"]}},
     ]
-    findings = correlate(observations, RULES)
+    findings = correlate(observations, RULES).findings
     assert len(findings) == 1
     finding = findings[0]
     for key in ("finding_code", "title", "category", "severity", "recommendation", "dedup_key", "observation_ids"):

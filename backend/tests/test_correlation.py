@@ -18,8 +18,8 @@ CONTACTS_FLOW = {"id": 2, "observation_type": "dataflow.privacy",
 
 
 def test_correlation_requires_both_permission_and_flow():
-    assert correlate([CONTACTS_PERMISSION], RULES) == []
-    findings = correlate([CONTACTS_PERMISSION, CONTACTS_FLOW], RULES)
+    assert correlate([CONTACTS_PERMISSION], RULES).findings == []
+    findings = correlate([CONTACTS_PERMISSION, CONTACTS_FLOW], RULES).findings
     assert len(findings) == 1
     assert findings[0]["finding_code"] == "PRIVACY_CONTACTS_NETWORK"
     assert sorted(findings[0]["observation_ids"]) == [1, 2]
@@ -33,6 +33,6 @@ def test_invalid_rule_does_not_suppress_other_rules():
     """单条规则内容非法（如空 rule_content）时，其它规则仍应产出结论。"""
     broken = {"rule": type("R", (), {"id": 9, "rule_key": "BROKEN"})(),
               "version": type("V", (), {"version": "1.0"})(), "content": {}}
-    findings = correlate([CONTACTS_PERMISSION, CONTACTS_FLOW], [broken, *RULES])
+    findings = correlate([CONTACTS_PERMISSION, CONTACTS_FLOW], [broken, *RULES]).findings
     assert len(findings) == 1
     assert findings[0]["finding_code"] == "PRIVACY_CONTACTS_NETWORK"

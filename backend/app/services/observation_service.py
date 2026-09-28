@@ -77,6 +77,30 @@ def event_to_observation(event: dict, *, task_id: int, execution_id: int, engine
     return result
 
 
+def observation_view(row) -> dict:
+    """把 Observation 行投影成关联器能用的视图。
+
+    必须带上平台语义字段：join 就是按 data_category 这类键连接的，
+    漏掉它们的表现是**静默不关联**（规则看着生效，实际一条都不匹配）。
+    关联与预览两处都走这个函数，避免两处各漏一个字段。
+    """
+    return {
+        "id": row.id,
+        "observation_type": row.observation_type,
+        "subject": row.subject,
+        "location": row.location,
+        "payload": row.payload or {},
+        "engine_type": row.engine_type,
+        "data_category": row.data_category,
+        "sink_type": row.sink_type,
+        "result_semantics": row.result_semantics,
+        "observation_kind": row.observation_kind,
+        "provider_rule_id": row.provider_rule_id,
+        "provider_level": row.provider_level,
+        "entity_keys": row.entity_keys or {},
+    }
+
+
 # 归一化结果里唯一一个不是模型列的键，落库时丢弃是预期行为
 NON_COLUMN_KEYS = frozenset({"engine_version"})
 

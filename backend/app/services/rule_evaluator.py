@@ -1,4 +1,13 @@
-"""关联规则的受控校验与条件求值。"""
+"""关联规则的受控校验与条件求值。
+
+两套 DSL 并存，由 schema_version 区分，**不靠字段探测**（探测会让「历史结论
+可复现」依赖猜测）：
+
+- `1.0`：`match` 条件 + `produce` 结论。字面值匹配，既有规则与历史 Finding 的
+  rule_snapshot 都跑在这套上，语义不得改动。
+- `2.0`：`anchor` / `where` / `join` / `scope` / `action`。规则里不出现任何具体
+  数据类目名，新增类目由同一条规则覆盖，维护量 O(1)（设计文档 §7）。
+"""
 import re
 
 ALLOWED_LOGIC = {"all", "any"}
@@ -17,6 +26,23 @@ MASVS_RE = re.compile(r"^MASVS-[A-Z]+-\d+$")
 MASWE_RE = re.compile(r"^MASWE-\d{4}$")
 MASTG_RE = re.compile(r"^MASTG-[A-Z]+-[A-Z0-9-]+$")
 FINDING_CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]{2,}$")
+
+SCHEMA_V1 = "1.0"
+SCHEMA_V2 = "2.0"
+
+# 2.0：enrich 是证据增强，create 是组合推导（尚未实现，见设计文档 §13）。
+# create 被列为合法取值但单独拒绝，这样报错能区分「没实现」与「写错了」。
+ALLOWED_ACTIONS = {"enrich", "create"}
+# V1 只做 data_category 这一个 join key（设计 §4.5）；未知键必须报错而不是被忽略，
+# 因为「键写错」的表现是静默不关联 —— 不报错的话规则看起来是生效的。
+ALLOWED_JOIN_KEYS = {"data_category"}
+ALLOWED_SCOPE_KEYS = {"app_version_id"}
+# 2.0 的置信度由证据来源数量与独立性决定（设计 §8），不是固定增量
+ALLOWED_CONFIDENCES_V2 = {"medium", "medium_high", "high"}
+# where 能过滤的字段 = 平台语义字段 + 既有结构字段；payload.* 另算
+V2_WHERE_FIELDS = {"data_category", "sink_type", "result_semantics", "observation_kind",
+                   "provider_rule_id", "provider_level", "subject", "location", "engine_type"}
+V2_TOP_LEVEL_KEYS = {"schema_version", "anchor", "where", "join", "scope", "action"}
 
 
 class RuleValidationError(ValueError):
@@ -74,7 +100,16 @@ def _validate_standard_ids(standards: dict, key: str, pattern: re.Pattern, label
 
 def validate_rule_content(content: dict) -> None:
     _require(isinstance(content, dict), "规则内容必须是对象")
-    _require(content.get("schema_version") == "1.0", "不支持的 schema_version")
+    version = content.get("schema_version")
+    if version == SCHEMA_V1:
+        _validate_v1(content)
+    elif version == SCHEMA_V2:
+        _validate_v2(content)
+    else:
+        raise RuleValidationError(f"不支持的 schema_version: {version}")
+
+
+def _validate_v1(content: dict) -> None:
     match = content.get("match") or {}
     _require(isinstance(match, dict), "match 必须是对象")
     logic = match.get("logic")
@@ -110,6 +145,57 @@ def validate_rule_content(content: dict) -> None:
     _validate_standard_ids(standards, "mastg", MASTG_RE, "MASTG")
 
 
+def _validate_where(where, label: str) -> None:
+    """where 只做筛选，不再冒充关联原语（设计 §7.3）。"""
+    if where is None:
+        return
+    _require(isinstance(where, dict), f"{label} 必须是对象")
+    for field, expected in where.items():
+        _require(field in V2_WHERE_FIELDS or _is_payload_field(field),
+                 f"{label} 不支持的字段: {field}")
+        _require(isinstance(expected, (str, bool, int)),
+                 f"{label}.{field} 只能是字符串、布尔或数字，收到: {expected!r}")
+
+
+def _validate_v2(content: dict) -> None:
+    unknown = set(content) - V2_TOP_LEVEL_KEYS
+    _require(not unknown, f"未知的顶层字段: {sorted(unknown)}")
+
+    anchor = content.get("anchor")
+    _require(isinstance(anchor, dict), "anchor 必须是对象")
+    _require(set(anchor) <= {"type"}, f"anchor 只接受 type，实际: {sorted(anchor)}")
+    _require(isinstance(anchor.get("type"), str) and anchor["type"].strip(), "anchor 缺少 type")
+
+    _validate_where(content.get("where"), "where")
+
+    joins = content.get("join")
+    if joins is not None:
+        _require(isinstance(joins, list), "join 必须是数组")
+        for item in joins:
+            _require(isinstance(item, dict), "join 项必须是对象")
+            _require(set(item) <= {"type", "on", "where"}, f"join 项存在未知字段: {sorted(item)}")
+            _require(isinstance(item.get("type"), str) and item["type"].strip(), "join 项缺少 type")
+            on = item.get("on")
+            _require(isinstance(on, list) and len(on) > 0, "join 项缺少 on")
+            for key in on:
+                _require(key in ALLOWED_JOIN_KEYS,
+                         f"join on 只支持 {sorted(ALLOWED_JOIN_KEYS)}，收到: {key}")
+            _validate_where(item.get("where"), "join.where")
+
+    scope = content.get("scope")
+    if scope is not None:
+        _require(isinstance(scope, list) and len(scope) > 0, "scope 必须是非空数组")
+        for key in scope:
+            _require(key in ALLOWED_SCOPE_KEYS, f"不支持的 scope: {key}")
+
+    action = content.get("action")
+    _require(isinstance(action, str) and action in ALLOWED_ACTIONS,
+             f"action 只能是 {'/'.join(sorted(ALLOWED_ACTIONS))}，收到: {action}")
+    if action == "create":
+        # 组合推导（设计 §7.2）V1 不实现。存下一条永远不触发的规则，比拒绝保存更糟。
+        raise RuleValidationError("action=create（组合推导）V1 尚未实现，见设计文档 §13")
+
+
 def _condition_matches(condition: dict, observation: dict) -> bool:
     if observation.get("observation_type") != condition["observation_type"]:
         return False
@@ -142,3 +228,75 @@ def evaluate_rule(content: dict, observations: list[dict]) -> list[dict] | None:
             return None
         matched.extend(hit)
     return _dedup_by_id(matched)
+
+
+# ---------- 2.0：共享语义键 join ----------
+
+def _where_matches(where: dict | None, observation: dict) -> bool:
+    for field, expected in (where or {}).items():
+        value = _resolve_field(observation, field)
+        if value is None:
+            return False
+        if value == expected:
+            continue
+        if str(value) != str(expected):
+            return False
+    return True
+
+
+def _observations_join(anchor: dict, candidate: dict, keys: list[str]) -> bool:
+    """按共享键连接。
+
+    键值为 NULL 时**一律不连接**：`None == None` 会让所有「没有类目」的观察
+    连成一团，这正是跨类目误配最隐蔽的形态（旧规则用 `_NetworkTransfer` 子串
+    匹配，把设备标识的流算成通讯录的证据，属于同一类错误）。
+    """
+    for key in keys:
+        anchor_value = anchor.get(key)
+        if anchor_value is None or anchor_value != candidate.get(key):
+            return False
+    return True
+
+
+def evaluate_join_rule(content: dict, observations: list[dict]) -> list[dict] | None:
+    """求值 2.0 规则，返回 `[{"anchor": 观察, "evidence": [观察...], "key_values": {...}}]`。
+
+    **每个锚点一条**，各自带自己的证据。不要按连接键把锚点合并成组：同一类目下
+    可能已有多条结论（实测 app_version 12：设备标识的数据流分成「落盘」与「日志」
+    两条），合并后所有证据会挂到其中一条上，另一条纹丝不动 —— 看起来像「证据不够」，
+    实际是分组把两条结论当成了一条。
+
+    只返回**有证据**的锚点：没有新证据就不该动结论的置信度。
+    """
+    validate_rule_content(content)
+    anchor_type = content["anchor"]["type"]
+    where = content.get("where")
+    joins = content.get("join") or []
+
+    anchors = [o for o in observations
+               if o.get("observation_type") == anchor_type and _where_matches(where, o)]
+    if not anchors:
+        return None
+
+    matched = []
+    for anchor in anchors:
+        for item in joins:
+            keys = item["on"]
+            key_values = {k: anchor.get(k) for k in keys}
+            if any(value is None for value in key_values.values()):
+                continue
+            evidence = []
+            for candidate in observations:
+                if candidate is anchor or candidate.get("id") == anchor.get("id"):
+                    continue
+                if candidate.get("observation_type") != item["type"]:
+                    continue
+                if not _where_matches(item.get("where"), candidate):
+                    continue
+                if not _observations_join(anchor, candidate, keys):
+                    continue
+                if candidate not in evidence:
+                    evidence.append(candidate)
+            if evidence:
+                matched.append({"anchor": anchor, "evidence": evidence, "key_values": key_values})
+    return matched or None

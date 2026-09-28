@@ -4,9 +4,12 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_permission
 from app.core.database import get_db
-from app.models import EngineObservation, PlatformFinding, Rule, RuleVersion, User
+from app.models import (EngineObservation, FindingObservation, PlatformFinding, Rule,
+                        RuleVersion, User)
 from app.schemas import CorrelationRuleCreate, CorrelationRulePreview, CorrelationRuleVersionCreate
-from app.services.rule_evaluator import RuleValidationError, evaluate_rule, validate_rule_content
+from app.services.observation_service import observation_view
+from app.services.rule_evaluator import (
+    RuleValidationError, evaluate_join_rule, evaluate_rule, validate_rule_content)
 
 router = APIRouter(prefix="/correlation-rules", tags=["关联规则"])
 
@@ -121,6 +124,16 @@ def disable_correlation_rule(rid: int, user=Depends(require_permission("rule:wri
     return {"code": 0, "data": {"id": rule.id, "status": rule.status}}
 
 
+def _findings_for_observations(db: Session, task_id: int, observation_ids: list) -> list:
+    """锚点观察所属的结论 —— 预览时告诉用户「这条增强会挂到哪些结论上」。"""
+    if not observation_ids:
+        return []
+    return db.query(PlatformFinding).join(
+        FindingObservation, FindingObservation.finding_id == PlatformFinding.id
+    ).filter(PlatformFinding.task_id == task_id,
+             FindingObservation.observation_id.in_(observation_ids)).all()
+
+
 @router.post("/{rid}/preview")
 def preview_correlation_rule(rid: int, req: CorrelationRulePreview,
                              user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -131,22 +144,40 @@ def preview_correlation_rule(rid: int, req: CorrelationRulePreview,
     if not version:
         raise HTTPException(status_code=400, detail="规则没有可预览的版本")
     rows = db.query(EngineObservation).filter(EngineObservation.task_id == req.task_id).all()
-    observations = [{"id": o.id, "observation_type": o.observation_type, "subject": o.subject,
-                     "payload": o.payload or {}, "location": o.location} for o in rows]
+    observations = [observation_view(o) for o in rows]
+    content = version.rule_content or {}
+    is_v2 = content.get("schema_version") == "2.0"
     try:
-        matched = evaluate_rule(version.rule_content, observations) or []
+        if is_v2:
+            groups = evaluate_join_rule(content, observations) or []
+        else:
+            matched = evaluate_rule(content, observations) or []
     except RuleValidationError as exc:
         # 库中存量内容可能非法，这属于客户端可见的校验失败，不能变成 500
         raise HTTPException(status_code=422, detail=f"规则内容非法: {exc}")
+    if is_v2:
+        # 增强规则的「命中」是指有证据可挂；它不会产生新结论，预览里如实区分
+        anchor_ids = sorted({g["anchor"]["id"] for g in groups if g["anchor"].get("id")})
+        evidence_ids = sorted({o["id"] for g in groups for o in g["evidence"] if o.get("id")})
+        return {"code": 0, "data": {
+            "rule_key": rule.rule_key,
+            "action": "enrich",
+            "would_match": bool(groups),
+            "matched_observation_ids": anchor_ids,
+            "evidence_observation_ids": evidence_ids,
+            "finding_code": None,          # 增强不产出结论码
+            "existing_findings": [f.finding_code for f in _findings_for_observations(db, req.task_id, anchor_ids)],
+            "writes": False,
+        }}
     current = db.query(PlatformFinding).filter(
         PlatformFinding.task_id == req.task_id,
         PlatformFinding.correlation_rule_id == str(rule.id)).all()
-    finding_code = (version.rule_content.get("produce") or {}).get("finding_code")
     return {"code": 0, "data": {
         "rule_key": rule.rule_key,
+        "action": "create",
         "would_match": bool(matched),
         "matched_observation_ids": [o["id"] for o in matched],
-        "finding_code": finding_code,
+        "finding_code": (content.get("produce") or {}).get("finding_code"),
         "existing_findings": [f.finding_code for f in current],
         "writes": False,
     }}

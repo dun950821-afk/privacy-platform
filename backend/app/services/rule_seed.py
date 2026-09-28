@@ -40,6 +40,26 @@ BUILTIN_CORRELATION_RULES = [
                           "mastg": ["MASTG-TEST-PRIVACY-1"], "cwe": []},
         },
     },
+    {
+        "rule_key": "PRIVACY_FLOW_FACT_ENRICHMENT",
+        "name": "隐私数据流事实证据增强",
+        "description": (
+            "同一数据类目的敏感 API 事实（如设备标识 API 调用）为该类目已有的数据流结论补充证据、"
+            "提升置信度；**不新增结论**。规则内不出现任何具体类目名，新增类目由同一条规则覆盖（设计 §7.1）。"
+        ),
+        "content": {
+            "schema_version": "2.0",
+            "anchor": {"type": "dataflow.privacy"},
+            "join": [
+                # 只看 AppShark 自己的事实证据：非 AppShark 引擎的观察目前不带
+                # data_category（注册表只覆盖 AppShark 规则），join 上会因键为 NULL
+                # 而拒绝连接 —— 这是刻意的，见 docs/rule-coverage.md 的已知缺口。
+                {"type": "security.sensitive_api", "on": ["data_category"]},
+            ],
+            "scope": ["app_version_id"],
+            "action": "enrich",
+        },
+    },
 ]
 
 

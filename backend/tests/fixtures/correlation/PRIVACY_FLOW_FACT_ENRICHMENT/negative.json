@@ -1,0 +1,38 @@
+[
+  {
+    "id": 9101,
+    "observation_type": "dataflow.privacy",
+    "engine_type": "appshark",
+    "subject": "['<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String b()>->$r8']",
+    "location": "<com.intsig.pdf.sdk.key.AppkeySDK: java.lang.String getDeviceId(android.content.Context)>",
+    "data_category": "device_information",
+    "sink_type": "network",
+    "result_semantics": "direct_finding",
+    "provider_rule_id": "DeviceId_NetworkTransfer",
+    "payload": {
+      "section": "ComplianceInfo",
+      "rule": "DeviceId_NetworkTransfer",
+      "level": "L3",
+      "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)通过网络发送"
+    }
+  },
+  {
+    "id": 9102,
+    "observation_type": "security.sensitive_api",
+    "engine_type": "appshark",
+    "subject": "getLastKnownLocation",
+    "location": "<com.intsig.pdf.sdk.key.AppkeySDK: void locate(android.content.Context)>",
+    "data_category": "location",
+    "sink_type": null,
+    "result_semantics": "supporting_evidence",
+    "provider_rule_id": "Location_APICall",
+    "payload": {
+      "section": "ComplianceInfo",
+      "mode": "APIMode",
+      "rule": "Location_APICall",
+      "level": "L2",
+      "detail": "位置信息 API 调用",
+      "statement": "getLastKnownLocation()"
+    }
+  }
+]
