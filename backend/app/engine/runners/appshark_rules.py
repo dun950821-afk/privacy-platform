@@ -6,7 +6,10 @@ RULE_GROUPS = {
     "privacy_identity": ["api_device_id.json"],
     "privacy_location": ["location_to_network.json"],
     "privacy_network": ["device_id_to_network.json", "location_to_network.json"],
-    "privacy_camera_microphone": ["api_camera_mic.json"],
+    # 原 api_camera_mic.json 拆成两条：能确证是摄像头的（Camera.open）与不能确证的
+    # （MediaRecorder 的音源/视频源是通配参数，AudioRecord 的音源在构造时决定）。
+    # 组名不改，仍是「相机与麦克风」这个覆盖范围。
+    "privacy_camera_microphone": ["api_camera.json", "api_media.json"],
 }
 
 

@@ -14,5 +14,11 @@ def test_unknown_group_returns_empty():
 
 def test_rule_pack_hash_changes_with_selection():
     a = rule_pack_hash(RULE_DIR, ["api_device_id.json"])
-    b = rule_pack_hash(RULE_DIR, ["api_device_id.json", "api_camera_mic.json"])
+    b = rule_pack_hash(RULE_DIR, ["api_device_id.json", "api_media.json"])
     assert a != b
+
+
+def test_camera_microphone_group_covers_both_files():
+    """相机与麦克风组由两条规则承载（G2 拆分），两条都要在组里。"""
+    rules = resolve_rule_groups(RULE_DIR, ["privacy_camera_microphone"])
+    assert rules == ["api_camera.json", "api_media.json"]

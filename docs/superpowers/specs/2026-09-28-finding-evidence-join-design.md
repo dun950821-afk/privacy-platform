@@ -258,7 +258,16 @@ phone               sms                     camera        microphone
 clipboard           account                 calendar      files
 photos              sensor                  network_information
 installed_apps      biometric               personal_information  unknown
+media
 ```
+
+`media` 是 2026-09-28 补入的更粗一档，用于「Provider 区分不了」的情形：AppShark 的
+`MediaRecorder.setAudioSource/setVideoSource` 与 `AudioRecord.startRecording` 参数是
+通配的（可传 Surface、REMOTE_SUBMIX），不能据此判定使用了摄像头或麦克风，而
+`Camera.open` 可以。因此把 `CameraMic_APICall` 拆成 `Camera_APICall`(camera) 与
+`Media_APICall`(media)：**能确证的不与不能确证的混在一个桶里**，两侧都不越界
+（设计 §4.2）。代价是 media 侧的观察无法与 Androguard 的 camera/microphone 类目
+join，见 `docs/rule-coverage.md` G2。
 
 枚举允许存在但未被任何引擎填充的值；覆盖度矩阵必须区分「枚举存在」与「引擎可产出」。
 
@@ -532,6 +541,16 @@ platform_findings #53   task 536   同上
 若其条件在当前能力下不可能成立 → 停用（status=disabled），而非升级后继续留用
 停用不删除历史 Finding
 ```
+
+> **前提修正（2026-09-28，实测后回填）**：本节原先判断「其条件不可能成立」是**错的**。
+> 实测 task 810（app_version 11，双引擎）：该规则的条件成立，只是第 2 个条件
+> `payload.rule contains _NetworkTransfer` 把设备标识与位置信息的网络流也匹配了进来，
+> 于是在一个**没有任何通讯录数据流**的样本上断言「通讯录信息存在潜在网络传输路径」。
+> 它不是惰性规则，是错误规则 —— 停用的理由比原先写的更强。
+>
+> 原先的误判来自观测面不全：早期任务只跑 AppShark，缺少 Androguard 的通讯录权限
+> 观察，规则确实不命中；双引擎同跑后立刻命中。**「没命中」与「不可能命中」是两件事，
+> 前者不足以支撑停用决策，也不足以支撑「已覆盖」结论。**
 
 ## 11. 数据链
 

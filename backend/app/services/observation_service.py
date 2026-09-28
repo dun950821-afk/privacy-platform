@@ -2,7 +2,8 @@
 import logging
 
 from app.models import EngineObservation
-from app.services.appshark_semantic_registry import MissingSemanticsError, semantics_for
+from app.services.appshark_semantic_registry import (
+    MissingSemanticsError, androguard_permission_semantics, semantics_for)
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ def event_to_observation(event: dict, *, task_id: int, execution_id: int, engine
         "evidence_refs": [],
         "schema_version": "1.0",
     }
-    semantic = _semantic_fields(payload, observation_type)
+    semantic = _semantic_fields(payload, observation_type, engine_type)
     resolved_type = semantic.pop("_resolved_observation_type", None)
     if resolved_type:
         result["observation_type"] = resolved_type
@@ -119,11 +120,14 @@ def observation_row(data: dict) -> EngineObservation:
     return EngineObservation(**{k: v for k, v in data.items() if k in columns})
 
 
-def _semantic_fields(payload: dict, observation_type: str) -> dict:
-    """从 Provider 规则名解析平台语义字段。
+def _semantic_fields(payload: dict, observation_type: str, engine_type: str | None = None) -> dict:
+    """从 Provider 的键解析平台语义字段。
 
-    规则未在注册表中登记时返回空语义并保留原文——不抛错、也不猜。
-    缺失由 `test_registry_covers_every_rule_file` 在测试期拦下，
+    两个 Provider 的键不同：AppShark 用 `payload.rule`（规则名），Androguard 用
+    `payload.category`（敏感权限分组）。后者不从这里走的话，Androguard 的观察
+    `data_category` 恒为 NULL —— 跨引擎 join 与置信度最高一档会静默失效。
+
+    未登记时返回空语义并保留原文——不抛错、也不猜。缺失由测试期拦下，
     运行期静默降级只影响该条观察，不应让整个任务失败。
     """
     rule = payload.get("rule")
@@ -137,6 +141,18 @@ def _semantic_fields(payload: dict, observation_type: str) -> dict:
         "result_semantics": None,
         "entity_keys": {},
     }
+    if engine_type == "androguard":
+        sem = androguard_permission_semantics(payload.get("category"))
+        if not sem:
+            return base
+        base.update({
+            "observation_kind": KIND_MAP.get(sem["observation_type"], "fact"),
+            "data_category": sem["data_category"],
+            "sink_type": sem["sink_type"],
+            "result_semantics": sem["result_type"],
+            "entity_keys": {"data_category": sem["data_category"]},
+        })
+        return base
     if not rule:
         return base
     try:

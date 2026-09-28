@@ -381,11 +381,24 @@ cd backend && PYTHONPATH=. /tmp/venv/bin/python -c \
 | 只跑第 2 步 | 代码要写 `platform_findings` 的列而库里没有 → `UndefinedColumn` → 关联/结论接口 500 |
 | 只跑第 1 步 | `load_active_rules()` 返回 `[]`,关联逻辑静默失效(不报错、不产出任何平台结论) |
 
-> 第 2 步是「缺则创建」,不会覆盖已有规则内容。若库里已存在 `PRIVACY_CONTACTS_NETWORK` 但它的
-> 启用版本仍是历史条件(旧版 `fact.permission` + `payload.sink.category`),关联会一直不命中:
-> 请在「知识库 → 关联规则」界面用 `backend/app/services/rule_seed.py` 中
-> `BUILTIN_CORRELATION_RULES[0]["content"]` 的条件保存新版本并发布(或调用
-> `PUT /api/v1/correlation-rules/{id}/versions` 后 `POST .../publish`)。
+> 第 2 步是「缺则创建」,**不会覆盖已有规则内容,也不会改变已有规则的状态**。存量库还需要
+> 第 3 步(一次性):
+>
+> ```bash
+> # 停用 PRIVACY_CONTACTS_NETWORK(设计 §10)。它以 _NetworkTransfer 子串匹配
+> # 设备标识与位置信息的网络流,会在没有通讯录数据流的样本上断言「通讯录信息存在
+> # 潜在网络传输路径」—— 实测 task 810 的证据是 1 条通讯录权限 + 18 条
+> # device_information 流 + 30 条 location 流。详见 docs/rule-coverage.md G3。
+> curl -X POST http://127.0.0.1:8000/api/v1/correlation-rules/<rule_id>/disable \
+>   -H "Authorization: Bearer $TOKEN"
+> ```
+>
+> 不做的后果不是报错,而是**持续产出面向用户的错误结论**。历史 Finding #45 / #53
+> 保留不动,停用不影响它们。
+>
+> 若库里已存在 `PRIVACY_FLOW_FACT_ENRICHMENT` 但内容还是只含单引擎 join 的旧版,
+> 需要保存并发布一个新版本(种子不会覆盖),新版本增加了 Androguard 敏感权限作为
+> 跨引擎印证。
 
 自建关联规则也请顺手核对一遍 `produce`:`finding_code` ≤ 64 字符、`title` ≤ 200、`category` ≤ 60、
 `recommendation` ≤ 2000,`severity` 取 `critical/high/medium/low`,`confidence` 取

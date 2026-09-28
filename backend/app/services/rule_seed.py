@@ -20,6 +20,15 @@ BUILTIN_CORRELATION_RULES = [
         "rule_key": "PRIVACY_CONTACTS_NETWORK",
         "name": "通讯录信息网络传输",
         "description": "应用申请了通讯录敏感权限，且 AppShark 发现至少一条到达网络的数据流路径。",
+        # 停用（设计 §10）。**不是**因为它的条件不成立——真实数据证明它成立，而且
+        # 成立得太多：第 2 个条件 `payload.rule contains _NetworkTransfer` 会把
+        # 设备标识与位置信息的网络流一并匹配进来。实测 task 810 上这条规则产出的
+        # 结论由「1 条通讯录权限 + 18 条 device_information 流 + 30 条 location 流」
+        # 组成，即在一个没有任何通讯录数据流的样本上断言「通讯录信息存在潜在网络
+        # 传输路径」——一条面向用户的错误结论。
+        # 通讯录的「读取→外传」在当前引擎能力下不可静态表达（Task 1 结论），
+        # 因此这条规则无法改对，只能停用；历史 Finding #45 / #53 保留不动。
+        "status": "disabled",
         "content": {
             "schema_version": "1.0",
             "match": {"logic": "all", "conditions": [
@@ -51,10 +60,10 @@ BUILTIN_CORRELATION_RULES = [
             "schema_version": "2.0",
             "anchor": {"type": "dataflow.privacy"},
             "join": [
-                # 只看 AppShark 自己的事实证据：非 AppShark 引擎的观察目前不带
-                # data_category（注册表只覆盖 AppShark 规则），join 上会因键为 NULL
-                # 而拒绝连接 —— 这是刻意的，见 docs/rule-coverage.md 的已知缺口。
+                # 同引擎的事实证据（AppShark 的敏感 API 调用）
                 {"type": "security.sensitive_api", "on": ["data_category"]},
+                # 另一引擎的独立印证（Androguard 的敏感权限）→ 置信度到 high
+                {"type": "fact.sensitive_permission", "on": ["data_category"]},
             ],
             "scope": ["app_version_id"],
             "action": "enrich",
@@ -69,8 +78,11 @@ def seed_correlation_rules(db: Session) -> int:
         if db.query(Rule).filter(Rule.rule_key == item["rule_key"]).first():
             continue
         validate_rule_content(item["content"])
+        # 停用的内置规则也要写进库里：历史 Finding 通过 correlation_rule_id 指向它，
+        # 删掉行会让「这条结论是怎么来的」失去依据
         rule = Rule(rule_key=item["rule_key"], name=item["name"],
-                    category="correlation", description=item["description"], status="active")
+                    category="correlation", description=item["description"],
+                    status=item.get("status", "active"))
         db.add(rule)
         db.flush()
         version = RuleVersion(rule_id=rule.id, version="1.0", rule_content=item["content"],

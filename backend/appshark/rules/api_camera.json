@@ -1,0 +1,16 @@
+{
+  "Camera_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "Camera_APICall",
+      "detail": "调用摄像头",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalMedia_APICall",
+      "complianceCategoryDetail": "音视频采集_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<android.hardware.Camera: * open(*)>": {}
+    }
+  }
+}

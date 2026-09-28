@@ -16,6 +16,12 @@ def _delete_rule(db, rule_key):
     db.commit()
 
 
+def _seed_status(rule_key):
+    """内置规则在种子里声明的启用状态。"""
+    return next(r.get("status", "active") for r in BUILTIN_CORRELATION_RULES
+                if r["rule_key"] == rule_key)
+
+
 def _builtin_rule_rows(db):
     """内置规则的行数与状态。测试只读取、不删除共享的内置规则行。"""
     return db.execute(text(
@@ -35,9 +41,11 @@ def test_seed_is_idempotent(db):
 
     rows = _builtin_rule_rows(db)
     assert len(rows) == 1
-    assert rows[0].id == before.id
-    assert rows[0].status == "active"
-    assert rows[0].current_version_id is not None
+    # 幂等 = 重复执行不改动任何已有行。这里不断言具体状态：内置规则的启用与否是
+    # 种子的声明（PRIVACY_CONTACTS_NETWORK 已停用，见设计 §10），把状态写死会把
+    # 「幂等」和「当前状态恰好是什么」混为一谈。
+    assert (rows[0].id, rows[0].status, rows[0].current_version_id) == (before.id, before.status, before.current_version_id)
+    assert rows[0].status == _seed_status(BUILTIN_RULE_KEY)
 
 
 def test_seed_database_wires_builtin_correlation_rule(db, monkeypatch):
@@ -60,13 +68,18 @@ def test_seed_database_wires_builtin_correlation_rule(db, monkeypatch):
 
     assert len(calls) == 1, "seed_database() 没有调用 seed_correlation_rules()"
 
-    # 接线后关联链路不再空转：启用中的内置规则可被关联逻辑读到
-    row = _builtin_rule_rows(db)[0]
-    assert row.status == "active"
-    assert row.current_version_id is not None
+    # 接线后关联链路不再空转：内置规则按种子声明的状态存在，且启用中的那些能被关联逻辑读到
+    for item in BUILTIN_CORRELATION_RULES:
+        row = db.execute(text("select status, current_version_id from rules where rule_key=:key"),
+                         {"key": item["rule_key"]}).first()
+        assert row is not None, f"{item['rule_key']} 没有被种子写入"
+        assert row.status == item.get("status", "active"), f"{item['rule_key']} 的状态与种子声明不符"
+        assert row.current_version_id is not None
+
     active = {entry["rule"].rule_key for entry in load_active_rules(db)}
-    assert active >= {rule["rule_key"] for rule in BUILTIN_CORRELATION_RULES}, \
-        "所有内置规则都必须处于启用状态，否则新装环境会静默少跑规则"
+    assert active >= {r["rule_key"] for r in BUILTIN_CORRELATION_RULES
+                      if r.get("status", "active") == "active"}, \
+        "启用中的内置规则必须能被关联逻辑读到，否则会静默少跑规则"
 
 
 def test_preview_without_observations_writes_nothing(client, admin_headers, db):

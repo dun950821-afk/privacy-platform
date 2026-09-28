@@ -186,10 +186,11 @@ def _install_rule(monkeypatch, content):
     return entry
 
 
-def _add_observation(db, execution, event):
+def _add_observation(db, execution, event, engine_type="appshark"):
     from app.services.observation_service import event_to_observation, observation_row
+    version = "4.1.4" if engine_type == "androguard" else "0.1.2"
     data = event_to_observation(event, task_id=execution.task_id, execution_id=execution.id,
-                               engine_type="appshark", engine_version="0.1.2")
+                               engine_type=engine_type, engine_version=version)
     row = observation_row(data)
     db.add(row)
     db.commit()
@@ -252,6 +253,33 @@ def test_enrichment_without_matching_finding_creates_nothing(db, execution, monk
     _install_rule(monkeypatch, ENRICH_RULE["content"])
     _add_observation(db, execution, EVIDENCE_EVENT)
     assert generate_findings(db, execution.task_id) == []
+
+
+def test_cross_engine_corroboration_reaches_high(db, execution, monkeypatch):
+    """另一引擎的同类目证据把置信度推到 high —— 设计 §8 的最高一档。
+
+    真实样本 app_version 11（门户测试 3.4.24）：AppShark 报出 Location_NetworkTransfer，
+    Androguard 同时报出 ACCESS_FINE_LOCATION 权限。两者类目同为 location、引擎不同。
+    """
+    from app.services.finding_service import generate_findings
+
+    _install_rule(monkeypatch, ENRICH_RULE["content"])
+    location_event = dict(ANCHOR_EVENT, event_data=dict(ANCHOR_EVENT["event_data"],
+                                                        rule="Location_NetworkTransfer"))
+    anchor = _add_observation(db, execution, location_event)                     # appshark
+    permission = _add_observation(db, execution, {                              # androguard
+        "event_type": "static_sensitive_permission", "data_type": "LOCATION",
+        "api": "ACCESS_FINE_LOCATION",
+        "event_data": {"api": "ACCESS_FINE_LOCATION", "category": "LOCATION",
+                       "permission": "ACCESS_FINE_LOCATION", "source": "manifest"},
+    }, engine_type="androguard")
+    assert permission.data_category == "location"
+
+    findings = generate_findings(db, execution.task_id)
+    assert [f.finding_code for f in findings] == ["PRIVACY_LOCATION_NETWORK"]
+    assert findings[0].confidence == "high"
+    assert _links(db, findings[0].id) == sorted([(anchor.id, "evidence"),
+                                                 (permission.id, "enriched_evidence")])
 
 
 def test_cross_category_evidence_is_not_attached(db, execution, monkeypatch):

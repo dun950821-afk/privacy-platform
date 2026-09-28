@@ -1,8 +1,14 @@
 from app.services.finding_service import compute_finding_uid, generate_findings
-from app.services.rule_seed import seed_correlation_rules
+from app.services.rule_seed import BUILTIN_CORRELATION_RULES
 from app.models import EngineObservation, DetectionTask, SubTask, EngineExecution, PlatformFinding
 from app.core.security import generate_uid
 from sqlalchemy import text
+
+# 这条用例验的是「关联规则产出的结论能否完整落库并可复现」，与具体哪条规则无关。
+# 注入规则而不依赖库里的启用状态：内置的通讯录规则已停用（设计 §10），
+# 若把它当作测试载体，规则一停用这条用例就会跟着失效。
+LEGACY_CONTENT = next(r for r in BUILTIN_CORRELATION_RULES
+                      if r["rule_key"] == "PRIVACY_CONTACTS_NETWORK")["content"]
 
 
 def _purge_task(db, task_id):
@@ -17,7 +23,7 @@ def _purge_task(db, task_id):
     db.commit()
 
 
-def test_observations_produce_platform_finding(db, client, admin_headers):
+def test_observations_produce_platform_finding(db, client, admin_headers, monkeypatch):
     row = db.execute(text(
         "select v.id as version_id, a.project_id as project_id from app_versions v "
         "join app_assets a on a.id = v.app_id order by v.id limit 1")).first()
@@ -47,12 +53,13 @@ def test_observations_produce_platform_finding(db, client, admin_headers):
                                           "sink": ["<com.baidu.mobstat.ba: java.net.HttpURLConnection a(android.content.Context,java.lang.String,int,int)>->$r0"]},
                                  evidence_level="potential"))
         db.commit()
-        seed_correlation_rules(db)
 
-        # 内置规则的内容来自库中启用版本（可能已被维护者升级），断言与之保持一致而非硬编码版本号
-        active_version = db.execute(text(
-            "select v.version from rules r join rule_versions v on v.id = r.current_version_id "
-            "where r.rule_key = 'PRIVACY_CONTACTS_NETWORK'")).scalar()
+        from app.services import correlation
+        monkeypatch.setattr(correlation, "load_active_rules", lambda session: [{
+            "rule": type("R", (), {"id": 147, "rule_key": "PRIVACY_CONTACTS_NETWORK"})(),
+            "version": type("V", (), {"version": "1.1"})(),
+            "content": LEGACY_CONTENT,
+        }])
 
         findings = generate_findings(db, task.id)
         assert len(findings) == 1
@@ -67,8 +74,8 @@ def test_observations_produce_platform_finding(db, client, admin_headers):
         assert persisted.finding_uid == compute_finding_uid(persisted.finding_code, persisted.dedup_key)
         assert isinstance(persisted.rule_snapshot, dict) and persisted.rule_snapshot
         assert persisted.rule_snapshot["produce"]["finding_code"] == persisted.finding_code
-        assert persisted.correlation_rule_id
-        assert persisted.correlation_rule_version == active_version
+        assert persisted.correlation_rule_id == "147"
+        assert persisted.correlation_rule_version == "1.1"
 
         # 重复生成不应产生重复 Finding
         assert len(generate_findings(db, task.id)) == 1

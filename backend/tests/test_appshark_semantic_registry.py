@@ -5,7 +5,8 @@ import os
 import pytest
 
 from app.services.appshark_semantic_registry import (
-    REGISTRY, RESULT_DIRECT, MissingSemanticsError, enrich_observation, semantics_for,
+    REGISTRY, RESULT_DIRECT, RESULT_SUPPORTING, MissingSemanticsError, RETIRED_REGISTRY,
+    enrich_observation, semantics_for,
 )
 
 RULE_DIR = "appshark/rules"
@@ -37,6 +38,40 @@ def test_registry_has_no_stale_entries():
 def test_unknown_rule_raises_instead_of_degrading():
     with pytest.raises(MissingSemanticsError):
         semantics_for("NoSuchRule_v99")
+
+
+def test_camera_and_media_split_claims_only_what_is_proven():
+    """相机/音视频采集的拆分必须停在引擎真正证明的那一层（设计 §4.2）。
+
+    Camera.open 就是打开摄像头，无歧义 → camera。
+    MediaRecorder 的音源/视频源、AudioRecord 的音源都是通配参数（可传 Surface、
+    REMOTE_SUBMIX），只证明「配置了音视频采集」→ media，不得声称用了摄像头或麦克风。
+    """
+    assert REGISTRY["Camera_APICall"]["data_category"] == "camera"
+    assert REGISTRY["Media_APICall"]["data_category"] == "media"
+
+    sinks = json.load(open(os.path.join(RULE_DIR, "api_media.json")))["Media_APICall"]["sink"]
+    assert not any("Camera" in sig for sig in sinks), \
+        "Media_APICall 不得包含 Camera API，否则 camera 会被重复声明"
+    camera_sinks = json.load(open(os.path.join(RULE_DIR, "api_camera.json")))["Camera_APICall"]["sink"]
+    assert list(camera_sinks) == ["<android.hardware.Camera: * open(*)>"]
+
+
+def test_retired_and_current_are_disjoint():
+    """同一条规则不可能既在役又退役：重叠说明拆分时漏删了旧登记项。"""
+    assert not (set(RETIRED_REGISTRY) & set(REGISTRY))
+    assert not (set(RETIRED_REGISTRY) & _all_provider_rule_ids())
+
+
+def test_retired_rule_still_resolves_for_historical_artifacts():
+    """退役规则名仍须可解析，否则历史产物重新归一化会得到与当时不同的语义。
+
+    task 553 基线里记着 CameraMic_APICall（G2 拆分前）。
+    """
+    assert "CameraMic_APICall" not in _all_provider_rule_ids(), "该规则已退役，不应仍在规则目录中"
+    semantics = semantics_for("CameraMic_APICall")
+    assert semantics["data_category"] == "media"
+    assert semantics["result_type"] == RESULT_SUPPORTING
 
 
 def test_dataflow_rules_are_direct_findings_with_category_and_sink():
