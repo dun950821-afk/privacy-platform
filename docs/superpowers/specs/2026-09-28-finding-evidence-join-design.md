@@ -82,6 +82,34 @@ PersonalMedia_APICall                媒体/相机/麦克风挤在同一类目
 
 因此运行时字符串切割必然出错。
 
+### 1.5 能力判定必须逐层，且有负向隔离
+
+§1.3 的二分结论（「可表达 / 不可表达」）粒度过粗。`Contacts.CONTENT_URI → ContentResolver.query → Cursor → Network` 是一条**语义链**，每一环都可能断，必须逐环判定：
+
+| # | 能力 | 要验证什么 |
+|---|---|---|
+| 1 | API Fact | 能否识别「调用了 `ContentResolver.query()`」 |
+| 2 | URI Fact | 能否识别「使用了 Contacts URI 常量」 |
+| 3 | URI → query | 能否证明该 URI 作为 query 的参数 |
+| 4 | query → Cursor | 能否保持返回对象的语义 |
+| 5 | Data → Sink | 能否形成精确的 Contacts Source → Sink |
+| 6 | 跨类目隔离 | Calendar / CallLog / Media 是否不会被误判为 Contacts |
+
+第 6 项是**必须项**，不是补充项。因为 `ContentResolver.query` 是所有内容提供者共用的唯一调用点，不验证隔离就无法排除跨类目误报——而这正是本项目已经犯过一次的错误（旧关联规则用 `_NetworkTransfer` 子串匹配，把设备标识的流算作通讯录的证据）。
+
+### 1.6 状态词表
+
+判定结果只允许四个取值，含义严格区分：
+
+```text
+VERIFIED          已有真实样本证明成立
+FAILED            已有真实样本证明不成立
+NOT_EXPRESSIBLE   已证明当前引擎规则语言无法表达（能力边界）
+NOT_VERIFIED      尚无真实样本，未验证
+```
+
+`NOT_EXPRESSIBLE` 与 `NOT_VERIFIED` 必须分开：前者是结论，后者是待办。把未验证写成「理论支持」「预计覆盖」属于冒充已覆盖。
+
 ## 2. 核心原则
 
 废除：
@@ -185,13 +213,44 @@ data_category     数据类目（join 的主键）
 source_type       数据来源类型
 sink_type         流向类型
 result_semantics  fact / supporting_evidence / direct_finding
+observation_kind  fact / dataflow / security_finding / supporting_evidence
 provider_rule_id  Provider 原始规则名（保留，用于回溯）
+provider_level    Provider 原始 level（如 AppShark 的 L2/L3/L4）
 entity_keys       通用连接键容器
 ```
 
 不继续只用一个 `category`，因为未来会同时存在风险类别、MASVS 类别、数据类别、MobSF category、规则类别。
 
-### 4.2 data_category 枚举
+**平台不再使用 L2 / L3 作为内部分层名称。** AppShark 自身已有 `level` 字段（L2/L3/L4），平台若同时用 L2=Fact、L3=DataFlow，两个概念会冲突。平台统一用 `observation_kind`，Provider 原始值保留在 `provider_level`，二者不得混用。
+
+### 4.2 观测命名是语义承诺
+
+观测名必须精确表达「引擎实际证明了什么」，不得扩大。
+
+```text
+Field = ContactsContract.Contacts.CONTENT_URI
+  ↓ 这证明了什么？
+  证明了「查询目标的 URI 是通讯录」
+  没有证明「读取到了联系人数据」
+  ↓ 因此正确命名
+  fact.contacts_provider_access      ✓
+  contacts_data_read                 ✗ 语义扩大
+```
+
+原因：`CONTENT_URI` 是查询 Contacts Provider 的 URI，而 `ContentResolver.query()` 返回的是 `Cursor`。URI 常量与联系人数据是两件事。
+
+如果观测命名成 `contacts_data_read`，下游会以为数据已被读取，而实际只证明了查询目标——**命名一旦放宽，所有基于它的关联与结论都会继承这个错误。**
+
+同理：
+
+```text
+APIMode + ContentResolver.query()  →  fact.content_resolver_query
+                                     而不是 fact.contacts_read
+```
+
+同类命名约束适用于所有 Provider：只声明引擎实际证明的那一层。
+
+### 4.3 data_category 枚举
 
 ```text
 device_information  advertising_identifier  location      contacts
@@ -203,14 +262,14 @@ installed_apps      biometric               personal_information  unknown
 
 枚举允许存在但未被任何引擎填充的值；覆盖度矩阵必须区分「枚举存在」与「引擎可产出」。
 
-### 4.3 sink_type 枚举
+### 4.4 sink_type 枚举
 
 ```text
 network  file  database  log  webview  ipc  clipboard
 third_party_sdk  unknown
 ```
 
-### 4.4 entity_keys
+### 4.5 entity_keys
 
 ```json
 {
@@ -400,7 +459,57 @@ confidence_delta: 0.1      # 错误：为什么是 0.1？三条证据加 0.2？
 
 依据：Quark-Engine 的权重模型是 `(2^(达到阶段数-1) × 规则分值) / 2^4`，即证据越完整置信度指数上升，而非累加固定值。
 
-## 9. 既有 Finding 的迁移
+## 9. 标准映射：绑定 Finding，不绑定关联
+
+MASWE 映射**不得**挂在关联规则上：
+
+```text
+关联规则 → MASWE          ✗  Evidence Join 本身不是一个安全 weakness
+Finding  → MASWE          ✓
+```
+
+正确链路：
+
+```text
+AppShark Rule → Observation → Finding → MASWE → MASTG Test
+```
+
+### 9.1 版本固定
+
+```text
+MASWE_VERSION = 1.0.0
+```
+
+版本号现在即可固定。**具体编号不得在验证之前写入。**
+
+理由：本项目刚因「未验证内容进设计」付出过代价（§1 的整段背景）。把未核实的 MASWE 编号写进映射表，与把未验证的规则写进规则目录是同一类错误——它会让覆盖度看起来是准确的，而实际依据未经确认。
+
+### 9.2 编号状态
+
+```text
+已验证     编号已在 MASWE v1.0.0 中核对存在，且语义匹配
+待核实     候选编号，尚未核对
+unmapped   无合适编号
+```
+
+**注意**：本环境无法访问 MASWE 官方站点（网络策略拦截），三个相关 GitHub 仓库也未找到 weakness 目录。因此**当前所有 MASWE 编号状态均为待核实**，包括此前已有的 `MASWE-0001`。
+
+在设计文档与代码中，未核实的编号一律标记 `待核实`，不得以确定语气引用。
+
+### 9.3 映射粒度
+
+一个 Finding 可以映射到多个标准：
+
+```text
+finding_code      PRIVACY_DEVICE_INFORMATION_NETWORK
+maswe_id          待核实
+masvs_control     待核实
+mastg_test_id     待核实
+```
+
+无法准确映射时标记 `unmapped`，不得用相近编号顶替。
+
+## 10. 既有 Finding 的迁移
 
 库中已有真实 Finding：
 
@@ -424,7 +533,7 @@ platform_findings #53   task 536   同上
 停用不删除历史 Finding
 ```
 
-## 10. 数据链
+## 11. 数据链
 
 ```text
                Engine Raw Result
@@ -448,7 +557,7 @@ platform_findings #53   task 536   同上
           Risk Report
 ```
 
-## 11. 回归基线
+## 12. 回归基线
 
 改造前先把 task 553 的 139 条 observation 固化为 fixture：
 
@@ -470,7 +579,7 @@ NetworkTransfer 正确解析出 sink_type=network
 修复前命中的 12 条规则在修复后仍全部命中（覆盖度不回归）
 ```
 
-## 12. 实施顺序
+## 13. 实施顺序
 
 ```text
 0. 固化 task 553 为回归 fixture（改造前）
@@ -484,7 +593,7 @@ NetworkTransfer 正确解析出 sink_type=network
 8. 端到端真实任务验收（营口银行 + 营行企业银行）
 ```
 
-## 13. 非目标
+## 14. 非目标
 
 本期不做：
 
@@ -495,7 +604,7 @@ NetworkTransfer 正确解析出 sink_type=network
 - 既有 Finding 的回填重算
 - AI 参与风险判定
 
-## 14. 验收
+## 15. 验收
 
 ```text
 task 553 fixture 全部断言通过
