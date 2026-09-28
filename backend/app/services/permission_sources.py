@@ -67,3 +67,42 @@ def parse_android_manifest(xml_text: str) -> list[dict]:
         row.pop("_width", None)
         row["raw_data"]["protection_levels_seen"].sort()
     return [merged[k] for k in sorted(merged)]
+
+
+_HARMONY_SECTION = re.compile(r"^##\s+(ohos\.permission\.[A-Za-z0-9_]+)\s*$", re.M)
+_HARMONY_LEVEL = re.compile(r"\*\*权限级别\*\*\s*[：:]\s*([A-Za-z_]+)")
+_HARMONY_GRANT = re.compile(r"\*\*授权方式\*\*\s*[：:]\s*(\S+)")
+_HARMONY_SINCE = re.compile(r"\*\*起始版本\*\*\s*[：:]\s*(\S+)")
+
+
+def parse_harmonyos_doc(md_text: str) -> list[dict]:
+    """解析 OpenHarmony 文档里的权限小节（`## ohos.permission.X` + 结构化字段）。
+
+    文档在 `openharmony/docs` 的 AccessToken 目录下按授权级别分文件：
+    permissions-for-all.md / -all-user.md / -system-apps*.md / -enterprise-apps.md /
+    -mdm-apps.md / restricted-permissions.md。
+
+    **小节里没有「权限级别」字段的跳过**——那多半是说明性内容而非权限条目，
+    给这种小节编一个级别会让整批数据不可信。
+    """
+    parts = _HARMONY_SECTION.split(md_text)
+    out = []
+    for i in range(1, len(parts), 2):
+        name, body = parts[i], parts[i + 1]
+        level_m = _HARMONY_LEVEL.search(body)
+        if not level_m:
+            continue
+        grant_m = _HARMONY_GRANT.search(body)
+        since_m = _HARMONY_SINCE.search(body)
+        # 正文取到第一个结构化字段为止，去掉空行
+        desc = body.split("**权限级别**")[0].strip()
+        out.append({
+            "permission_name": name,
+            "permission_type": level_m.group(1).strip(),
+            "capability": desc or None,
+            "grant_mode": grant_m.group(1).strip() if grant_m else None,
+            "official_reference": f"https://developer.huawei.com/consumer/cn/doc/harmonyos-references/{name.lower()}",
+            "raw_data": {"platform_source": "openharmony_docs",
+                         "since_api": since_m.group(1).strip() if since_m else None},
+        })
+    return out

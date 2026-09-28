@@ -64,3 +64,26 @@ def test_android_parse_duplicate_name_keeps_the_more_restrictive_level():
     rows = {r["permission_name"]: r for r in parse_android_manifest(xml)}
     assert rows["android.permission.DUP"]["permission_type"] == "签名权限"
     assert rows["android.permission.DUP"]["raw_data"]["protection_levels_seen"] == ["normal", "signature"]
+
+
+from app.services.permission_sources import parse_harmonyos_doc
+
+
+def test_harmonyos_parse_extracts_name_and_level():
+    rows = {r["permission_name"]: r for r in parse_harmonyos_doc(_read("harmonyos_sample.md"))}
+    assert set(rows) == {"ohos.permission.ACCESS_BLUETOOTH", "ohos.permission.MEDIA_LOCATION"}
+    assert rows["ohos.permission.ACCESS_BLUETOOTH"]["permission_type"] == "normal"
+
+
+def test_harmonyos_parse_captures_description_and_grant_mode():
+    rows = {r["permission_name"]: r for r in parse_harmonyos_doc(_read("harmonyos_sample.md"))}
+    bt = rows["ohos.permission.ACCESS_BLUETOOTH"]
+    assert bt["capability"].startswith("允许应用接入蓝牙")
+    assert "user_grant" in bt["grant_mode"]
+    assert bt["raw_data"]["since_api"] == "10"
+
+
+def test_harmonyos_parse_skips_section_without_fields():
+    """缺结构化字段的小节跳过——宁可少收，不编造级别。"""
+    rows = parse_harmonyos_doc(_read("harmonyos_sample.md"))
+    assert all(r["permission_name"] != "ohos.permission.NOT_A_REAL_EXAMPLE_WITHOUT_FIELDS" for r in rows)
