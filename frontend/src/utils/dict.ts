@@ -145,6 +145,10 @@ export const PERMISSION_TYPE: Dict = {
   '普通权限': { label: '普通权限', type: 'info' },
   '签名权限': { label: '签名权限', type: 'warning' },
   '特殊权限': { label: '特殊权限', type: 'warning' },
+  // 主级别 signature、但带 appop 标志的（SYSTEM_ALERT_WINDOW / WRITE_SETTINGS 等）：
+  // 普通 App 能在系统设置页申请到，所以它不在「不可达」那一档（见 permission_taxonomy）。
+  // 配色跟随 `特殊权限`，区别由 label 承载。
+  '特殊权限（AppOps 可授权）': { label: '特殊权限（AppOps 可授权）', type: 'warning' },
   '已弃用权限': { label: '已弃用权限', type: 'info' },
   '三方声明权限': { label: '三方声明权限', type: 'primary' },
   '未标注': { label: '未标注', type: 'info' },

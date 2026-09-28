@@ -45,7 +45,8 @@ def test_meta_exposes_controlled_vocabulary(client, admin_headers):
     data = resp.json()["data"]
     assert "危险权限" in data["permission_types"]
     assert "三方声明权限" in data["permission_types"]
-    assert len(data["permission_types"]) == 8, "Android 受控词表就是归一后的 8 个"
+    assert "特殊权限（AppOps 可授权）" in data["permission_types"]
+    assert len(data["permission_types"]) == 9, "Android 受控词表就是归一后的 9 个"
     assert set(data["risk_levels"]) == {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
     assert isinstance(data["categories"], list)
 

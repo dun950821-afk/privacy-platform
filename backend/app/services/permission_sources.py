@@ -17,6 +17,16 @@ _ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
 _ANDROID_REF = ("https://developer.android.com/reference/android/Manifest.permission#")
 
 # Android protectionLevel 的「宽窄」：归并同名条目时取更宽的那个做主级别
+# （= 更严 / 更不可达，见 Ruling G）。
+#
+# 这里**有意不看 `|` 后的 appop 标志**：同名被声明成 `signature|appop` 与 `signature`
+# 两回时，保守取 `signature`（不可达）。理由与 Ruling G 一致——宁可少报可达，
+# 不要把签名级权限报成普通 App 能申请；`is_applicable` 直接吃这个判定，
+# 报错方向朝「可达」会让默认视图混进申请不到的条目。
+# 代价：这种情况会低估个别条目的可达性。实测真实清单里 22 处 appop 声明对应
+# **22 个互不重复的权限名**，归并路径一次也没有走到 appop 上，所以当前数据不受影响。
+# 若将来 AOSP 出现同名跨 appop 的声明，改这里一处即可（`map_android_protection_level`
+# 已经把 appop 的语义定在词表里了）。
 _LEVEL_WIDTH = {"normal": 1, "dangerous": 2, "internal": 3,
                 "system": 3, "role": 3, "module": 3, "signature": 4}
 
