@@ -456,6 +456,23 @@ def task_evidence(tid: int, evidence_type: str = None,
 
 # ============ 任务检测报告汇总 ============
 
+@router.get("/{tid}/compliance-profile")
+def task_compliance_profile(tid: int, user: User = Depends(get_current_user),
+                            db: Session = Depends(get_db)):
+    """这个 App 的隐私合规画像。
+
+    各引擎的结果在这里被合并、去重、并**归因到收集主体**（应用自身 / 某个第三方组件 /
+    未识别三方包）—— 单看任何一个引擎都答不出「谁在采集我的数据」。结构照
+    T/GZHLW 团体标准第 4 章《App 检测详情》。
+    """
+    from app.services.compliance_profile import load_profile
+
+    task = db.query(DetectionTask).get(tid)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return {"code": 0, "data": load_profile(db, task)}
+
+
 MAX_ENGINE_REPORT_BYTES = 2 * 1024 * 1024
 
 

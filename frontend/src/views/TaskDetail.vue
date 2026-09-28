@@ -513,7 +513,9 @@ const taskId = computed(() => Number(route.params.id))
 
 const loading = ref(true)
 const generating = ref(false)
-const activeTab = ref('subtasks')
+// 落地即看检测结果：默认停在「检测阶段」时，重构后的内容在第二个 tab 里，
+// 用户第一眼看到的还是旧页面（这正是「看不出变化」的成因）
+const activeTab = ref('workspace')
 
 const task = ref<any>({})
 const subTasks = computed<any[]>(() => task.value.sub_tasks || [])

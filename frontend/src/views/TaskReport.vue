@@ -23,6 +23,22 @@
         </div>
 
         <el-card shadow="never" class="mb16">
+          <template #header><span class="card-title">各引擎产出</span></template>
+          <div class="engine-summary">
+            <div v-for="e in engineChapters" :key="e.type" class="engine-summary-item">
+              <div class="es-name">{{ e.name }}</div>
+              <div class="es-role">{{ e.role }}</div>
+              <div class="es-metrics">
+                <span v-for="m in e.metrics" :key="m.label" class="es-metric">
+                  {{ m.label }} <b>{{ m.value }}</b>
+                </span>
+              </div>
+            </div>
+          </div>
+          <EmptyBox v-if="!engineChapters.length" description="本次未启用任何引擎" :image-size="60" />
+        </el-card>
+
+        <el-card shadow="never" class="mb16">
           <template #header><span class="card-title">检测覆盖</span></template>
           <el-table :data="engines" size="small" stripe>
             <el-table-column label="引擎" min-width="160">
@@ -123,25 +139,29 @@
         </el-row>
       </el-tab-pane>
 
-      <!-- 分引擎结果：复用工作台那套面板，但默认折叠明细——报告是交付物，先给结论与规模 -->
+      <!-- 分引擎结果：复用工作台那套面板；报告是交付物，按引擎分章、指标在前、明细默认展开 -->
       <el-tab-pane label="分引擎结果" name="engines">
         <el-alert v-if="leadCount" type="info" :closable="false" show-icon class="mb16"
           :title="`另有 ${leadCount} 条引擎判定为弱点的线索未经平台核实，未列入本报告结论；详见工作台「未核实线索」`" />
 
-        <div v-for="e in engineChapters" :key="e.type" class="engine-chapter">
-          <div class="chapter-head">
-            <span class="chapter-name">{{ e.name }}</span>
-            <span class="chapter-sub">{{ e.summary }}</span>
-          </div>
-          <el-collapse>
-            <el-collapse-item :name="e.type" :title="`查看 ${e.name} 明细`">
-              <AppSharkPanel v-if="e.type === 'appshark'" :task-id="taskId" />
-              <AndroguardPanel v-else-if="e.type === 'androguard'" :task-id="taskId"
-                               :execution-summary="e.resultSummary" />
-              <MobSFPanel v-else :task-id="taskId" />
-            </el-collapse-item>
-          </el-collapse>
-        </div>
+        <el-card v-for="e in engineChapters" :key="e.type" shadow="never" class="chapter-card">
+          <template #header>
+            <div class="chapter-head">
+              <span class="chapter-name">{{ e.name }}</span>
+              <span class="chapter-role">{{ e.role }}</span>
+              <div class="chapter-metrics">
+                <el-tag v-for="m in e.metrics" :key="m.label" size="small" effect="plain"
+                        :type="m.value ? 'primary' : 'info'">
+                  {{ m.label }} <b>{{ m.value }}</b>
+                </el-tag>
+              </div>
+            </div>
+          </template>
+          <AppSharkPanel v-if="e.type === 'appshark'" :task-id="taskId" />
+          <AndroguardPanel v-else-if="e.type === 'androguard'" :task-id="taskId"
+                           :execution-summary="e.resultSummary" />
+          <MobSFPanel v-else :task-id="taskId" />
+        </el-card>
       </el-tab-pane>
 
 
@@ -255,33 +275,70 @@ const permissions = computed<{ declared: PermDetail[]; sensitive: PermDetail[] }
 const eventsByType = computed<Record<string, number>>(() => report.value.events_by_type || {})
 const dataFlows = computed<any[]>(() => report.value.data_flows || [])
 
-/** 引擎章节：名称 + 一句规模摘要，明细默认折叠 */
+/** 各引擎的角色一句话说明：报告读者未必知道每个引擎负责什么 */
+const ENGINE_ROLES: Record<string, string> = {
+  appshark: '污点分析：source→sink 数据流与敏感 API 调用',
+  androguard: 'APK 解析：应用信息、组件、权限、代码规模',
+  mobsf: '静态扫描：第三方与暴露面（端点/跟踪器/导出组件）',
+}
+
+/** 引擎章节：名称 + 角色 + 关键指标 + 明细（复用工作台面板） */
 const engineChapters = computed(() => {
   const queue = engineQueue.value
   const ran = new Set(queue.map((i: any) => i.engine_type))
   const summary = (type: string) => queue.find((i: any) => i.engine_type === type)?.result_summary || {}
-  const s = summary('appshark')
-  const a = summary('androguard')
+  const n = (type: string, key: string) => engineStats.value[type]?.[key] ?? 0
   const chapters = [
-    { type: 'appshark', name: 'AppShark', resultSummary: s, enabled: ran.has('appshark'),
-      summary: ran.has('appshark')
-        ? `污点分析：数据流 ${reported(s, 'vulnerability_count')} 处，扫描方法 ${s.scan_stats?.availableMethods ?? '—'}`
-        : '本次未启用' },
-    { type: 'androguard', name: 'Androguard', resultSummary: a, enabled: ran.has('androguard'),
-      summary: ran.has('androguard')
-        ? `APK 解析：组件 ${a.component_class_total ?? '—'} 个，DEX 类 ${a.class_count ?? '—'}`
-        : '本次未启用' },
-    { type: 'mobsf', name: 'MobSF', enabled: ran.has('mobsf'),
-      summary: ran.has('mobsf') ? '静态扫描：跟踪器/端点/导出组件' : '本次未启用' },
+    { type: 'appshark', name: 'AppShark', role: ENGINE_ROLES.appshark, resultSummary: summary('appshark'),
+      enabled: ran.has('appshark'),
+      metrics: [
+        { label: '数据流', value: n('appshark', 'dataflow.privacy') },
+        { label: '敏感 API 调用', value: n('appshark', 'security.sensitive_api') },
+        { label: '声明权限', value: n('appshark', 'fact.permission') },
+      ] },
+    { type: 'androguard', name: 'Androguard', role: ENGINE_ROLES.androguard, resultSummary: summary('androguard'),
+      enabled: ran.has('androguard'),
+      metrics: [
+        { label: '组件', value: summary('androguard').component_class_total ?? n('androguard', 'fact.component') },
+        { label: '敏感权限', value: n('androguard', 'fact.sensitive_permission') },
+        { label: 'DEX 类', value: summary('androguard').class_count ?? '—' },
+        { label: 'DEX 方法', value: summary('androguard').method_count ?? '—' },
+      ] },
+    { type: 'mobsf', name: 'MobSF', role: ENGINE_ROLES.mobsf, resultSummary: summary('mobsf'),
+      enabled: ran.has('mobsf'),
+      metrics: [
+        { label: '端点', value: n('mobsf', 'security.endpoint') },
+        { label: '跟踪器', value: n('mobsf', 'security.tracker') },
+        { label: '导出组件', value: n('mobsf', 'security.exported_component') },
+        { label: '权限', value: n('mobsf', 'security.permission') },
+      ] },
   ]
   return chapters.filter(c => c.enabled)
 })
 
-function reported(summary: any, key: string) {
-  return summary?.[key] ?? '—'
-}
-
 const engineQueue = ref<any[]>([])
+const engineStats = ref<Record<string, Record<string, number>>>({})
+
+/** 各引擎按观察类型计数：报告的指标要与本任务实际展示的内容一致 */
+async function loadEngineStats() {
+  const spec: Record<string, string[]> = {
+    appshark: ['dataflow.privacy', 'security.sensitive_api', 'fact.permission'],
+    androguard: ['fact.component', 'fact.sensitive_permission'],
+    mobsf: ['security.endpoint', 'security.tracker', 'security.exported_component', 'security.permission'],
+  }
+  const out: Record<string, Record<string, number>> = {}
+  await Promise.all(Object.entries(spec).map(async ([engine, types]) => {
+    const counts: Record<string, number> = {}
+    await Promise.all(types.map(async (t) => {
+      try {
+        const res = await taskApi.observations(taskId, { engine_type: engine, observation_type: t, page_size: 1 })
+        counts[t] = res.data?.total || 0
+      } catch { counts[t] = 0 }
+    }))
+    out[engine] = counts
+  }))
+  engineStats.value = out
+}
 const leadCount = ref(0)
 
 /** 报告只统计「引擎判定为弱点但未经平台核实」的条数，不列条目（那是工作台的事） */
@@ -468,7 +525,7 @@ async function load() {
     if (findingsRes.status === 'fulfilled') platformFindings.value = findingsRes.value.data?.items || []
     if (observationsRes.status === 'fulfilled') observations.value = observationsRes.value.data?.items || []
     if (artifactsRes.status === 'fulfilled') artifacts.value = artifactsRes.value.data || []
-    await loadLeadCount()
+    await Promise.all([loadLeadCount(), loadEngineStats()])
   } finally {
     loading.value = false
   }
@@ -479,6 +536,17 @@ onMounted(load)
 
 <style scoped>
 .mb16 { margin-bottom: 16px; }
+.chapter-card { margin-bottom: 14px; }
+.chapter-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.chapter-name { font-size: 15px; font-weight: 600; }
+.chapter-role { color: #6B7A99; font-size: 12px; }
+.chapter-metrics { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.engine-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.engine-summary-item { border: 1px solid #EEF1F6; border-radius: 6px; padding: 10px 12px; background: #FAFBFD; }
+.es-name { font-weight: 600; }
+.es-role { color: #6B7A99; font-size: 12px; margin: 2px 0 6px; }
+.es-metrics { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: #6B7A99; }
+.es-metric b { color: #1F2A44; }
 .card-title { font-size: 14px; font-weight: 600; color: var(--el-text-color-primary); }
 .mono { font-family: monospace; font-size: 12px; }
 .error-text { color: var(--el-color-danger); }

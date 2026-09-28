@@ -1,13 +1,14 @@
 <template>
   <div class="workspace">
     <!-- ① 平台结论：跨引擎的，Direct Finding 与证据增强 -->
-    <section class="block">
-      <div class="block-head">
-        <span class="block-title">平台结论</span>
-        <span class="block-sub">
-          {{ findings.length }} 条 —— 由具备完整语义的观察直接形成，或经跨引擎证据增强
-        </span>
-      </div>
+    <el-card shadow="never" class="block">
+      <template #header>
+        <div class="block-head">
+          <span class="block-title">平台结论</span>
+          <span class="block-count">{{ findings.length }}</span>
+          <span class="block-sub">由具备完整语义的观察直接形成，或经跨引擎证据增强</span>
+        </div>
+      </template>
       <el-table v-if="findings.length" :data="findings" size="small" stripe>
         <el-table-column label="结论" min-width="300">
           <template #default="{ row }">
@@ -29,19 +30,21 @@
         <template #empty><EmptyBox description="无平台结论" /></template>
       </el-table>
       <EmptyBox v-else description="本次未形成平台结论" :image-size="60" />
-    </section>
+    </el-card>
 
     <!-- ② 未核实线索 -->
-    <section class="block">
+    <el-card shadow="never" class="block">
       <UnverifiedLeadsPanel :task-id="taskId" />
-    </section>
+    </el-card>
 
     <!-- ③ 引擎原始结果：按各自输出特点分区 -->
-    <section class="block">
-      <div class="block-head">
-        <span class="block-title">引擎原始结果</span>
-        <span class="block-sub">按各引擎自己的输出形态展示</span>
-      </div>
+    <el-card shadow="never" class="block">
+      <template #header>
+        <div class="block-head">
+          <span class="block-title">引擎原始结果</span>
+          <span class="block-sub">按各引擎自己的输出形态展示</span>
+        </div>
+      </template>
       <el-tabs v-model="activeEngine" class="engine-tabs">
         <el-tab-pane v-for="e in engines" :key="e.type" :name="e.type" :disabled="!e.enabled">
           <template #label>
@@ -59,10 +62,10 @@
       <AndroguardPanel v-else-if="activeEngine === 'androguard'" :task-id="taskId"
                        :execution-summary="androguardSummary" />
       <MobSFPanel v-else-if="activeEngine === 'mobsf'" :task-id="taskId" />
-    </section>
+    </el-card>
 
     <!-- 原始事件：降为下钻视图，不再是并列的一等页面 -->
-    <section class="block">
+    <el-card shadow="never" class="block">
       <el-collapse v-model="rawOpen">
         <el-collapse-item name="raw">
           <template #title>
@@ -99,7 +102,7 @@
           </el-table>
         </el-collapse-item>
       </el-collapse>
-    </section>
+    </el-card>
   </div>
 </template>
 
@@ -152,7 +155,7 @@ function eventRowClass({ row }: { row: any }): string {
 const engineCounts = computed(() => {
   const counts = new Map<string, number>()
   for (const item of props.engineQueue || []) {
-    counts.set(item.engine_type, (item.result_summary?.event_count ?? counts.get(item.engine_type)) || 0)
+    counts.set(item.engine_type, item.event_count ?? 0)
   }
   return counts
 })
@@ -232,9 +235,13 @@ watch(() => props.focus, async (focus) => {
 
 <style scoped>
 .workspace { font-size: 13px; }
-.block { margin-bottom: 22px; }
+.block { margin-bottom: 14px; }
 .block-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-.block-title { font-weight: 600; font-size: 14px; }
+.block-title { font-weight: 600; font-size: 15px; }
+.block-count {
+  display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 10px;
+  background: #EEF1F6; color: #2B5AED; font-size: 12px; text-align: center; font-weight: 600;
+}
 .block-sub { color: #6B7A99; font-size: 12px; }
 .finding-code { font-weight: 600; }
 .finding-title { color: #6B7A99; font-size: 12px; }

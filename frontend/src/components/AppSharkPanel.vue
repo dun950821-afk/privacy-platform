@@ -1,31 +1,40 @@
 <template>
   <div class="engine-panel" v-loading="loading">
-    <!-- 数据流：结论级，默认逐条展开 -->
+    <!-- 数据流：结论级。按「类目→流向 + 规则」合并——128 条里大半是同一条规则的重复，
+         逐条平铺会把关键信息（哪类数据流向哪里、多少处）埋掉 -->
     <div class="section-head">
       <span class="section-title">数据流</span>
       <span class="section-sub">
-        source→sink 路径，{{ flows.length }} 条 —— 每条本身就是一个完整结论
+        source→sink 路径 {{ flows.length }} 条，归为 {{ flowGroups.length }} 类 —— 每条都是完整结论
       </span>
     </div>
-    <el-table v-if="flows.length" :data="flows" size="small" stripe>
-      <el-table-column label="类目 → 流向" min-width="220">
+    <el-table v-if="flowGroups.length" :data="flowGroups" size="small" row-key="key">
+      <el-table-column type="expand">
+        <template #default="{ row }">
+          <div class="hit-list">
+            <div v-for="(hit, i) in row.items" :key="i" class="hit-row">
+              <span class="mono dim">{{ compact(hit.payload?.caller) || hit.subject }}</span>
+              <el-button link type="primary" size="small" @click="openCode(hit)"
+                         :disabled="!hit.payload?.url">查看代码</el-button>
+            </div>
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column label="类目 → 流向" min-width="230">
         <template #default="{ row }">
           <span class="mono">{{ row.data_category || '—' }}</span>
           <span class="arrow">→</span>
           <span class="mono">{{ row.sink_type || '—' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="规则" width="200">
-        <template #default="{ row }"><span class="mono">{{ row.provider_rule_id }}</span></template>
+      <el-table-column label="规则" width="210">
+        <template #default="{ row }"><span class="mono">{{ row.rule || '—' }}</span></template>
       </el-table-column>
-      <el-table-column label="污点源方法" min-width="240" show-overflow-tooltip>
-        <template #default="{ row }"><span class="mono dim">{{ compact(row.payload?.caller) }}</span></template>
+      <el-table-column label="命中" width="90" align="center">
+        <template #default="{ row }"><b>{{ row.items.length }}</b></template>
       </el-table-column>
-      <el-table-column label="操作" width="110" align="center">
-        <template #default="{ row }">
-          <el-button link type="primary" size="small" @click="openCode(row)"
-                     :disabled="!row.payload?.url">查看代码</el-button>
-        </template>
+      <el-table-column label="涉及方法" width="100" align="center">
+        <template #default="{ row }">{{ row.methods }}</template>
       </el-table-column>
       <template #empty><EmptyBox description="未检出数据流" /></template>
     </el-table>
@@ -104,20 +113,28 @@ const flows = computed(() => byType('dataflow.privacy'))
 const apiHits = computed(() => byType('security.sensitive_api'))
 const permissions = computed(() => byType('fact.permission'))
 
+/** 数据流按「类目+流向+规则」合并，并数出涉及多少个不同的调用方法 */
+const flowGroups = computed(() => groupBy(flows.value))
+
 /** 敏感 API 调用按规则+类目合并：988 条平铺就是噪音 */
-const apiGroups = computed(() => {
+const apiGroups = computed(() => groupBy(apiHits.value))
+
+/** 同一类结论往往命中几十上百次，合并后按命中数排——多的地方才值得先看 */
+function groupBy(items: any[]) {
   const groups = new Map<string, any>()
-  for (const hit of apiHits.value) {
-    const rule = hit.provider_rule_id || hit.payload?.rule || '(未登记规则)'
-    const key = `${rule}|${hit.data_category || ''}`
+  for (const hit of items) {
+    const rule = hit.provider_rule_id || hit.payload?.rule || ''
+    const key = `${hit.data_category || ''}|${hit.sink_type || ''}|${rule}`
     if (!groups.has(key)) {
       groups.set(key, { key, rule, data_category: hit.data_category,
-                        level: hit.provider_level, items: [] })
+                        sink_type: hit.sink_type, level: hit.provider_level, items: [] })
     }
     groups.get(key).items.push(hit)
   }
-  return [...groups.values()].sort((a, b) => b.items.length - a.items.length)
-})
+  return [...groups.values()]
+    .map(g => ({ ...g, methods: new Set(g.items.map((i: any) => i.payload?.caller).filter(Boolean)).size }))
+    .sort((a, b) => b.items.length - a.items.length)
+}
 
 function compact(signature?: string) {
   if (!signature) return ''

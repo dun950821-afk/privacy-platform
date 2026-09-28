@@ -3,22 +3,24 @@
     <EmptyBox v-if="!hasAny" description="本任务未启用 MobSF，或该引擎未产出结果" />
 
     <template v-else>
-      <!-- 端点：MobSF 的主体。按来源分组并去重——同一域名的多条 URL 归一处 -->
+      <!-- 端点：MobSF 的主体。按**域名**分组——它自带的 path 是内部产物路径
+           （aptool_out/lib/.../libBaiduMapSDK.so），分组后看不出「这个应用在和谁通信」，
+           而且同一来源能塞进 40 条混杂字符串 -->
       <div class="section-head">
         <span class="section-title">端点</span>
         <span class="section-sub">
-          {{ endpointCount }} 条 URL，按来源归为 {{ endpointGroups.length }} 组
+          去重后 {{ endpointCount }} 条，归为 {{ domainGroups.length }} 个域名
         </span>
       </div>
-      <div v-if="endpointGroups.length" class="group-list">
-        <div v-for="group in endpointGroups" :key="group.path" class="group">
-          <div class="group-head" @click="toggle(group.path)">
-            <el-icon><component :is="expanded.has(group.path) ? 'ArrowDown' : 'ArrowRight'" /></el-icon>
-            <span class="group-name">{{ group.path }}</span>
-            <span class="dim">（{{ group.urls.length }}）</span>
+      <div v-if="domainGroups.length" class="group-list">
+        <div v-for="group in domainGroups" :key="group.host" class="group">
+          <div class="group-head" @click="toggle(group.host)">
+            <el-icon><component :is="expanded.has(group.host) ? ArrowDown : ArrowRight" /></el-icon>
+            <span class="group-name mono">{{ group.host }}</span>
+            <span class="dim">{{ group.urls.length }} 条</span>
           </div>
-          <div v-show="expanded.has(group.path)" class="url-list">
-            <div v-for="url in group.urls" :key="url" class="url-row mono">{{ url }}</div>
+          <div v-show="expanded.has(group.host)" class="url-list">
+            <div v-for="u in group.urls" :key="u" class="url-row mono">{{ u }}</div>
           </div>
         </div>
       </div>
@@ -68,6 +70,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { ArrowDown, ArrowRight } from '@element-plus/icons-vue'
 import EmptyBox from '@/components/EmptyBox.vue'
 import { taskApi } from '@/api/tasks'
 
@@ -85,34 +88,49 @@ const endpoints = computed(() => byType('security.endpoint'))
 const hasAny = computed(() => observations.value.length > 0)
 
 /**
- * MobSF 的端点 payload 与其他引擎不同：`url` 是对象套数组
- * `{path: "Android String Resource", urls: [...]}`，不是字符串。
- * 这里按 path 分组并把 URL 去重——同一来源的几十条 URL 平铺没有意义。
+ * 端点按域名分组。
+ *
+ * MobSF 的 payload 形状与其他引擎不同：`url` 是对象套数组
+ * `{path: "Android String Resource", urls: [...]}`。按它给的 path 分组没有信息量
+ * （那是内部产物路径），而按域名分组才回答「这个应用在和谁通信」。
+ * 顺带把明显不是端点的抽取噪音（`Data:MergeLines...` 这类无协议头字符串）单列一组。
  */
-const endpointGroups = computed(() => {
-  const groups = new Map<string, Set<string>>()
+const NOT_URL_HOST = '非 URL 字符串（抽取噪音）'
+
+function hostOf(raw: string): string {
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw)
+  if (!withScheme) return NOT_URL_HOST
+  const rest = raw.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+  const host = rest.split(/[/?#]/)[0].split('@').pop() || ''
+  return host.replace(/:[0-9]+$/, '') || NOT_URL_HOST
+}
+
+const domainGroups = computed(() => {
+  const urls = new Set<string>()
   for (const o of endpoints.value) {
     const payload = o.payload || {}
     const urlField = payload.url
     if (urlField && typeof urlField === 'object') {
-      const path = urlField.path || '未标注来源'
-      if (!groups.has(path)) groups.set(path, new Set())
-      for (const u of urlField.urls || []) groups.get(path)!.add(u)
+      for (const u of urlField.urls || []) urls.add(u)
     } else if (typeof urlField === 'string') {
-      if (!groups.has('未标注来源')) groups.set('未标注来源', new Set())
-      groups.get('未标注来源')!.add(urlField)
+      urls.add(urlField)
     } else if (o.subject) {
-      if (!groups.has('未标注来源')) groups.set('未标注来源', new Set())
-      groups.get('未标注来源')!.add(o.subject)
+      urls.add(o.subject)
     }
   }
+  const groups = new Map<string, Set<string>>()
+  for (const u of urls) {
+    const host = hostOf(u)
+    if (!groups.has(host)) groups.set(host, new Set())
+    groups.get(host)!.add(u)
+  }
   return [...groups.entries()]
-    .map(([path, urls]) => ({ path, urls: [...urls].sort() }))
+    .map(([host, list]) => ({ host, urls: [...list].sort() }))
     .sort((a, b) => b.urls.length - a.urls.length)
 })
 
 const endpointCount = computed(() =>
-  endpointGroups.value.reduce((sum, g) => sum + g.urls.length, 0))
+  domainGroups.value.reduce((sum, g) => sum + g.urls.length, 0))
 
 function toggle(path: string) {
   const next = new Set(expanded.value)
@@ -127,7 +145,7 @@ async function load() {
     const res = await taskApi.observations(props.taskId, { engine_type: 'mobsf', page_size: 5000 })
     observations.value = res.data?.items || []
     // 默认展开最大的那组，否则一片折叠看不出有没有数据
-    const first = endpointGroups.value[0]?.path
+    const first = domainGroups.value[0]?.host
     if (first) expanded.value = new Set([first])
   } finally {
     loading.value = false

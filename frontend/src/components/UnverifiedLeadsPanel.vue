@@ -11,23 +11,29 @@
     <el-alert v-if="leads.length" type="info" :closable="false" show-icon class="mb12"
       title="这些是线索不是结论：引用前需下沉到代码核实（工作台可查看代码）" />
 
-    <el-table v-if="leads.length" :data="leads" size="small" stripe>
+    <el-table v-if="groups.length" :data="groups" size="small" row-key="key">
+      <el-table-column type="expand">
+        <template #default="{ row }">
+          <div class="hit-list">
+            <div v-for="(hit, i) in row.items" :key="i" class="hit-row">
+              <span class="mono dim">{{ compact(hit.payload?.caller) || hit.subject || '—' }}</span>
+              <el-button link type="primary" size="small" @click="openCode(hit)"
+                         :disabled="!hit.payload?.url">查看代码</el-button>
+            </div>
+          </div>
+        </template>
+      </el-table-column>
       <el-table-column label="引擎判定" width="260">
-        <template #default="{ row }"><span class="mono">{{ row.provider_rule_id }}</span></template>
+        <template #default="{ row }"><span class="mono">{{ row.rule }}</span></template>
       </el-table-column>
       <el-table-column label="风险类型" width="150">
         <template #default="{ row }">{{ riskLabel(row) }}</template>
       </el-table-column>
-      <el-table-column label="位置" min-width="280" show-overflow-tooltip>
-        <template #default="{ row }">
-          <span class="mono dim">{{ compact(row.payload?.caller) || row.subject || '—' }}</span>
-        </template>
+      <el-table-column label="命中" width="90" align="center">
+        <template #default="{ row }"><b>{{ row.items.length }}</b></template>
       </el-table-column>
-      <el-table-column label="操作" width="110" align="center">
-        <template #default="{ row }">
-          <el-button link type="primary" size="small" @click="openCode(row)"
-                     :disabled="!row.payload?.url">查看代码</el-button>
-        </template>
+      <el-table-column label="涉及方法" width="100" align="center">
+        <template #default="{ row }">{{ row.methods }}</template>
       </el-table-column>
       <template #empty><EmptyBox description="无未核实线索" /></template>
     </el-table>
@@ -59,8 +65,23 @@ const codeObservationId = ref<number | null>(null)
 const codeTitle = ref('引擎报告')
 
 function riskLabel(row: any) {
-  return SINK_LABELS[row.sink_type] || row.provider_rule_id || '—'
+  return SINK_LABELS[row.sink_type] || row.rule || '—'
 }
+
+/** 同一规则可能命中几十上百次（实测 PendingIntentMutable 65 处），
+    平铺是一堵重复墙；按「规则+风险类型」合并，展开再看具体位置 */
+const groups = computed(() => {
+  const map = new Map<string, any>()
+  for (const hit of leads.value) {
+    const rule = hit.provider_rule_id || hit.payload?.rule || '(未登记规则)'
+    const key = `${rule}|${hit.sink_type || ''}`
+    if (!map.has(key)) map.set(key, { key, rule, sink_type: hit.sink_type, items: [] })
+    map.get(key).items.push(hit)
+  }
+  return [...map.values()]
+    .map(g => ({ ...g, methods: new Set(g.items.map((i: any) => i.payload?.caller).filter(Boolean)).size }))
+    .sort((a, b) => b.items.length - a.items.length)
+})
 
 function compact(signature?: string) {
   if (!signature) return ''
@@ -101,4 +122,8 @@ watch(() => props.taskId, load)
 .mb12 { margin-bottom: 12px; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .dim { color: #6B7A99; }
+.hit-list { padding: 4px 12px; }
+.hit-row { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+           padding: 3px 0; border-bottom: 1px dashed #EEF1F6; }
+.hit-row:last-child { border-bottom: none; }
 </style>
