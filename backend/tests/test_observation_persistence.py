@@ -83,8 +83,8 @@ def test_semantic_fields_persist_to_db(db, execution):
     assert row.entity_keys == {"data_category": "device_information"}
 
 
-def test_security_rule_without_category_still_persists_semantics(db, execution):
-    """无数据类目的安全规则同样不得丢语义：它靠 result_semantics 成结论。"""
+def test_rule_without_category_still_persists_semantics(db, execution):
+    """无数据类目的规则同样不得丢语义：类目为 None 是合法取值，不是缺失。"""
     flow = next(o for o in _baseline()
                 if (o.get("payload") or {}).get("rule") == "unZipSlip")
     normalized = _normalize(flow)
@@ -97,8 +97,10 @@ def test_security_rule_without_category_still_persists_semantics(db, execution):
 
     assert row.data_category is None          # 合法取值，不是缺失
     assert row.sink_type == "file"
-    assert row.result_semantics == "direct_finding"
     assert row.provider_rule_id == "unZipSlip"
+    # unZipSlip 论断的是「存在路径穿越这个漏洞」，而污点分析只证明了「存在数据流」，
+    # 故只作证据（见 docs/appshark-rule-capability.md 能力边界 2）
+    assert row.result_semantics == "supporting_evidence"
 
 
 def test_worker_uses_the_shared_projection():

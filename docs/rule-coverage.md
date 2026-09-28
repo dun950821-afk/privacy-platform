@@ -52,12 +52,25 @@ commit `487fa2175c4a`）。
 **真实 APK 字节码**，确认所声称的问题是否真实存在。「规则触发过」不构成已验证——
 `ContentProviderPathTraversal` 的命中经核实为误报，正是这条原则的反例。
 
-| 风险 | AppShark Rule | 真实命中 | 核实取样 | 核实结论 | 状态 |
-|---|---|---|---|---|---|
-| 路径穿越（file） | `ContentProviderPathTraversal` | 11(3) | 1/1 | **误报**：Uri→File 经 `FileProvider$a` 接口完成，其唯一实现 `FileProvider$b.a(Uri)` 会 `getCanonicalFile()` 并做包含校验（`startsWith(root)`，否则抛 `SecurityException("Resolved path jumped beyond configured root")`），`../` 会被拒绝。规则看不穿接口调用，只见到 Uri 流入 `open` | 待验证 |
-| Intent 重定向（ipc） | `IntentRedirectionBabyVersion` | 11(6) | 1/2 | 真阳性：`getIntent().getExtras().getParcelable("resolution")` 直接 `startActivityForResult`，无校验 | 已验证 |
-| PendingIntent 可变（ipc） | `PendingIntentMutable` | 11(192)、12(9) | 1/44 | 真阳性：`PendingIntent.getBroadcast(ctx, 0, intent, 0)`，flags=0 未带 `FLAG_IMMUTABLE`，且交给了 `SmsManager.sendTextMessage` | 已验证 |
-| 解压路径穿越（file） | `unZipSlip` | 11(15)、12(9) | 2/5 | 真阳性 + 1 处误报：`ZipUtil.unzip` 直接以 `destDir + separator + entry.getName()` 作输出路径，无规范化 → 真阳性；`WXFileUtils.extractSo` 只取条目名最后一段 → 误报 | 已验证 |
+**这四条规则已于 2026-09-28 降为 `supporting_evidence`**：它们的论断是「存在某个漏洞」，
+而污点分析只证明了「外部输入流到了 sink」（见 `appshark-rule-capability.md` 能力边界 2、
+`docs/rule-coverage.md` 上文的说明）。降级依据是**论断类型**，不是「来源是官方」——
+同为官方规则的 `IMEI_SendBroadcast` 与 `serial_Log` 声称的只是「存在 source→sink 路径」，
+命中即论断，仍是 `direct_finding`。
+
+| 风险 | AppShark Rule | 真实命中 | 核实取样 | 核实结论 | Finding | 状态 |
+|---|---|---|---|---|---|---|
+| 路径穿越（file） | `ContentProviderPathTraversal` | 11(3) | 1/1 | **误报**：Uri→File 经 `FileProvider$a` 接口完成，其唯一实现 `FileProvider$b.a(Uri)` 会 `getCanonicalFile()` 并做包含校验（`startsWith(root)`，否则抛 `SecurityException("Resolved path jumped beyond configured root")`），`../` 会被拒绝。规则看不穿接口调用，只见到 Uri 流入 `open` | —（只作证据） | 待验证 |
+| Intent 重定向（ipc） | `IntentRedirectionBabyVersion` | 11(6) | 1/2 | 真阳性：`getIntent().getExtras().getParcelable("resolution")` 直接 `startActivityForResult`，无校验 | —（只作证据） | 已验证 |
+| PendingIntent 可变（ipc） | `PendingIntentMutable` | 11(192)、12(9) | 1/44 | 真阳性：`PendingIntent.getBroadcast(ctx, 0, intent, 0)`，flags=0 未带 `FLAG_IMMUTABLE`，且交给了 `SmsManager.sendTextMessage` | —（只作证据） | 已验证 |
+| 解压路径穿越（file） | `unZipSlip` | 11(15)、12(9) | 2/5 | 真阳性 + 1 处误报：`ZipUtil.unzip` 直接以 `destDir + separator + entry.getName()` 作输出路径，无规范化 → 真阳性；`WXFileUtils.extractSo` 只取条目名最后一段 → 误报 | —（只作证据） | 已验证 |
+
+> **降级的代价，必须明说**：这四类弱点**不再产出任何结论**——v2 DSL 的 `action: create`
+> 尚未实现，`supporting_evidence` 目前没有规则能把它提升成结论。这是刻意的取舍：宁可
+> 不出结论，也不要出一个把误报当真、把真阳性说得比证据更强（`SECURITY_UNZIPSLIP` 看上去
+> 像"确认存在解压路径穿越"，而引擎只证明了"存在数据流"）的结论。
+> 恢复它们的可见性需要先实现组合推导规则（设计 §7.2），届时可要求「引擎判定 + 人工核实」
+> 两个条件同时满足才成结论。
 
 **核实取样**列记录的是「命中的多个调用点中实际核实了几个」。未核实的调用点不得当作
 已核实——把 2/5 说成「该规则已验证」而不写取样覆盖，就是本文件开头禁止的那种冒充。

@@ -2,6 +2,12 @@
 
 **日期**：2026-09-28 　**计划**：`docs/superpowers/plans/2026-09-28-finding-evidence-join.md` Task 9
 
+> **阅读须知**：本文件是**当天那一次运行**的记录，不被后续改动回填。其中最直接的一处
+> 后续变化是：`SECURITY_UNZIPSLIP` / `SECURITY_PENDINGINTENTMUTABLE` 等官方安全规则
+> 结论已在同日降为 `supporting_evidence`（依据见 `appshark-rule-capability.md`
+> 能力边界 2），因此当时跑出的 `SECURITY_*` 结论现在不会再出现。文中数据保持原样，
+> 以便"结论为什么变"这件事本身可追溯。
+
 样本口径（与 `rule-coverage.md` 一致）：`11` 门户测试 3.4.24、`12` 营口银行 4.5.1、
 `13` 营行企业银行 1.4.2、`8` 测试 v3.3.8（360 加固）。A/B/C 三个样本均以
 **AppShark + Androguard 双引擎**运行，便于横向比较与验证跨引擎增强。

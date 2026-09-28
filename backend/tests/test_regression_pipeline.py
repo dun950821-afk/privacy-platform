@@ -42,9 +42,13 @@ RENAMED = {"CameraMic_APICall": ["Camera_APICall", "Media_APICall"]}
 EXPECTED_DIRECT_FINDINGS = {
     "PRIVACY_DEVICE_INFORMATION_FILE",
     "PRIVACY_DEVICE_INFORMATION_LOG",
-    "SECURITY_UNZIPSLIP",
-    "SECURITY_PENDINGINTENTMUTABLE",
 }
+
+# 基线里也含 unZipSlip 与 PendingIntentMutable 的观察，但它们的论断是「存在某个漏洞」，
+# 污点分析只证明了「存在数据流」，因此降为 supporting_evidence、不再产出结论
+# （见 docs/appshark-rule-capability.md 能力边界 2）。这条断言防止它们悄悄回来。
+DEMOTED_RULES = {"unZipSlip", "PendingIntentMutable", "ContentProviderPathTraversal",
+                 "IntentRedirectionBabyVersion"}
 
 
 @pytest.fixture(scope="module")
@@ -147,6 +151,11 @@ def test_direct_findings_are_produced_without_any_correlator(db, execution):
         assert finding.rule_snapshot["source"] == "direct_finding"
         assert finding.observation_count >= 1
     assert expected_observation_count == 139
+
+    # 降级的规则不得借别的路径混进结论：基线里它们的观察确实存在，但只作证据
+    produced_rules = {f.rule_snapshot.get("provider_rule_id") for f in findings}
+    assert not (produced_rules & DEMOTED_RULES), \
+        "论断为「存在漏洞」的规则不得直接成结论: %s" % (produced_rules & DEMOTED_RULES)
 
 
 def test_direct_finding_does_not_require_other_engines(db, execution):

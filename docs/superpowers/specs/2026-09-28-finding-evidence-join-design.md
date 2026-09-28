@@ -200,7 +200,16 @@ if level == "L3": create_finding()      # 错误：L3 是 Provider 语义
 result_semantics ∈ { fact, supporting_evidence, direct_finding }
 ```
 
-反例佐证：`unZipSlip` 没有 data_category，但确实是 `direct_finding`。这证明「是否成 Finding」不能由类目或 level 决定。
+反例佐证：`unZipSlip` 没有 data_category。这证明「是否成 Finding」不能由类目或 level 决定——
+它必须由平台按规则本身的论断显式标注。
+
+> **2026-09-28 回填**：`unZipSlip` 后来被降为 `supporting_evidence`（连同
+> `ContentProviderPathTraversal` / `IntentRedirectionBabyVersion` / `PendingIntentMutable`），
+> 理由是它的论断是「存在某个漏洞」，而污点分析只证明了「外部输入流到了 sink」——
+> 见 `docs/appshark-rule-capability.md` 能力边界 2。本节的原则不受影响，反而更清楚：
+> 分类**既不**由类目决定，**也不**由来源（是不是官方规则）决定，而是由论断类型决定。
+> 同为官方规则的 `IMEI_SendBroadcast` / `serial_Log` 论断是「存在 source→sink 路径」，
+> 命中即论断，仍是 `direct_finding`。
 
 ## 4. 观测语义字段
 

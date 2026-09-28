@@ -91,14 +91,19 @@ def test_api_call_rules_are_supporting_evidence():
             assert sem["sink_type"] is None, "%s 无流向" % rid
 
 
-def test_security_rules_may_have_null_category():
-    """安全类规则没有数据类目，None 是合法取值而非缺失。
+def test_vulnerability_claim_rules_are_supporting_evidence_only():
+    """论断是「存在某个漏洞」的规则只做证据，不直接成结论。
 
-    这是「是否成结论不能由类目决定」的证据：unZipSlip 无类目但属 direct_finding。
+    AppShark 看不穿接口/多态调用，校验可能就在被调用方的实现里（实测
+    ContentProviderPathTraversal 的命中是误报，见 docs/appshark-rule-capability.md
+    能力边界 2）。因此命中只说明「外部输入流到了 sink」，不说明弱点存在。
     """
-    unzip = semantics_for("unZipSlip")
-    assert unzip["data_category"] is None
-    assert unzip["result_type"] == RESULT_DIRECT
+    for rid in ("ContentProviderPathTraversal", "IntentRedirectionBabyVersion",
+                "PendingIntentMutable", "unZipSlip"):
+        sem = semantics_for(rid)
+        assert sem["result_type"] == RESULT_SUPPORTING, "%s 不得直接成结论" % rid
+        assert sem["data_category"] is None, "%s 不应被强加数据类目" % rid
+        assert sem["sink_type"], "%s 仍应记录流向，否则无从判断它是什么类型的弱点" % rid
 
 
 def test_enrich_sets_shared_join_key():

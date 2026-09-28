@@ -43,14 +43,22 @@ REGISTRY = {
     "DeviceId_NetworkTransfer": dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="device_information", sink_type="network"),
     "Location_NetworkTransfer": dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="location",           sink_type="network"),
 
-    # ---- 官方安全规则：无数据类目，但仍是完整结论 ----
-    "ContentProviderPathTraversal": dict(result_type=RESULT_DIRECT, observation_type="security.other", data_category=None, sink_type="file"),
-    "IntentRedirectionBabyVersion": dict(result_type=RESULT_DIRECT, observation_type="security.other", data_category=None, sink_type="ipc"),
-    "PendingIntentMutable":         dict(result_type=RESULT_DIRECT, observation_type="security.other", data_category=None, sink_type="ipc"),
+    # ---- 官方规则：论断是「存在某个漏洞」→ 只做证据，不直接成结论 ----
+    # 依据是**论断类型**，不是「来源是官方」：这四条声称的是「存在路径穿越 / Intent 重定向 /
+    # 可变 PendingIntent」这类弱点，而污点分析只证明了「外部输入流到了某个 sink」。
+    # AppShark 不进被调用方实现，校验可能就在接口实现里（实测 ContentProviderPathTraversal
+    # 的命中即为误报：校验在 FileProvider$b.a(Uri) 里，见 docs/appshark-rule-capability.md
+    # 能力边界 2）。命中是真阳性还是误报，必须在实现字节码上核实，平台不得直接发布成结论。
+    "ContentProviderPathTraversal": dict(result_type=RESULT_SUPPORTING, observation_type="security.other", data_category=None, sink_type="file"),
+    "IntentRedirectionBabyVersion": dict(result_type=RESULT_SUPPORTING, observation_type="security.other", data_category=None, sink_type="ipc"),
+    "PendingIntentMutable":         dict(result_type=RESULT_SUPPORTING, observation_type="security.other", data_category=None, sink_type="ipc"),
+    "unZipSlip":                    dict(result_type=RESULT_SUPPORTING, observation_type="security.other", data_category=None, sink_type="file"),
+
+    # ---- 官方规则：论断是「存在 source→sink 路径」→ 命中即论断，仍直接成结论 ----
+    # 与上面的区别在于：一条数据流路径存在与否，命中本身就是证据，无需再看实现内部。
     "IMEI_SendBroadcast":           dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="device_information", sink_type="ipc"),
     "serial_Log":                   dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="device_information", sink_type="log"),
     "MAC":                          dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category="device_information", sink_type=None),
-    "unZipSlip":                    dict(result_type=RESULT_DIRECT, observation_type="security.other", data_category=None, sink_type="file"),
 }
 
 
