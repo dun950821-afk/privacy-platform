@@ -77,8 +77,7 @@
       <el-tabs v-model="activeTab">
         <!-- 检测结果：结论在前，原始结果按引擎各自的特点分区 -->
         <el-tab-pane label="检测结果" name="workspace">
-          <TaskWorkspace :task-id="taskId" :engine-queue="engineQueue.items || []"
-                          :focus="workspaceFocus" />
+          <ComplianceProfile :task-id="taskId" />
         </el-tab-pane>
 
         <!-- ① 检测阶段 -->
@@ -494,7 +493,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import EmptyBox from '@/components/EmptyBox.vue'
 import AppSharkPanel from '@/components/AppSharkPanel.vue'
-import TaskWorkspace from '@/components/TaskWorkspace.vue'
+import ComplianceProfile from '@/components/ComplianceProfile.vue'
 import api from '@/api'
 import { taskApi } from '@/api/tasks'
 import { reportApi } from '@/api/reports'

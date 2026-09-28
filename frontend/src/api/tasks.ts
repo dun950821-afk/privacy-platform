@@ -14,6 +14,8 @@ export const taskApi = {
   findings: (id: number) => api.get(`/tasks/${id}/findings`),
   platformFindings: (id: number) => api.get(`/tasks/${id}/platform-findings`),
   observations: (id: number, params?: any) => api.get(`/tasks/${id}/observations`, { params }),
+  // 合规画像：各引擎结果按「收集主体 / 权限」归并后的统一视图
+  complianceProfile: (id: number) => api.get(`/tasks/${id}/compliance-profile`),
   // 引擎为单条命中生成的报告（AppShark 的逐条 HTML）——后端解析成结构化代码后返回，
   // 不把引擎生成的 HTML 交给浏览器渲染（内容来自被检 APK，属不可信输入）
   engineReport: (id: number, observationId: number) =>
