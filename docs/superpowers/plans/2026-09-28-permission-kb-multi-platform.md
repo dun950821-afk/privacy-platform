@@ -614,6 +614,18 @@ git commit -m "feat(kb): Android 权限清单解析器"
 ## ohos.permission.NOT_A_REAL_EXAMPLE_WITHOUT_FIELDS
 
 这条没有结构化字段，应被解析器跳过而不是编造级别。
+
+## ohos.permission.NO_LEVEL_OF_ITS_OWN
+
+这条自己没有权限级别字段。
+
+## 说明
+
+**权限级别**：normal
+
+上面那段是非权限小节。它的级别**不该被前一条借走**——正文只被下一个
+`## ohos.permission.X` 收口的话，这段会被吞进前一条，而级别是 search 出来的，
+前一条就会带着这里的级别入库。
 ```
 
 - [ ] **Step 2: 写失败的测试（追加到 `test_permission_sources.py`）**
@@ -640,6 +652,25 @@ def test_harmonyos_parse_skips_section_without_fields():
     """缺结构化字段的小节跳过——宁可少收，不编造级别。"""
     rows = parse_harmonyos_doc(_read("harmonyos_sample.md"))
     assert all(r["permission_name"] != "ohos.permission.NOT_A_REAL_EXAMPLE_WITHOUT_FIELDS" for r in rows)
+
+
+def test_harmonyos_parse_does_not_borrow_neighbour_level():
+    """自己没有「权限级别」的权限小节，不得借用后面那个非权限小节里的级别。
+
+    正文若只被下一个 `## ohos.permission.X` 收口，`## 说明` 那段会被吞进上一段，
+    而级别是 `.search()` 出来的——前一条就会带着邻居的级别入库。
+    这正是「宁可少收，不编造」要挡的事。
+    """
+    rows = parse_harmonyos_doc(_read("harmonyos_sample.md"))
+    assert all(r["permission_name"] != "ohos.permission.NO_LEVEL_OF_ITS_OWN" for r in rows)
+    assert all(r["capability"] is None or "非权限小节" not in r["capability"] for r in rows)
+
+
+def test_harmonyos_parse_leaves_official_reference_empty():
+    """拼出来的 huawei 文档链接是猜的，很可能 404——错误的官方链接比没有更误导。"""
+    rows = parse_harmonyos_doc(_read("harmonyos_sample.md"))
+    assert all(r["official_reference"] is None for r in rows)
+    assert all(r["raw_data"]["platform_source"] == "openharmony_docs" for r in rows)
 ```
 
 - [ ] **Step 3: 跑测试确认失败**
@@ -651,6 +682,7 @@ Expected: FAIL — `ImportError: cannot import name 'parse_harmonyos_doc'`
 
 ```python
 _HARMONY_SECTION = re.compile(r"^##\s+(ohos\.permission\.[A-Za-z0-9_]+)\s*$", re.M)
+_HARMONY_ANY_HEADING = re.compile(r"^(?=##\s)", re.M)
 _HARMONY_LEVEL = re.compile(r"\*\*权限级别\*\*\s*[：:]\s*([A-Za-z_]+)")
 _HARMONY_GRANT = re.compile(r"\*\*授权方式\*\*\s*[：:]\s*(\S+)")
 _HARMONY_SINCE = re.compile(r"\*\*起始版本\*\*\s*[：:]\s*(\S+)")
@@ -665,24 +697,35 @@ def parse_harmonyos_doc(md_text: str) -> list[dict]:
 
     **小节里没有「权限级别」字段的跳过**——那多半是说明性内容而非权限条目，
     给这种小节编一个级别会让整批数据不可信。
+
+    **正文一律被下一个 `##` 标题收口，不管那个标题是不是权限**。只认
+    `## ohos.permission.X` 会让夹在中间的非权限小节被吞进上一段，而级别是
+    `.search()` 在整段里找的——于是一个自己没有「权限级别」的权限小节会**继承邻居的级别**，
+    正是「宁可少收，不编造」要挡的事。
     """
-    parts = _HARMONY_SECTION.split(md_text)
     out = []
-    for i in range(1, len(parts), 2):
-        name, body = parts[i], parts[i + 1]
+    for block in _HARMONY_ANY_HEADING.split(md_text):
+        m = _HARMONY_SECTION.match(block)      # 必须以 ## ohos.permission.X 开头
+        if not m:
+            continue
+        name = m.group(1)
+        body = block[m.end():]
         level_m = _HARMONY_LEVEL.search(body)
         if not level_m:
             continue
         grant_m = _HARMONY_GRANT.search(body)
         since_m = _HARMONY_SINCE.search(body)
-        # 正文取到第一个结构化字段为止，去掉空行
-        desc = body.split("**权限级别**")[0].strip()
+        # 正文取到级别字段**匹配到的位置**为止。不用字面量 split：文档若写成
+        # `**权限级别:**`（冒号在加粗内），字面量找不到，capability 会变成整段。
+        desc = body[:level_m.start()].strip()
         out.append({
             "permission_name": name,
             "permission_type": level_m.group(1).strip(),
             "capability": desc or None,
             "grant_mode": grant_m.group(1).strip() if grant_m else None,
-            "official_reference": f"https://developer.huawei.com/consumer/cn/doc/harmonyos-references/{name.lower()}",
+            # 不拼 URL：拼出来的 huawei 文档链接是猜的，很可能 404，
+            # 而「错误的官方链接」比没有更误导。溯源信息留在 raw_data。见 Ruling I。
+            "official_reference": None,
             "raw_data": {"platform_source": "openharmony_docs",
                          "since_api": since_m.group(1).strip() if since_m else None},
         })
@@ -692,7 +735,7 @@ def parse_harmonyos_doc(md_text: str) -> list[dict]:
 - [ ] **Step 5: 跑测试确认通过**
 
 Run: `cd backend && /tmp/venv/bin/python -m pytest tests/test_permission_sources.py -v -k harmonyos`
-Expected: 3 passed
+Expected: 5 passed（全套应为 292 passed）
 
 - [ ] **Step 6: Commit**
 

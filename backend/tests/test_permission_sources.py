@@ -87,3 +87,22 @@ def test_harmonyos_parse_skips_section_without_fields():
     """缺结构化字段的小节跳过——宁可少收，不编造级别。"""
     rows = parse_harmonyos_doc(_read("harmonyos_sample.md"))
     assert all(r["permission_name"] != "ohos.permission.NOT_A_REAL_EXAMPLE_WITHOUT_FIELDS" for r in rows)
+
+
+def test_harmonyos_parse_does_not_borrow_neighbour_level():
+    """自己没有「权限级别」的权限小节，不得借用后面那个非权限小节里的级别。
+
+    正文若只被下一个 `## ohos.permission.X` 收口，`## 说明` 那段会被吞进上一段，
+    而级别是 `.search()` 出来的——前一条就会带着邻居的级别入库。
+    这正是「宁可少收，不编造」要挡的事。
+    """
+    rows = parse_harmonyos_doc(_read("harmonyos_sample.md"))
+    assert all(r["permission_name"] != "ohos.permission.NO_LEVEL_OF_ITS_OWN" for r in rows)
+    assert all(r["capability"] is None or "非权限小节" not in r["capability"] for r in rows)
+
+
+def test_harmonyos_parse_leaves_official_reference_empty():
+    """拼出来的 huawei 文档链接是猜的，很可能 404——错误的官方链接比没有更误导。"""
+    rows = parse_harmonyos_doc(_read("harmonyos_sample.md"))
+    assert all(r["official_reference"] is None for r in rows)
+    assert all(r["raw_data"]["platform_source"] == "openharmony_docs" for r in rows)
