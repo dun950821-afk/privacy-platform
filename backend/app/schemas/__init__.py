@@ -185,6 +185,30 @@ class ComponentFingerprintCreate(BaseModel):
     version_to: Optional[str] = None
 
 
+class PermissionCreate(BaseModel):
+    """权限知识库新建。permission_name 是对外主键（扫描记录按名字匹配），建后不可改。"""
+    permission_name: str
+    category: Optional[str] = None
+    permission_type: Optional[str] = None
+    risk_level: Optional[str] = None
+    capability: Optional[str] = None
+    grant_mode: Optional[str] = None
+    compliance_focus: Optional[str] = None
+    official_reference: Optional[str] = None
+
+
+class PermissionUpdate(BaseModel):
+    """权限知识库编辑。字段全可选，只改传上来的那些。"""
+    category: Optional[str] = None
+    permission_type: Optional[str] = None
+    risk_level: Optional[str] = None
+    capability: Optional[str] = None
+    grant_mode: Optional[str] = None
+    compliance_focus: Optional[str] = None
+    official_reference: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
 # ============ Agent ============
 
 class AgentRegister(BaseModel):

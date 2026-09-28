@@ -126,6 +126,30 @@ export const HIT_STATUS: Dict = {
   WHITELISTED: { label: '白名单', type: 'success' },
 }
 
+/** 权限风险等级 */
+export const RISK_LEVEL: Dict = {
+  LOW: { label: '低', type: 'info' },
+  MEDIUM: { label: '中', type: 'warning' },
+  HIGH: { label: '高', type: 'danger' },
+  CRITICAL: { label: '严重', type: 'danger' },
+}
+
+/**
+ * 权限类型配色。
+ * 取值本身由后端 `/permissions/meta` 给出（受控词表），这里只负责颜色；
+ * dictItem 对未收录的值会回退成原文 + info，后端加了新类型也不会渲染崩。
+ */
+export const PERMISSION_TYPE: Dict = {
+  '危险权限': { label: '危险权限', type: 'danger' },
+  '危险权限（受限）': { label: '危险权限（受限）', type: 'danger' },
+  '普通权限': { label: '普通权限', type: 'info' },
+  '签名权限': { label: '签名权限', type: 'warning' },
+  '特殊权限': { label: '特殊权限', type: 'warning' },
+  '已弃用权限': { label: '已弃用权限', type: 'info' },
+  '三方声明权限': { label: '三方声明权限', type: 'primary' },
+  '未标注': { label: '未标注', type: 'info' },
+}
+
 /** 场景类型 */
 export const SCENARIO_TYPE: Dict = {
   first_launch: { label: '首次启动(同意前)', type: 'primary' },

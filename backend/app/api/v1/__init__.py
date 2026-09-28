@@ -7,6 +7,7 @@ from app.api.v1.tasks import router as tasks_router
 from app.api.v1.findings import router as findings_router
 from app.api.v1.rules import router as rules_router
 from app.api.v1.sdks import router as sdks_router
+from app.api.v1.permissions import router as permissions_router
 from app.api.v1.evidence import router as evidence_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.system import router as system_router
@@ -22,6 +23,7 @@ api_router.include_router(tasks_router)
 api_router.include_router(findings_router)
 api_router.include_router(rules_router)
 api_router.include_router(sdks_router)
+api_router.include_router(permissions_router)
 api_router.include_router(evidence_router)
 api_router.include_router(reports_router)
 api_router.include_router(system_router)

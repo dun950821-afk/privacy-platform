@@ -38,6 +38,8 @@ const routes = [
         meta: { title: 'SDK知识库', group: '知识库' } },
       { path: 'sdks/:id', name: 'SDKDetail', component: () => import('@/views/SDKDetail.vue'),
         meta: { title: '组件详情', group: '知识库' } },
+      { path: 'permissions', name: 'Permissions', component: () => import('@/views/Permissions.vue'),
+        meta: { title: '权限知识库', group: '知识库' } },
       { path: 'engines', name: 'Engines', component: () => import('@/views/Engines.vue'),
         meta: { title: '检测引擎', group: '知识库' } },
       { path: 'appshark-rules', name: 'AppsharkRules', component: () => import('@/views/AppsharkRules.vue'),

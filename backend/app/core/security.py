@@ -55,6 +55,7 @@ ROLE_PERMISSIONS = {
     "platform_admin": {"*": True},
     "rule_admin": {
         "rule:read", "rule:write", "rule:publish", "sdk:read", "sdk:write",
+        "permission:read", "permission:write",
         "project:read", "app:read", "task:read", "finding:read",
     },
     "project_owner": {
@@ -64,7 +65,7 @@ ROLE_PERMISSIONS = {
         "finding:read", "finding:write", "finding:assign",
         "evidence:read", "evidence:download",
         "report:read", "report:generate",
-        "sdk:read", "rule:read",
+        "sdk:read", "rule:read", "permission:read",
     },
     "tester": {
         "project:read", "app:read", "app:upload",
@@ -72,7 +73,7 @@ ROLE_PERMISSIONS = {
         "finding:read", "finding:write",
         "evidence:read", "evidence:download",
         "report:read", "report:generate",
-        "sdk:read", "rule:read",
+        "sdk:read", "rule:read", "permission:read",
     },
     "developer": {
         "project:read", "app:read",
@@ -80,7 +81,7 @@ ROLE_PERMISSIONS = {
         "finding:read", "finding:remediate",
         "evidence:read",
         "report:read",
-        "sdk:read", "rule:read",
+        "sdk:read", "rule:read", "permission:read",
     },
     "compliance": {
         "project:read", "app:read",
@@ -88,14 +89,14 @@ ROLE_PERMISSIONS = {
         "finding:read",
         "evidence:read", "evidence:download",
         "report:read", "report:generate",
-        "sdk:read", "rule:read",
+        "sdk:read", "rule:read", "permission:read",
     },
     "auditor": {
         "project:read", "app:read",
         "task:read",
         "finding:read",
         "report:read",
-        "sdk:read", "rule:read",
+        "sdk:read", "rule:read", "permission:read",
         "system:audit:read", "engine:read", "engine:health-check",
     },
 }
