@@ -308,6 +308,17 @@ ANDROID_PROTECTION_LEVEL_MAP = {
 # 普通 App 真能申请的 Android 类型。实测 1018 条里只有 143 条落在这里。
 _ANDROID_APPLICABLE = {"危险权限", "危险权限（受限）", "普通权限"}
 
+# 各平台**解析器自己能产出**的 permission_type 取值。
+#
+# 导入时用它判「库里已有的值要不要让机器覆盖」：值在集合里 → 机器能自己算出来，
+# 让它更新（否则 AOSP 的重新分类永远进不来，全库冻结）；不在集合里 → 那是人工判定的、
+# 机器推不出来的知识（如 `已弃用权限`/`危险权限（受限）`/`三方声明权限`），不得覆盖。
+PARSER_PRODUCIBLE_TYPES: dict[str, set[str]] = {
+    "ANDROID": set(ANDROID_PROTECTION_LEVEL_MAP.values()) | {"未标注"},
+    "HARMONYOS": set(PERMISSION_TYPES_BY_PLATFORM["HARMONYOS"]),
+    "IOS": set(PERMISSION_TYPES_BY_PLATFORM["IOS"]),
+}
+
 
 def map_android_protection_level(raw: str | None) -> str:
     """protectionLevel → permission_type。
@@ -1046,6 +1057,26 @@ def test_import_survives_duplicate_name_in_one_batch(db):
         _cleanup(db)
 
 
+def test_import_lets_parser_recoverable_type_update(db):
+    """解析器自己能算出来的取值，机器**应当**能更新它。
+
+    这条与 `test_import_does_not_overwrite_human_permission_type` 是一对，钉住保护的范围：
+    保护只该覆盖「机器推不出来」的值。若写成「只要非空就不覆盖」，解析器从不返回空，
+    首跑之后每行都非空 —— AOSP 的重新分类永远进不来，全库冻结在这个字段上，
+    而 `is_applicable` 正是从它推的。
+    """
+    _cleanup(db)
+    try:
+        import_platform(db, "ANDROID", [_row(P + "u", permission_type="普通权限")])
+        result = import_platform(db, "ANDROID", [_row(P + "u", permission_type="危险权限")])
+        assert result == {"inserted": 0, "updated": 1, "skipped": 0}
+        got = db.execute(text("select permission_type from privacy_kb.permission where permission_name=:n"),
+                         {"n": P + "u"}).scalar()
+        assert got == "危险权限", "机器能算出来的值应当可被更新"
+    finally:
+        _cleanup(db)
+
+
 def test_import_does_not_blank_existing_value_with_none(db):
     """解析结果为 None 的字段不得把库中已有的值抹掉。
 
@@ -1195,12 +1226,17 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
         # 少了这层过滤，首次导入会把它们静默抹成 NULL——而首次导入没有基线可挡。
         incoming = {f: row[f] for f in _UPDATABLE if f in row and row[f] is not None}
 
-        # `permission_type` 另有保护：库里已有的非空值不覆盖。
-        # 原有 103 行里有 28 行的类型是人工判定的，取值是 `已弃用权限` / `危险权限（受限）` /
-        # `三方声明权限` 这类 **AOSP 的 protectionLevel 推不出来**的——机器覆盖会把它们抹成
-        # AOSP 能表达的那几个值，信息不可逆地丢失，还会翻转 `is_applicable`（实测 14 行由
-        # 不可达翻成可达）。人工要改可以到权限知识库页面上改。
-        if existing.permission_type:
+        # `permission_type` 另有保护，但**只保护解析器产不出来的取值**。
+        #
+        # 不能写成「只要非空就不覆盖」：解析器从不返回空，首跑之后每一行都非空，
+        # 于是 AOSP 的重新分类**永远进不来**，全库冻结在这个字段上——而 `is_applicable`
+        # 正是从它推的，错误会是全库级的。
+        #
+        # 判据：值在 PARSER_PRODUCIBLE_TYPES[platform] 里 → 机器算得出来，让它更新；
+        # 不在 → 那是人工判定的知识（`已弃用权限`/`危险权限（受限）`/`三方声明权限`），
+        # 覆盖会把信息不可逆地抹掉并翻转 is_applicable（实测 14 行由不可达翻成可达）。
+        if existing.permission_type \
+                and existing.permission_type not in PARSER_PRODUCIBLE_TYPES[platform]:
             incoming.pop("permission_type", None)
 
         incoming_raw = row.get("raw_data") or {}
@@ -1235,7 +1271,7 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
 - [ ] **Step 4: 跑测试确认通过**
 
 Run: `cd backend && /tmp/venv/bin/python -m pytest tests/test_permission_import.py -v`
-Expected: 8 passed（全套应为 303 passed）
+Expected: 10 passed（全套应为 306 passed）
 
 - [ ] **Step 5: Commit**
 
