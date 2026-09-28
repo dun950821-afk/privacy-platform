@@ -1007,6 +1007,26 @@ def test_import_accepts_rows_with_empty_capability(db):
         _cleanup(db)
 
 
+def test_import_survives_duplicate_name_in_one_batch(db):
+    """同一批里出现同名，不得让整批回滚。
+
+    `autoflush=False` 让循环里的查询看不到本批 pending 的行，第二次 INSERT 会撞
+    `permission_name` 的全局唯一键，把**整批连同审计行**一起回滚——查不到、也不知道
+    发生过。上游鸿蒙解析器按计划不做去重（跨文件去重留给调用方），所以这道守卫
+    必须在导入器里，不能单点依赖调用方。
+    """
+    _cleanup(db)
+    try:
+        rows = [_row(P + "dup", capability="第一次"), _row(P + "dup", capability="第二次")]
+        result = import_platform(db, "ANDROID", rows)
+        assert result == {"inserted": 1, "updated": 0, "skipped": 1}
+        n = db.execute(text("select count(*) from privacy_kb.permission where permission_name=:n"),
+                       {"n": P + "dup"}).scalar()
+        assert n == 1, "同名只该进库一条"
+    finally:
+        _cleanup(db)
+
+
 def test_import_does_not_blank_existing_value_with_none(db):
     """解析结果为 None 的字段不得把库中已有的值抹掉。
 
@@ -1087,6 +1107,7 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
     db.flush()
 
     baseline = _last_import_finished_at(db, platform)
+    seen_names: set[str] = set()
     inserted = updated = skipped = 0
 
     for row in rows:
@@ -1101,7 +1122,17 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
 
         name = (row.get("permission_name") or "").strip()
         if not name:
+            skipped += 1        # 空名也要计数，否则审计数字对不上 len(rows)
             continue
+        if name in seen_names:
+            # 同一批里出现同名：`autoflush=False`（core/database.py）让循环里的查询
+            # 看不到本批 pending 的行，第二次 INSERT 会撞 permission_name 的全局唯一键，
+            # **整批连同审计行一起回滚且不留痕**——查不到、也不知道发生过。
+            # 上游解析器（Android/iOS）各自去重，但鸿蒙那支按计划把跨文件去重留给了
+            # 调用方；与其单点依赖调用方，不如在这里挡住。
+            skipped += 1
+            continue
+        seen_names.add(name)
 
         existing = db.query(KBPermission).filter(KBPermission.permission_name == name).first()
         if existing is None:
@@ -1150,11 +1181,17 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
         existing.raw_data = incoming_raw
         updated += 1
 
+    # **先 flush 落盘，再盖 finished_at。顺序反了是个真 bug**：INSERT 路径的
+    # `updated_at` 是 ORM 的 Python 默认值，在 flush 时才求值，会晚于 finished_at
+    # （实测晚 4644 µs）——于是下一轮把**导入自己写的行**判成「人工改过」而永不再更新，
+    # 正是 `test_import_updates_row_that_import_itself_wrote` 要挡的失效。
+    db.flush()
     batch.status = "SUCCESS"
     batch.statistics = {"platform": platform, "inserted": inserted,
                         "updated": updated, "skipped": skipped}
-    from datetime import datetime, timezone
-    batch.finished_at = datetime.now(timezone.utc)
+    # finished_at 取**数据库时钟**：UPDATE 路径的行由触发器写 `CURRENT_TIMESTAMP`，
+    # 用应用时钟会让基线与被比较的行落在两个时钟上（同机部署偏差极小，但没有理由混用）。
+    batch.finished_at = db.execute(text("select now()")).scalar()
     db.commit()
     return {"inserted": inserted, "updated": updated, "skipped": skipped}
 ```
@@ -1162,7 +1199,7 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
 - [ ] **Step 4: 跑测试确认通过**
 
 Run: `cd backend && /tmp/venv/bin/python -m pytest tests/test_permission_import.py -v`
-Expected: 6 passed
+Expected: 8 passed（全套应为 303 passed）
 
 - [ ] **Step 5: Commit**
 
