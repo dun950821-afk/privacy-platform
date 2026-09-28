@@ -21,298 +21,172 @@
       <el-button :icon="ArrowLeft" @click="router.push('/workspace')">返回</el-button>
     </PageHeader>
 
-    <!-- 进度步骤条 -->
-    <el-card shadow="never" class="mb16">
-      <el-steps :active="stepActive" align-center
-                :process-status="processStatus" :finish-status="finishStatus">
-        <el-step v-for="s in steps" :key="s" :title="s" />
-      </el-steps>
-    </el-card>
+    <!-- 任务元信息：收进折叠区，首屏留给合规画像（它才是这一页的主线） -->
+    <el-collapse v-model="metaOpen" class="meta-collapse">
+      <el-collapse-item name="meta">
+        <template #title>
+          <span class="meta-title">任务信息</span>
+          <span class="meta-summary">
+            {{ task.app?.name || '-' }} {{ task.version?.version_name || '' }} ·
+            {{ dictLabel(DETECTION_TYPE, task.detection_type) }} ·
+            {{ task.completed_at ? fmtDateTime(task.completed_at) + ' 完成' : task.status }}
+          </span>
+        </template>
+      <!-- 进度步骤条 -->
+      <el-card shadow="never" class="mb16">
+        <el-steps :active="stepActive" align-center
+                  :process-status="processStatus" :finish-status="finishStatus">
+          <el-step v-for="s in steps" :key="s" :title="s" />
+        </el-steps>
+      </el-card>
 
-    <!-- 信息行：检测对象 + 任务信息 -->
-    <el-row :gutter="16" class="mb16">
-      <el-col :span="12">
-        <el-card shadow="never" class="info-card">
-          <template #header><span class="card-title">检测对象</span></template>
-          <el-descriptions :column="1" size="small">
-            <el-descriptions-item label="App">{{ task.app?.name || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="包名">
-              <span class="mono">{{ task.app?.package_name || '-' }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="版本">
-              {{ task.version?.version_name || '-' }}（code {{ task.version?.version_code ?? '-' }}）
-            </el-descriptions-item>
-            <el-descriptions-item label="SHA256">
-              <span class="mono">{{ task.version?.sha256 || '-' }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="文件大小">
-              {{ fmtSize(task.version?.file_size) }}
-            </el-descriptions-item>
-          </el-descriptions>
-        </el-card>
-      </el-col>
-      <el-col :span="12">
-        <el-card shadow="never" class="info-card">
-          <template #header><span class="card-title">任务信息</span></template>
-          <el-descriptions :column="2" size="small">
-            <el-descriptions-item label="检测类型">
-              <StatusTag :value="task.detection_type" :map="DETECTION_TYPE" />
-            </el-descriptions-item>
-            <el-descriptions-item label="规则包版本">{{ task.rule_pack_version || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="优先级">{{ task.priority ?? '-' }}</el-descriptions-item>
-            <el-descriptions-item label="创建人">{{ task.created_by_name || task.created_by || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="创建时间">{{ fmtDateTime(task.created_at) }}</el-descriptions-item>
-            <el-descriptions-item label="开始时间">{{ fmtDateTime(task.started_at) }}</el-descriptions-item>
-            <el-descriptions-item label="完成时间">{{ fmtDateTime(task.completed_at) }}</el-descriptions-item>
-          </el-descriptions>
-          <div v-if="task.failed_reason" class="failed-reason">
-            <span class="failed-label">失败原因：</span>{{ task.failed_reason }}
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+      <!-- 信息行：检测对象 + 任务信息 -->
+      <el-row :gutter="16" class="mb16">
+        <el-col :span="12">
+          <el-card shadow="never" class="info-card">
+            <template #header><span class="card-title">检测对象</span></template>
+            <el-descriptions :column="1" size="small">
+              <el-descriptions-item label="App">{{ task.app?.name || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="包名">
+                <span class="mono">{{ task.app?.package_name || '-' }}</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="版本">
+                {{ task.version?.version_name || '-' }}（code {{ task.version?.version_code ?? '-' }}）
+              </el-descriptions-item>
+              <el-descriptions-item label="SHA256">
+                <span class="mono">{{ task.version?.sha256 || '-' }}</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="文件大小">
+                {{ fmtSize(task.version?.file_size) }}
+              </el-descriptions-item>
+            </el-descriptions>
+          </el-card>
+        </el-col>
+        <el-col :span="12">
+          <el-card shadow="never" class="info-card">
+            <template #header><span class="card-title">任务信息</span></template>
+            <el-descriptions :column="2" size="small">
+              <el-descriptions-item label="检测类型">
+                <StatusTag :value="task.detection_type" :map="DETECTION_TYPE" />
+              </el-descriptions-item>
+              <el-descriptions-item label="规则包版本">{{ task.rule_pack_version || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="优先级">{{ task.priority ?? '-' }}</el-descriptions-item>
+              <el-descriptions-item label="创建人">{{ task.created_by_name || task.created_by || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="创建时间">{{ fmtDateTime(task.created_at) }}</el-descriptions-item>
+              <el-descriptions-item label="开始时间">{{ fmtDateTime(task.started_at) }}</el-descriptions-item>
+              <el-descriptions-item label="完成时间">{{ fmtDateTime(task.completed_at) }}</el-descriptions-item>
+            </el-descriptions>
+            <div v-if="task.failed_reason" class="failed-reason">
+              <span class="failed-label">失败原因：</span>{{ task.failed_reason }}
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+
+      </el-collapse-item>
+    </el-collapse>
+
 
     <!-- 数据区 Tabs -->
     <el-card shadow="never">
       <el-tabs v-model="activeTab">
         <!-- 检测结果：结论在前，原始结果按引擎各自的特点分区 -->
-        <el-tab-pane label="检测结果" name="workspace">
+        <el-tab-pane label="合规画像" name="workspace">
           <ComplianceProfile :task-id="taskId" />
         </el-tab-pane>
 
+        <!-- 风险结论：平台结论 + 引擎判定但未核实的线索 -->
+        <el-tab-pane label="风险结论" name="risk">
+          <RiskFindings :task-id="taskId" />
+        </el-tab-pane>
+
+        <!-- 执行信息：检测阶段 / 场景 / 引擎队列 —— 运维排查用，合并成一个 tab -->
+        <el-tab-pane label="执行信息" name="execution">
+          <el-divider content-position="left">检测阶段</el-divider>
+            <el-table :data="subTasks" size="small" stripe>
+              <el-table-column prop="sub_task_code" label="子任务编号" width="180">
+                <template #default="{ row }"><span class="mono">{{ row.sub_task_code }}</span></template>
+              </el-table-column>
+              <el-table-column label="引擎" width="140">
+                <template #default="{ row }">{{ engineNames(row) }}</template>
+              </el-table-column>
+              <el-table-column prop="stage" label="阶段" width="110" />
+              <el-table-column label="状态" width="100">
+                <template #default="{ row }">
+                  <StatusTag :value="row.status" :map="EXEC_STATUS" />
+                </template>
+              </el-table-column>
+              <el-table-column label="开始时间" width="150">
+                <template #default="{ row }">{{ fmtDateTime(row.started_at) }}</template>
+              </el-table-column>
+              <el-table-column label="完成时间" width="150">
+                <template #default="{ row }">{{ fmtDateTime(row.completed_at) }}</template>
+              </el-table-column>
+              <el-table-column label="结果摘要" min-width="140" show-overflow-tooltip>
+                <template #default="{ row }">{{ summaryText(row.result_summary) }}</template>
+              </el-table-column>
+              <el-table-column prop="error_message" label="错误信息" min-width="140"
+                               show-overflow-tooltip>
+                <template #default="{ row }">
+                  <span v-if="row.error_message" class="error-text">{{ row.error_message }}</span>
+                  <span v-else>-</span>
+                </template>
+              </el-table-column>
+              <template #empty><EmptyBox description="暂无检测阶段" /></template>
+            </el-table>
+          <el-divider content-position="left">检测场景</el-divider>
+            <el-table :data="scenarios" size="small" stripe>
+              <el-table-column label="场景类型" width="150">
+                <template #default="{ row }">
+                  {{ dictLabel(SCENARIO_TYPE, row.scenario_type) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="同意状态" width="110">
+                <template #default="{ row }">
+                  <StatusTag :value="row.consent_status" :map="CONSENT_STATUS" />
+                </template>
+              </el-table-column>
+              <el-table-column label="执行状态" width="100">
+                <template #default="{ row }">
+                  <StatusTag :value="row.status" :map="EXEC_STATUS" />
+                </template>
+              </el-table-column>
+              <el-table-column label="设备" width="140">
+                <template #default="{ row }">{{ row.device || row.device_id || '-' }}</template>
+              </el-table-column>
+              <el-table-column label="开始时间" width="150">
+                <template #default="{ row }">{{ fmtDateTime(row.started_at) }}</template>
+              </el-table-column>
+              <el-table-column label="完成时间" width="150">
+                <template #default="{ row }">{{ fmtDateTime(row.completed_at) }}</template>
+              </el-table-column>
+              <el-table-column prop="notes" label="备注" min-width="120" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.notes || '-' }}</template>
+              </el-table-column>
+              <template #empty><EmptyBox description="暂无检测场景" /></template>
+            </el-table>
+          <el-divider content-position="left">引擎队列</el-divider>
+            <el-timeline v-if="engineQueue.items?.length">
+              <el-timeline-item v-for="item in engineQueue.items" :key="item.id" :type="engineStatusType(item.status)" :timestamp="fmtDateTime(item.started_at || item.completed_at)">
+                <strong>{{ item.engine_name }}</strong>
+                <span class="sub-text"> · {{ engineStatusLabel(item.status) }} · {{ item.stage_message || item.stage || '-' }}</span>
+                <el-progress v-if="item.progress != null" :percentage="item.progress" :stroke-width="6" />
+                <div v-if="item.error_message" class="error-text">{{ item.error_message }}</div>
+                <div v-if="item.error_code" class="sub-text">错误码：{{ item.error_code }} · 可重试：{{ item.retryable ? '是' : '否' }}</div>
+                <el-button v-if="canRetryEngine(item)" size="small" type="warning" plain
+                           :loading="retryingId === item.id" @click="handleEngineRetry(item)">重新执行本引擎</el-button>
+              </el-timeline-item>
+            </el-timeline>
+            <EmptyBox v-else description="暂无引擎执行记录" />
+        </el-tab-pane>
+
         <!-- ① 检测阶段 -->
-        <el-tab-pane :label="`检测阶段 (${subTasks.length})`" name="subtasks">
-          <el-table :data="subTasks" size="small" stripe>
-            <el-table-column prop="sub_task_code" label="子任务编号" width="180">
-              <template #default="{ row }"><span class="mono">{{ row.sub_task_code }}</span></template>
-            </el-table-column>
-            <el-table-column label="引擎" width="140">
-              <template #default="{ row }">{{ engineNames(row) }}</template>
-            </el-table-column>
-            <el-table-column prop="stage" label="阶段" width="110" />
-            <el-table-column label="状态" width="100">
-              <template #default="{ row }">
-                <StatusTag :value="row.status" :map="EXEC_STATUS" />
-              </template>
-            </el-table-column>
-            <el-table-column label="开始时间" width="150">
-              <template #default="{ row }">{{ fmtDateTime(row.started_at) }}</template>
-            </el-table-column>
-            <el-table-column label="完成时间" width="150">
-              <template #default="{ row }">{{ fmtDateTime(row.completed_at) }}</template>
-            </el-table-column>
-            <el-table-column label="结果摘要" min-width="140" show-overflow-tooltip>
-              <template #default="{ row }">{{ summaryText(row.result_summary) }}</template>
-            </el-table-column>
-            <el-table-column prop="error_message" label="错误信息" min-width="140"
-                             show-overflow-tooltip>
-              <template #default="{ row }">
-                <span v-if="row.error_message" class="error-text">{{ row.error_message }}</span>
-                <span v-else>-</span>
-              </template>
-            </el-table-column>
-            <template #empty><EmptyBox description="暂无检测阶段" /></template>
-          </el-table>
-        </el-tab-pane>
-
         <!-- ② 检测场景 -->
-        <el-tab-pane :label="`检测场景 (${scenarios.length})`" name="scenarios">
-          <el-table :data="scenarios" size="small" stripe>
-            <el-table-column label="场景类型" width="150">
-              <template #default="{ row }">
-                {{ dictLabel(SCENARIO_TYPE, row.scenario_type) }}
-              </template>
-            </el-table-column>
-            <el-table-column label="同意状态" width="110">
-              <template #default="{ row }">
-                <StatusTag :value="row.consent_status" :map="CONSENT_STATUS" />
-              </template>
-            </el-table-column>
-            <el-table-column label="执行状态" width="100">
-              <template #default="{ row }">
-                <StatusTag :value="row.status" :map="EXEC_STATUS" />
-              </template>
-            </el-table-column>
-            <el-table-column label="设备" width="140">
-              <template #default="{ row }">{{ row.device || row.device_id || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="开始时间" width="150">
-              <template #default="{ row }">{{ fmtDateTime(row.started_at) }}</template>
-            </el-table-column>
-            <el-table-column label="完成时间" width="150">
-              <template #default="{ row }">{{ fmtDateTime(row.completed_at) }}</template>
-            </el-table-column>
-            <el-table-column prop="notes" label="备注" min-width="120" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.notes || '-' }}</template>
-            </el-table-column>
-            <template #empty><EmptyBox description="暂无检测场景" /></template>
-          </el-table>
-        </el-tab-pane>
-
         <!-- ②.5 引擎队列 -->
-        <el-tab-pane :label="`引擎队列 (${engineQueue.items?.length || 0})`" name="engine_queue">
-          <el-timeline v-if="engineQueue.items?.length">
-            <el-timeline-item v-for="item in engineQueue.items" :key="item.id" :type="engineStatusType(item.status)" :timestamp="fmtDateTime(item.started_at || item.completed_at)">
-              <strong>{{ item.engine_name }}</strong>
-              <span class="sub-text"> · {{ engineStatusLabel(item.status) }} · {{ item.stage_message || item.stage || '-' }}</span>
-              <el-progress v-if="item.progress != null" :percentage="item.progress" :stroke-width="6" />
-              <div v-if="item.error_message" class="error-text">{{ item.error_message }}</div>
-              <div v-if="item.error_code" class="sub-text">错误码：{{ item.error_code }} · 可重试：{{ item.retryable ? '是' : '否' }}</div>
-              <el-button v-if="canRetryEngine(item)" size="small" type="warning" plain
-                         :loading="retryingId === item.id" @click="handleEngineRetry(item)">重新执行本引擎</el-button>
-            </el-timeline-item>
-          </el-timeline>
-          <EmptyBox v-else description="暂无引擎执行记录" />
-        </el-tab-pane>
-
         <!-- ③ 事件流 -->
         <!-- ④ SDK识别 -->
-        <el-tab-pane :label="`SDK识别 (${sdkHits.length})`" name="sdks">
-          <el-table :data="sdkHits" size="small" stripe v-loading="loadingSdkHits">
-            <el-table-column label="SDK名称" min-width="180" show-overflow-tooltip>
-              <template #default="{ row }">
-                <el-link type="primary" :underline="false" @click="openSdkDetail(row)">
-                  {{ row.sdk_name }}
-                </el-link>
-              </template>
-            </el-table-column>
-            <el-table-column prop="category" label="分类" width="110">
-              <template #default="{ row }">{{ row.category || '-' }}</template>
-            </el-table-column>
-            <el-table-column prop="vendor" label="厂商" width="120" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.vendor || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="置信度" width="80">
-              <template #default="{ row }">
-                <StatusTag :value="row.confidence_level" :map="SENSITIVITY" />
-              </template>
-            </el-table-column>
-            <el-table-column label="综合得分" width="110">
-              <template #default="{ row }">
-                <div class="score-cell">
-                  <el-progress :percentage="row.total_score" :stroke-width="6"
-                               :color="scoreColor(row.total_score)" :show-text="false" />
-                  <span class="score-num">{{ row.total_score }}</span>
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="evidence_count" label="证据数" width="80" align="center" />
-            <el-table-column label="涉及信息" min-width="170" show-overflow-tooltip>
-              <template #default="{ row }">
-                {{ row.involved_info?.length ? row.involved_info.join('、') : '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column label="包名前缀" min-width="170" show-overflow-tooltip>
-              <template #default="{ row }">
-                <span class="mono">{{ row.package_prefixes?.[0] || row.primary_package || '-' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="敏感权限" width="90" align="center">
-              <template #default="{ row }">
-                <el-tag v-if="row.sensitive_permission" type="danger" size="small">涉及</el-tag>
-                <el-tag v-else type="info" size="small" effect="plain">否</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="状态" width="100">
-              <template #default="{ row }">
-                <StatusTag :value="row.hit_status" :map="HIT_STATUS" />
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="140" fixed="right">
-              <template #default="{ row }">
-                <el-button link type="primary" @click="openSdkDetail(row)">查看证据</el-button>
-                <el-button v-if="row.hit_status !== 'REJECTED'" link type="danger"
-                           @click="reviewHit(row, 'reject')">误报</el-button>
-                <el-button v-else link type="success" @click="reviewHit(row, 'confirm')">恢复</el-button>
-              </template>
-            </el-table-column>
-            <template #empty><EmptyBox description="未识别到SDK" /></template>
-          </el-table>
-        </el-tab-pane>
-
         <!-- ⑤ 未识别包簇 -->
-        <el-tab-pane :label="`未识别包簇 (${clusters.length})`" name="clusters">
-          <el-alert type="info" :closable="false" class="cluster-tip"
-                    title="以下包前缀未命中知识库。可标记为自研代码 / 关联已有SDK / 创建新SDK知识 / 加入白名单 / 标记加固组件，知识库将随扫描持续完善。" />
-          <el-table :data="clusters" size="small" stripe v-loading="loadingClusters">
-            <el-table-column label="包名前缀" min-width="190" show-overflow-tooltip>
-              <template #default="{ row }">
-                <el-link type="primary" :underline="false" class="mono"
-                         @click="openClusterClasses(row)">{{ row.package_prefix }}</el-link>
-              </template>
-            </el-table-column>
-            <el-table-column prop="class_count" label="类数量" width="80" align="center" />
-            <el-table-column label="组件分布" width="140">
-              <template #default="{ row }">{{ typeStatText(row.component_type_stat) }}</template>
-            </el-table-column>
-            <el-table-column label="推测属性" width="130">
-              <template #default="{ row }">
-                <el-tag size="small" effect="plain"
-                        :type="row.guess_attr?.includes('加固') ? 'danger'
-                              : row.guess_attr?.includes('自研') ? 'success' : 'info'">
-                  {{ row.guess_attr }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="状态" width="110">
-              <template #default="{ row }">
-                <StatusTag :value="row.review_status" :map="REVIEW_STATUS" />
-                <div v-if="row.linked_component_name" class="linked-name">
-                  → {{ row.linked_component_name }}
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column label="首次出现" width="150">
-              <template #default="{ row }">{{ fmtDateTime(row.first_seen_at) }}</template>
-            </el-table-column>
-            <el-table-column label="操作" width="110" fixed="right">
-              <template #default="{ row }">
-                <el-dropdown trigger="click" @command="(cmd: string) => handleClusterAction(cmd, row)">
-                  <el-button link type="primary">处理<el-icon><ArrowDown /></el-icon></el-button>
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item command="classes">查看全部类</el-dropdown-item>
-                      <el-dropdown-item command="self_code">标记为自研代码</el-dropdown-item>
-                      <el-dropdown-item command="link">关联已有SDK</el-dropdown-item>
-                      <el-dropdown-item command="create">创建新SDK知识</el-dropdown-item>
-                      <el-dropdown-item command="whitelist">加入白名单</el-dropdown-item>
-                      <el-dropdown-item command="packer">标记为加固组件</el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
-              </template>
-            </el-table-column>
-            <template #empty><EmptyBox description="无未识别包簇" /></template>
-          </el-table>
-        </el-tab-pane>
-
         <!-- ⑥ 问题 -->
-        <el-tab-pane :label="`问题 (${findings.length})`" name="findings">
-          <el-table :data="findings" size="small" stripe class="clickable-table"
-                    @row-click="(row: any) => router.push(`/findings/${row.id}`)">
-            <el-table-column label="严重度" width="90">
-              <template #default="{ row }">
-                <StatusTag :value="row.severity" :map="SEVERITY" />
-              </template>
-            </el-table-column>
-            <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip />
-            <el-table-column prop="data_type" label="数据类型" width="110">
-              <template #default="{ row }">{{ row.data_type || '-' }}</template>
-            </el-table-column>
-            <el-table-column label="状态" width="100">
-              <template #default="{ row }">
-                <StatusTag :value="row.status" :map="FINDING_STATUS" />
-              </template>
-            </el-table-column>
-            <el-table-column label="发现时间" width="150">
-              <template #default="{ row }">{{ fmtDateTime(row.created_at) }}</template>
-            </el-table-column>
-            <template #empty>
-              <EmptyBox :description="task.analysis_coverage === 'DEGRADED' ? '本次分析未生效，不能据此判断' : '未发现问题'" />
-            </template>
-          </el-table>
-        </el-tab-pane>
-
         <!-- ⑤ 证据 -->
         <el-tab-pane :label="`证据 (${evidenceList.length})`" name="evidence">
           <el-table :data="evidenceList" size="small" stripe>
@@ -492,8 +366,8 @@ import { ArrowLeft, RefreshRight, CircleClose, Document, Download, View, ArrowRi
 import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import EmptyBox from '@/components/EmptyBox.vue'
-import AppSharkPanel from '@/components/AppSharkPanel.vue'
 import ComplianceProfile from '@/components/ComplianceProfile.vue'
+import RiskFindings from '@/components/RiskFindings.vue'
 import api from '@/api'
 import { taskApi } from '@/api/tasks'
 import { reportApi } from '@/api/reports'
@@ -515,6 +389,7 @@ const generating = ref(false)
 // 落地即看检测结果：默认停在「检测阶段」时，重构后的内容在第二个 tab 里，
 // 用户第一眼看到的还是旧页面（这正是「看不出变化」的成因）
 const activeTab = ref('workspace')
+const metaOpen = ref<string[]>([])
 
 const task = ref<any>({})
 const subTasks = computed<any[]>(() => task.value.sub_tasks || [])
@@ -1110,6 +985,11 @@ onMounted(loadAll)
 
 <style scoped>
 .mb16 { margin-bottom: 16px; }
+.meta-collapse { margin-bottom: 12px; }
+.meta-collapse :deep(.el-collapse-item__header) { gap: 10px; height: 42px; border-bottom: none; }
+.meta-collapse :deep(.el-collapse-item__wrap) { border-bottom: none; background: transparent; }
+.meta-title { font-weight: 600; font-size: 14px; }
+.meta-summary { color: #6B7A99; font-size: 12px; }
 .card-title { font-size: 14px; font-weight: 600; color: var(--el-text-color-primary); }
 .info-card { height: 100%; }
 .mono { font-family: monospace; font-size: 12px; }

@@ -2,7 +2,7 @@
   <div class="profile" v-loading="loading">
     <!-- 关键数字：一眼看出这个 App 采集了什么、谁在采集、权限用得怎么样 -->
     <div class="stat-row">
-      <div class="stat">
+      <div class="stat stat-primary">
         <div class="stat-num">{{ totalCollect }}</div>
         <div class="stat-label">个人信息采集点</div>
       </div>
@@ -10,11 +10,11 @@
         <div class="stat-num">{{ thirdPartyOwners }}</div>
         <div class="stat-label">涉及的第三方组件</div>
       </div>
-      <div class="stat">
-        <div class="stat-num" :class="{ warn: appSelfCount === 0 }">{{ appSelfCount }}</div>
+      <div class="stat stat-key">
+        <div class="stat-num">{{ appSelfCount }}</div>
         <div class="stat-label">应用自身代码中的采集</div>
       </div>
-      <div class="stat">
+      <div class="stat stat-warn">
         <div class="stat-num">{{ sensitiveCount }}</div>
         <div class="stat-label">敏感个人信息类目</div>
       </div>
@@ -39,7 +39,8 @@
           <span class="group-count">{{ group.sum }} 处 · {{ group.items.length }} 类</span>
           <span v-if="group.hint" class="group-hint">{{ group.hint }}</span>
         </div>
-        <el-table v-if="group.items.length" :data="group.items" size="small" row-key="rowKey">
+        <el-table v-if="group.items.length" :data="group.items" size="small" row-key="rowKey"
+                  class="dense-table">
           <el-table-column type="expand">
             <template #default="{ row }">
               <div class="loc-list">
@@ -109,7 +110,7 @@
         </el-radio-group>
         <el-input v-model="permKeyword" placeholder="搜权限名" clearable size="small" style="width: 220px" />
       </div>
-      <el-table :data="visiblePermissions" size="small" row-key="permission">
+      <el-table :data="visiblePermissions" size="small" row-key="permission" class="dense-table">
         <el-table-column label="权限" min-width="230">
           <template #default="{ row }">
             <span class="mono">{{ row.permission }}</span>
@@ -256,9 +257,16 @@ watch(() => props.taskId, load)
 <style scoped>
 .profile { font-size: 13px; }
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
-.stat { background: #FAFBFD; border: 1px solid #EEF1F6; border-radius: 6px; padding: 12px 14px; }
-.stat-num { font-size: 22px; font-weight: 600; line-height: 1.2; }
-.stat-num.warn { color: #2B5AED; }
+.stat {
+  background: #FFF; border: 1px solid #E8EDF5; border-left: 3px solid #D9E2F0;
+  border-radius: 6px; padding: 12px 14px;
+}
+.stat-primary { border-left-color: #2B5AED; }
+.stat-primary .stat-num { color: #2B5AED; }
+.stat-key { border-left-color: #1F2A44; }
+.stat-warn { border-left-color: #F0A020; }
+.stat-warn .stat-num { color: #C77A00; }
+.stat-num { font-size: 24px; font-weight: 600; line-height: 1.15; letter-spacing: -0.5px; }
 .stat-label { color: #6B7A99; font-size: 12px; margin-top: 2px; }
 .block { margin-bottom: 14px; }
 .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -279,6 +287,10 @@ watch(() => props.taskId, load)
 .warn-text { color: #E6A23C; }
 .gap-list { margin: 4px 0 0; padding-left: 18px; line-height: 1.9; }
 .ml6 { margin-left: 6px; }
+/* 去掉灰白相间条纹：表格本就密，条纹会把行糊成一片 */
+.dense-table :deep(.el-table__row--striped td) { background: transparent; }
+.dense-table :deep(td.el-table__cell) { padding: 7px 0; }
+.dense-table :deep(th.el-table__cell) { background: #F7F9FC; font-weight: 600; }
 .dim { color: #6B7A99; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 </style>
