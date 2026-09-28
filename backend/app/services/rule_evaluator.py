@@ -245,15 +245,14 @@ def _where_matches(where: dict | None, observation: dict) -> bool:
 
 
 def _observations_join(anchor: dict, candidate: dict, keys: list[str]) -> bool:
-    """按共享键连接。
+    """按共享键连接。键值相等才连。
 
-    键值为 NULL 时**一律不连接**：`None == None` 会让所有「没有类目」的观察
-    连成一团，这正是跨类目误配最隐蔽的形态（旧规则用 `_NetworkTransfer` 子串
-    匹配，把设备标识的流算成通讯录的证据，属于同一类错误）。
+    「键值为 NULL 时一律不连接」由 `evaluate_join_rule` 的锚点级检查负责（见那里的
+    注释）——这里不再重复判一次 anchor 侧为 None：两个守卫互相遮蔽，去掉任何一个
+    测试都照样通过，等于两个都没被守住。
     """
     for key in keys:
-        anchor_value = anchor.get(key)
-        if anchor_value is None or anchor_value != candidate.get(key):
+        if anchor.get(key) != candidate.get(key):
             return False
     return True
 
@@ -283,6 +282,10 @@ def evaluate_join_rule(content: dict, observations: list[dict]) -> list[dict] | 
         for item in joins:
             keys = item["on"]
             key_values = {k: anchor.get(k) for k in keys}
+            # 锚点缺键值就整条跳过：`None == None` 会让所有「没有类目」的观察连成
+            # 一团，是跨类目误配最隐蔽的形态（旧规则用 `_NetworkTransfer` 子串匹配
+            # 把设备标识的流算成通讯录的证据，属于同一类错误）。**这是唯一一处
+            # NULL 守卫**，`_observations_join` 不再重复判。
             if any(value is None for value in key_values.values()):
                 continue
             evidence = []

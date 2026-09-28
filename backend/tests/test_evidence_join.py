@@ -104,8 +104,17 @@ def test_cross_category_never_joins():
 
 
 def test_null_key_never_joins_null():
-    """类目为 NULL 的观察不得互相连接：NULL == NULL 会把所有无类目观察连成一团。"""
+    """类目为 NULL 的观察不得互相连接：NULL == NULL 会把所有无类目观察连成一团。
+
+    这条盯着的是 `evaluate_join_rule` 里的锚点级守卫——唯一一处 NULL 判定。
+    去掉它，这条就会命中。
+    """
     assert evaluate_join_rule(_rule(where={}), [flow(category=None), api_fact(category=None)]) is None
+
+
+def test_anchor_with_category_does_not_join_candidate_without_one():
+    """锚点有类目、候选没有时同样不得连接（候选侧为 NULL）。"""
+    assert evaluate_join_rule(_rule(), [flow(category="device_information"), api_fact(category=None)]) is None
 
 
 def test_each_anchor_carries_only_its_own_key_evidence():
