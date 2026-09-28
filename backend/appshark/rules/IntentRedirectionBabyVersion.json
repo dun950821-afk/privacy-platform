@@ -1,0 +1,37 @@
+{
+  "IntentRedirectionBabyVersion": {
+    "enable": true,
+    "SliceMode": true,
+    "traceDepth": 6,
+    "desc": {
+      "name": "IntentRedirectionBabyVersion",
+      "category": "IntentRedirection",
+      "detail": "Intent redirection, but a very basic version",
+      "wiki": "",
+      "possibility": "2",
+      "model": "high",
+      "complianceCategory": "IntentRedirectionBabyVersion",
+      "complianceCategoryDetail": "Intent redirection, but a very basic version",
+      "level": "L4"
+    },
+    "entry": {},
+    "source": {
+      "Return": [
+        "<android.content.Intent: android.os.Parcelable getParcelable*(java.lang.String)>",
+        "<android.os.Bundle: android.os.Parcelable getParcelable*(java.lang.String)>"
+      ]
+    },
+    "sink": {
+      "<*: * startActivit*(*)>": {
+        "LibraryOnly": true,
+        "TaintParamType": [
+          "android.content.Intent",
+          "android.content.Intent[]"
+        ],
+        "TaintCheck": [
+          "p*"
+        ]
+      }
+    }
+  }
+}

@@ -11,7 +11,14 @@ RULE_GROUPS = {
 
 
 def resolve_rule_groups(rule_dir: str, groups: list[str] | None) -> list[str]:
-    groups = groups or list(RULE_GROUPS)
+    """把平台规则组解析为规则文件列表。
+
+    未指定规则组时返回空列表，由调用方回退到「目录下全部规则」。
+    这里不能默认返回 RULE_GROUPS 的并集——那会让调用方的兜底成为死代码，
+    使规则目录里未被任何组引用的规则（含官方安全规则）永不加载。
+    """
+    if not groups:
+        return []
     result = []
     for group in groups:
         for name in RULE_GROUPS.get(group, []):
