@@ -1,0 +1,3269 @@
+{
+  "_meta": {
+    "source_task_id": 553,
+    "note": "真实引擎产物固化基线。改造前固定，用于验证改造后命中规则无回归。",
+    "app_version_id": 12,
+    "apk_sha256": "049d8927da0400bf2f043c34ce3080dfb5f4b5e735b941fa67c58b8f5a5d8591",
+    "app_name": "营口银行",
+    "version_name": "4.5.1",
+    "engine_type": "appshark",
+    "engine_version": "0.1.2",
+    "rule_pack_version": "1.0",
+    "raw_result_hash": "6c32c4e41d996a01993ca5b9c7583e36481eaf0933be14d435e0031bd9b8638d",
+    "observation_count": 139,
+    "finding_count": 0,
+    "engine_duration_ms": 30219
+  },
+  "observations": [
+    {
+      "id": 2664,
+      "observation_type": "fact.application",
+      "subject": null,
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "note": null,
+        "rules": [
+          "ContentProviderPathTraversal.json",
+          "IntentRedirectionBabyVersion.json",
+          "PendingIntentMutable.json",
+          "api_camera_mic.json",
+          "api_clipboard.json",
+          "api_device_id.json",
+          "api_installed_apps.json",
+          "api_location.json",
+          "api_network.json",
+          "api_sensor.json",
+          "api_wifi.json",
+          "broadcastIMEI.json",
+          "clipboard_to_log.json",
+          "device_id_to_file.json",
+          "device_id_to_log.json",
+          "device_id_to_network.json",
+          "location_to_network.json",
+          "logSerial.json",
+          "mac.json",
+          "unZipSlip.json"
+        ],
+        "engine": "AppShark",
+        "app_info": {
+          "AppName": "营口银行",
+          "min_sdk": 19,
+          "target_sdk": 30,
+          "PackageName": "com.csii.yk.ui",
+          "versionCode": 84,
+          "versionName": "4.5.1"
+        },
+        "output_dir": "/home/user/privacy-platform/data/evidence/task_553/appshark",
+        "engine_version": "0.1.2",
+        "use_permissions": [
+          "android.permission.READ_CONTACTS",
+          "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION",
+          "android.permission.FOREGROUND_SERVICE",
+          "android.permission.BLUETOOTH_ADMIN",
+          "android.permission.VIBRATE",
+          "android.permission.READ_PRIVILEGED_PHONE_STATE",
+          "android.permission.WRITE_EXTERNAL_STORAGE",
+          "android.permission.REQUEST_INSTALL_PACKAGES",
+          "android.permission.ACCESS_FINE_LOCATION",
+          "android.permission.ACCESS_COARSE_LOCATION",
+          "android.permission.INTERNET",
+          "android.permission.ACCESS_NETWORK_STATE",
+          "android.permission.WAKE_LOCK",
+          "android.permission.ACCESS_WIFI_STATE",
+          "android.permission.USE_FINGERPRINT",
+          "android.permission.CAMERA",
+          "android.permission.READ_EXTERNAL_STORAGE",
+          "android.permission.BLUETOOTH"
+        ],
+        "rule_analyzer_count": {
+          "unZipSlip": 12,
+          "serial_Log": 0,
+          "DeviceId_Log": 165,
+          "Clipboard_Log": 4,
+          "DeviceId_FileWrite": 25,
+          "IMEI_SendBroadcast": 0,
+          "PendingIntentMutable": 2,
+          "DeviceId_NetworkTransfer": 4,
+          "Location_NetworkTransfer": 0,
+          "ContentProviderPathTraversal": 0,
+          "IntentRedirectionBabyVersion": 0
+        },
+        "vulnerability_count": 120,
+        "process_method_statistics": {
+          "HeirCallGraph": 27355,
+          "DirectCallGraph": 27355,
+          "availableClasses": 5911,
+          "availableMethods": 34687,
+          "HeirReverseCallGraph": 33538,
+          "DirectReverseCallGraph": 30968
+        }
+      }
+    },
+    {
+      "id": 2665,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.ClipboardManager: android.content.ClipData getPrimaryClip()>",
+      "location": "<com.taobao.weex.appfram.clipboard.WXClipboardModule: void getString(com.taobao.weex.bridge.JSCallback)>",
+      "category": null,
+      "rule_code": "Clipboard_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.ClipboardManager: android.content.ClipData getPrimaryClip()>",
+        "url": "/tmp/appshark_out_553/vulnerability/6-Clipboard_APICall.html",
+        "hash": "ea468388992c1d740526b81938bb874857a2ae91",
+        "mode": "APIMode",
+        "rule": "Clipboard_APICall",
+        "level": "L2",
+        "caller": "<com.taobao.weex.appfram.clipboard.WXClipboardModule: void getString(com.taobao.weex.bridge.JSCallback)>",
+        "detail": "读取剪贴板内容",
+        "section": "ComplianceInfo",
+        "statement": "$r7 = virtualinvoke $r6.<android.content.ClipboardManager: android.content.ClipData getPrimaryClip()>()"
+      }
+    },
+    {
+      "id": 2666,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.ClipData$Item: java.lang.CharSequence getText()>",
+      "location": "<com.taobao.weex.appfram.clipboard.WXClipboardModule: java.lang.CharSequence coerceToText(android.content.Context,android.content.ClipData$Item)>",
+      "category": null,
+      "rule_code": "Clipboard_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.ClipData$Item: java.lang.CharSequence getText()>",
+        "url": "/tmp/appshark_out_553/vulnerability/14-Clipboard_APICall.html",
+        "hash": "891dff25585c7092828c314bb7588cc9b6639c02",
+        "mode": "APIMode",
+        "rule": "Clipboard_APICall",
+        "level": "L2",
+        "caller": "<com.taobao.weex.appfram.clipboard.WXClipboardModule: java.lang.CharSequence coerceToText(android.content.Context,android.content.ClipData$Item)>",
+        "detail": "读取剪贴板内容",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r2.<android.content.ClipData$Item: java.lang.CharSequence getText()>()"
+      }
+    },
+    {
+      "id": 2667,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.csii.yk.ui.utils.b: java.lang.String a(android.content.Context,java.lang.String)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/79-InstalledApps_APICall.html",
+        "hash": "9dd9b10a97035b528f51d4ff7373b5d285b3c1b4",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.csii.yk.ui.utils.b: java.lang.String a(android.content.Context,java.lang.String)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r2.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r1, 64)"
+      }
+    },
+    {
+      "id": 2668,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<tech.madp.core.c: java.lang.String c(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/68-InstalledApps_APICall.html",
+        "hash": "f68d1fb04c9c6941379b87eaa0944fff74a5de81",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.c: java.lang.String c(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r1.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r2, 0)"
+      }
+    },
+    {
+      "id": 2669,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.tencent.cloud.huiyansdkface.analytics.c: java.lang.String b(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/84-InstalledApps_APICall.html",
+        "hash": "e5b6355bfe609a880da8185807ff9820a44bf200",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.cloud.huiyansdkface.analytics.c: java.lang.String b(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r2.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r1_2, 0)"
+      }
+    },
+    {
+      "id": 2670,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+      "location": "<com.bumptech.glide.module.ManifestParser: java.util.List parse()>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/94-InstalledApps_APICall.html",
+        "hash": "25e95906241b492ea67544b37b05dc792beaa3eb",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.bumptech.glide.module.ManifestParser: java.util.List parse()>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r5 = virtualinvoke $r3.<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>($r4, 128)"
+      }
+    },
+    {
+      "id": 2671,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+      "location": "<com.tencent.turingcam.cPR64: java.util.Map a(android.content.Context,com.tencent.turingface.sdk.mfa.Bi3eT,com.tencent.turingcam.ZY08E)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/101-InstalledApps_APICall.html",
+        "hash": "460d53f9d520aef027a72a3e1e7156cf835fadd6",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.Map a(android.content.Context,com.tencent.turingface.sdk.mfa.Bi3eT,com.tencent.turingcam.ZY08E)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r7 = virtualinvoke $r6.<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>($r5_4, 128)"
+      }
+    },
+    {
+      "id": 2672,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+      "location": "<com.tencent.turingcam.pZo7n: java.lang.String a(android.content.Context,java.lang.String)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/96-InstalledApps_APICall.html",
+        "hash": "da29d65dd22ecdeaa18f05e700088158b57e7d2b",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingcam.pZo7n: java.lang.String a(android.content.Context,java.lang.String)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r5 = virtualinvoke $r4.<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>($r1, 0)"
+      }
+    },
+    {
+      "id": 2673,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.tencent.turingcam.gELYz: android.content.pm.Signature[] a(android.content.Context,java.lang.String)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/59-InstalledApps_APICall.html",
+        "hash": "851bb137a00a53829f4481bc69bd40080fb61567",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingcam.gELYz: android.content.pm.Signature[] a(android.content.Context,java.lang.String)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r2.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r0, 64)"
+      }
+    },
+    {
+      "id": 2674,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: java.util.List queryIntentActivities(android.content.Intent,int)>",
+      "location": "<com.hjq.permissions.f: boolean k(android.content.Context,android.content.Intent)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: java.util.List queryIntentActivities(android.content.Intent,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/19-InstalledApps_APICall.html",
+        "hash": "26292842539773083efa2f8ebbd599f6e52319d0",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.hjq.permissions.f: boolean k(android.content.Context,android.content.Intent)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r2.<android.content.pm.PackageManager: java.util.List queryIntentActivities(android.content.Intent,int)>($r1, 65536)"
+      }
+    },
+    {
+      "id": 2675,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<cn.com.union.fido.FidoSDK: java.lang.String a()>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/56-InstalledApps_APICall.html",
+        "hash": "c1128e6d8d0471c2e48fff608a534c4cbe282a7e",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<cn.com.union.fido.FidoSDK: java.lang.String a()>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r5 = virtualinvoke $r4.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r3, 64)"
+      }
+    },
+    {
+      "id": 2676,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.csii.framework.plugins.CPDevice: void VersionName(com.csii.framework.entity.PluginEntity)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/73-InstalledApps_APICall.html",
+        "hash": "b007c8b2d7b56763da99c678c17cfc9a45449258",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.csii.framework.plugins.CPDevice: void VersionName(com.csii.framework.entity.PluginEntity)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r6 = virtualinvoke $r4.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r5, 0)"
+      }
+    },
+    {
+      "id": 2677,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<tech.madp.core.e.a.a: java.lang.String r(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/35-InstalledApps_APICall.html",
+        "hash": "6dab6c51deec8e543df295a33d9cba65efa5a81f",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.e.a.a: java.lang.String r(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r2.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r3, 0)"
+      }
+    },
+    {
+      "id": 2678,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getLocalVersionName(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/88-InstalledApps_APICall.html",
+        "hash": "be123741854d9149e394122252d6854644060900",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getLocalVersionName(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r2.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r3, 0)"
+      }
+    },
+    {
+      "id": 2679,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+      "location": "<com.tencent.mm.opensdk.openapi.BaseWXApiImplV10: boolean sendPayReq(android.content.Context,android.os.Bundle)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/98-InstalledApps_APICall.html",
+        "hash": "ee0f2e43dd1957ce48f51d33d0aa8bb50bd60c7b",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.mm.opensdk.openapi.BaseWXApiImplV10: boolean sendPayReq(android.content.Context,android.os.Bundle)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r7 = virtualinvoke $r6.<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>(\"com.tencent.mm\", 128)"
+      }
+    },
+    {
+      "id": 2680,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.bumptech.glide.signature.ApplicationVersionSignature: android.content.pm.PackageInfo getPackageInfo(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/53-InstalledApps_APICall.html",
+        "hash": "5303c6bf11a04bc3e15f4aec63145f7943d4d782",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.bumptech.glide.signature.ApplicationVersionSignature: android.content.pm.PackageInfo getPackageInfo(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r1.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r2, 0)"
+      }
+    },
+    {
+      "id": 2681,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<tech.madp.core.e.a.a: int b(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/39-InstalledApps_APICall.html",
+        "hash": "34c2879bc8187cfc7372054658c67d85531c2868",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.e.a.a: int b(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r2.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r3, 0)"
+      }
+    },
+    {
+      "id": 2682,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.hjq.permissions.f: java.util.List h(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/45-InstalledApps_APICall.html",
+        "hash": "98568ee560a72da6ed5673235bc2f3cb879abed0",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.hjq.permissions.f: java.util.List h(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r1.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r2, 4096)"
+      }
+    },
+    {
+      "id": 2683,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.tencent.turingcam.a2zkO: com.tencent.turingcam.q9NV2 a(int,byte[])>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/83-InstalledApps_APICall.html",
+        "hash": "cb7782f46da5066e765334c7b163e47e91fccc93",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingcam.a2zkO: com.tencent.turingcam.q9NV2 a(int,byte[])>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r13 = virtualinvoke $r12.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r7_2, 64)"
+      }
+    },
+    {
+      "id": 2684,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.taobao.weex.WXEnvironment: java.lang.String getAppVersionName()>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/66-InstalledApps_APICall.html",
+        "hash": "166cea7db0e7b20a60d589cd36324d19c7c9cdcd",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.taobao.weex.WXEnvironment: java.lang.String getAppVersionName()>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r1.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r2, 0)"
+      }
+    },
+    {
+      "id": 2685,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.tencent.turingcam.ucT3w: java.lang.String a(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/77-InstalledApps_APICall.html",
+        "hash": "1d1cb4005a4a95f2382f43721ef3dc18c38bcb23",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingcam.ucT3w: java.lang.String a(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r2.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r1, 64)"
+      }
+    },
+    {
+      "id": 2686,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: java.util.List getInstalledApplications(int)>",
+      "location": "<tech.madp.core.MADWebView$d: java.lang.String a(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: java.util.List getInstalledApplications(int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/11-InstalledApps_APICall.html",
+        "hash": "8bf625a4c521229f4c69750703d8a2cb0946d288",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.MADWebView$d: java.lang.String a(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r5 = virtualinvoke $r4.<android.content.pm.PackageManager: java.util.List getInstalledApplications(int)>(128)"
+      }
+    },
+    {
+      "id": 2687,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<tech.madp.core.c: java.lang.String b(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/61-InstalledApps_APICall.html",
+        "hash": "8baf39b6cb4b477b25b9f5d9557fb5ce828564cd",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.c: java.lang.String b(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r1.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r2, 0)"
+      }
+    },
+    {
+      "id": 2688,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.tencent.mm.opensdk.openapi.WXApiImplComm: boolean validateAppSignatureForPackage(android.content.Context,java.lang.String,boolean)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/91-InstalledApps_APICall.html",
+        "hash": "df72c7e8bae563be2377ef64088a2502897ed3d2",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.mm.opensdk.openapi.WXApiImplComm: boolean validateAppSignatureForPackage(android.content.Context,java.lang.String,boolean)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r2.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r1, 64)"
+      }
+    },
+    {
+      "id": 2689,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<tech.madp.core.utils.detection.SecurityCheckUtil: java.lang.String getSignature(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/65-InstalledApps_APICall.html",
+        "hash": "92d7232d40d5d0b76a01c0e54d88cd3de5ca0799",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.utils.detection.SecurityCheckUtil: java.lang.String getSignature(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r2.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r3, 64)"
+      }
+    },
+    {
+      "id": 2690,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.tencent.mm.opensdk.openapi.BaseWXApiImplV10: boolean isWXAppInstalled()>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/70-InstalledApps_APICall.html",
+        "hash": "2f936764f2ec25234bd4da4a238257593eed1caa",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.mm.opensdk.openapi.BaseWXApiImplV10: boolean isWXAppInstalled()>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r2.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>(\"com.tencent.mm\", 64)"
+      }
+    },
+    {
+      "id": 2691,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+      "location": "<com.tencent.cloud.huiyansdkocr.tools.a.a$1: java.util.Map onCrashHandleStart(int,java.lang.String,java.lang.String,java.lang.String)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/100-InstalledApps_APICall.html",
+        "hash": "3d922fe6e97144a47b1d3f79994c47f60267800d",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.cloud.huiyansdkocr.tools.a.a$1: java.util.Map onCrashHandleStart(int,java.lang.String,java.lang.String,java.lang.String)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r7 = virtualinvoke $r6.<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>($r1_1, 128)"
+      }
+    },
+    {
+      "id": 2692,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<ly.count.android.sdk.DeviceInfo: java.lang.String getAppVersion(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/63-InstalledApps_APICall.html",
+        "hash": "003201548cd3c63735e54a9b72b6a05fe353746e",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<ly.count.android.sdk.DeviceInfo: java.lang.String getAppVersion(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r1.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r2, 0)"
+      }
+    },
+    {
+      "id": 2693,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.tencent.turingcam.HnGHR: com.tencent.turingcam.HnGHR$spXPg a()>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/93-InstalledApps_APICall.html",
+        "hash": "9990bebef10df341c69d1549dbc855bc451d503f",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingcam.HnGHR: com.tencent.turingcam.HnGHR$spXPg a()>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "virtualinvoke $r4.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>(\"com.android.vending\", 0)"
+      }
+    },
+    {
+      "id": 2694,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: java.util.List queryIntentServices(android.content.Intent,int)>",
+      "location": "<org.openudid.OpenUDID_manager: void sync(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: java.util.List queryIntentServices(android.content.Intent,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/25-InstalledApps_APICall.html",
+        "hash": "ea19676e9bc1958f858ff230baa37aede1e5dac0",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<org.openudid.OpenUDID_manager: void sync(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r6 = virtualinvoke $r4.<android.content.pm.PackageManager: java.util.List queryIntentServices(android.content.Intent,int)>($r5, 0)"
+      }
+    },
+    {
+      "id": 2695,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<cn.com.union.fido.util.d: java.lang.String a(android.content.Context,int)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/51-InstalledApps_APICall.html",
+        "hash": "d0ab6a024aa1960cf49d04e68562ff05a8f591e4",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<cn.com.union.fido.util.d: java.lang.String a(android.content.Context,int)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r1_1.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r3, 64)"
+      }
+    },
+    {
+      "id": 2696,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.tencent.turingcam.pZo7n: java.lang.String a(android.content.Context,java.lang.String)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/92-InstalledApps_APICall.html",
+        "hash": "a1595fe37a5e8bc2c85521121d54d426a84e7ff7",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingcam.pZo7n: java.lang.String a(android.content.Context,java.lang.String)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r7 = virtualinvoke $r3.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r1_1, 64)"
+      }
+    },
+    {
+      "id": 2697,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+      "location": "<com.tencent.turingcam.Stvdh: java.lang.String a(android.content.Context,java.lang.String)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/102-InstalledApps_APICall.html",
+        "hash": "3149088c403aacd8b2d6b113903902613a5534c2",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingcam.Stvdh: java.lang.String a(android.content.Context,java.lang.String)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r3.<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>($r2, 0)"
+      }
+    },
+    {
+      "id": 2698,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.tencent.turingcam.KwqWR: int a(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/58-InstalledApps_APICall.html",
+        "hash": "fb59276c448c3ec1f216e5a5370bda05f1fa4204",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingcam.KwqWR: int a(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r5 = virtualinvoke $r1_1.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r3, 0)"
+      }
+    },
+    {
+      "id": 2699,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+      "location": "<com.tencent.mm.opensdk.openapi.BaseWXApiImplV10: int getWXAppSupportAPI()>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/97-InstalledApps_APICall.html",
+        "hash": "cdcb004110fe54ba4174f569c3ea41d5abb13f2f",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.mm.opensdk.openapi.BaseWXApiImplV10: int getWXAppSupportAPI()>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r9 = virtualinvoke $r8.<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>(\"com.tencent.mm\", 128)"
+      }
+    },
+    {
+      "id": 2700,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getClientVersion(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/31-InstalledApps_APICall.html",
+        "hash": "8ce854304c0be4b1c651dd03f565b28efa97c72f",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getClientVersion(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r1.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r2, 0)"
+      }
+    },
+    {
+      "id": 2701,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+      "location": "<com.tencent.turingcam.T0QUa: com.tencent.turingcam.jfo8q b(android.content.Context,boolean,int)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/95-InstalledApps_APICall.html",
+        "hash": "5ada3a4a2716da08ef348f86413fbdaab72ae85e",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingcam.T0QUa: com.tencent.turingcam.jfo8q b(android.content.Context,boolean,int)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r18 = virtualinvoke $r17.<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>($r3_34, 128)"
+      }
+    },
+    {
+      "id": 2702,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+      "location": "<com.csii.framework.plugins.CPDevice: void DeviceInfo(com.csii.framework.entity.PluginEntity)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/67-InstalledApps_APICall.html",
+        "hash": "c9d440b51eb45fbc8cc882f738a7fc97dcaa1fcb",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.csii.framework.plugins.CPDevice: void DeviceInfo(com.csii.framework.entity.PluginEntity)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r7 = virtualinvoke $r5.<android.content.pm.PackageManager: android.content.pm.PackageInfo getPackageInfo(java.lang.String,int)>($r6, 0)"
+      }
+    },
+    {
+      "id": 2703,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+      "location": "<ly.count.android.sdk.DeviceInfo: java.lang.String getStore(android.content.Context)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/99-InstalledApps_APICall.html",
+        "hash": "936f360a71516d4b1656ebc54cea9bf891654a8b",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<ly.count.android.sdk.DeviceInfo: java.lang.String getStore(android.content.Context)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r1.<android.content.pm.PackageManager: android.content.pm.ApplicationInfo getApplicationInfo(java.lang.String,int)>($r2, 128)"
+      }
+    },
+    {
+      "id": 2704,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.content.pm.PackageManager: java.util.List getInstalledPackages(int)>",
+      "location": "<com.csii.yk.ui.moudle.UpdateAPP: boolean isAvilible(android.content.Context,java.lang.String)>",
+      "category": null,
+      "rule_code": "InstalledApps_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.content.pm.PackageManager: java.util.List getInstalledPackages(int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/1-InstalledApps_APICall.html",
+        "hash": "d151c069dd3e381626868194d7997c24fb5d844b",
+        "mode": "APIMode",
+        "rule": "InstalledApps_APICall",
+        "level": "L2",
+        "caller": "<com.csii.yk.ui.moudle.UpdateAPP: boolean isAvilible(android.content.Context,java.lang.String)>",
+        "detail": "获取已安装应用列表/包信息",
+        "section": "ComplianceInfo",
+        "statement": "$r5 = virtualinvoke $r4.<android.content.pm.PackageManager: java.util.List getInstalledPackages(int)>(0)"
+      }
+    },
+    {
+      "id": 2705,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+      "location": "<org.openudid.OpenUDID_manager: void generateOpenUDID()>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+        "url": "/tmp/appshark_out_553/vulnerability/80-DeviceId_APICall.html",
+        "hash": "b8aa1c17815da15a46700b4ca657f4ccc823453f",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<org.openudid.OpenUDID_manager: void generateOpenUDID()>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = staticinvoke <android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>($r2, \"android_id\")"
+      }
+    },
+    {
+      "id": 2706,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+      "location": "<cn.com.cfca.sdk.hke.data.a: void <init>(android.content.Context)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+        "url": "/tmp/appshark_out_553/vulnerability/37-DeviceId_APICall.html",
+        "hash": "1e2adaf0e71f20909c60e3275d0648cd78162414",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<cn.com.cfca.sdk.hke.data.a: void <init>(android.content.Context)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r5_1 = virtualinvoke $r4.<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>()"
+      }
+    },
+    {
+      "id": 2707,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+      "location": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: boolean isLocationEnabled(android.content.Context)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+        "url": "/tmp/appshark_out_553/vulnerability/76-DeviceId_APICall.html",
+        "hash": "e2af4c78ccfbec15b8e429c9a9cd2ec6dad89d97",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: boolean isLocationEnabled(android.content.Context)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = staticinvoke <android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>($r1_2, \"location_providers_allowed\")"
+      }
+    },
+    {
+      "id": 2708,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+      "location": "<cn.com.cfca.sdk.hke.data.a: java.lang.String a(android.content.Context)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+        "url": "/tmp/appshark_out_553/vulnerability/54-DeviceId_APICall.html",
+        "hash": "f18dd53044dd3b96003f9c9520e26749efda3060",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<cn.com.cfca.sdk.hke.data.a: java.lang.String a(android.content.Context)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r2 = staticinvoke <android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>($r1, \"android_id\")"
+      }
+    },
+    {
+      "id": 2709,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.telephony.TelephonyManager: java.lang.String getDeviceId()>",
+      "location": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getIMEI(android.content.Context)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.telephony.TelephonyManager: java.lang.String getDeviceId()>",
+        "url": "/tmp/appshark_out_553/vulnerability/13-DeviceId_APICall.html",
+        "hash": "6f8621d761ee9dcfef4cfdf42266461e9f5122cb",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getIMEI(android.content.Context)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r2.<android.telephony.TelephonyManager: java.lang.String getDeviceId()>()"
+      }
+    },
+    {
+      "id": 2710,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+      "location": "<cn.com.union.fido.common.GlobalConfiguration: void a(android.content.Context)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+        "url": "/tmp/appshark_out_553/vulnerability/43-DeviceId_APICall.html",
+        "hash": "0342520feefd4a3398b2320730a89a22e0fc36e7",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<cn.com.union.fido.common.GlobalConfiguration: void a(android.content.Context)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = staticinvoke <android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>($r2, \"android_id\")"
+      }
+    },
+    {
+      "id": 2711,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+      "location": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+        "url": "/tmp/appshark_out_553/vulnerability/74-DeviceId_APICall.html",
+        "hash": "ed1676c9743ecff0ad52bd814a0169ad3fa03341",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r6_121 = staticinvoke <android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>($r12_3, \"enabled_accessibility_services\")"
+      }
+    },
+    {
+      "id": 2712,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.os.Build: java.lang.String getSerial()>",
+      "location": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getDeviceUniqueID()>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.os.Build: java.lang.String getSerial()>",
+        "url": "/tmp/appshark_out_553/vulnerability/20-DeviceId_APICall.html",
+        "hash": "fbb665ce7589be9b1f85f6085a5dd899de66f72e",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getDeviceUniqueID()>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r2 = staticinvoke <android.os.Build: java.lang.String getSerial()>()"
+      }
+    },
+    {
+      "id": 2713,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+      "location": "<com.csii.framework.plugins.CPDevice: void Uuid(com.csii.framework.entity.PluginEntity)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+        "url": "/tmp/appshark_out_553/vulnerability/75-DeviceId_APICall.html",
+        "hash": "3cdc87e7df783e1871ba0cc01e15d9b4b4ea0db7",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<com.csii.framework.plugins.CPDevice: void Uuid(com.csii.framework.entity.PluginEntity)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = staticinvoke <android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>($r3, \"android_id\")"
+      }
+    },
+    {
+      "id": 2714,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+      "location": "<tech.madp.core.weexsupport.utils.b: java.lang.String a(android.content.Context)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+        "url": "/tmp/appshark_out_553/vulnerability/23-DeviceId_APICall.html",
+        "hash": "b5bc425365d7998b766eae89b5ccb74683903397",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.b: java.lang.String a(android.content.Context)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r3.<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>()"
+      }
+    },
+    {
+      "id": 2715,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+      "location": "<cn.com.union.fido.ui.pin.a: void a()>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+        "url": "/tmp/appshark_out_553/vulnerability/64-DeviceId_APICall.html",
+        "hash": "16fbb9e75eef6a157e7c615bf90c1dc56f530a77",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<cn.com.union.fido.ui.pin.a: void a()>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r7 = staticinvoke <android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>($r6, \"android_id\")"
+      }
+    },
+    {
+      "id": 2716,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+      "location": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getDeviceID(android.content.Context,worker.ServiceWorker)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+        "url": "/tmp/appshark_out_553/vulnerability/78-DeviceId_APICall.html",
+        "hash": "d44e6a8e77a3af571b299327d6d977e5d7a3b19e",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getDeviceID(android.content.Context,worker.ServiceWorker)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = staticinvoke <android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>($r2, \"android_id\")"
+      }
+    },
+    {
+      "id": 2717,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+      "location": "<tech.madp.core.weexsupport.utils.b: java.lang.String l(android.content.Context)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+        "url": "/tmp/appshark_out_553/vulnerability/27-DeviceId_APICall.html",
+        "hash": "c4795bd4fbb4494a812692ee08ab863b802eb2af",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.b: java.lang.String l(android.content.Context)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r3.<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>()"
+      }
+    },
+    {
+      "id": 2718,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+      "location": "<com.csii.framework.plugins.CPDevice: void DeviceInfo(com.csii.framework.entity.PluginEntity)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+        "url": "/tmp/appshark_out_553/vulnerability/57-DeviceId_APICall.html",
+        "hash": "4ae005a2d4304380374f6bebac90451605f364de",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<com.csii.framework.plugins.CPDevice: void DeviceInfo(com.csii.framework.entity.PluginEntity)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r6_4 = staticinvoke <android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>($r10, \"android_id\")"
+      }
+    },
+    {
+      "id": 2719,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.provider.Settings$System: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+      "location": "<com.csii.yk.ui.utils.j0: java.lang.String K(android.content.Context)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.provider.Settings$System: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+        "url": "/tmp/appshark_out_553/vulnerability/81-DeviceId_APICall.html",
+        "hash": "e5737847b16432a4777fe34ac4793c5cbd657a41",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<com.csii.yk.ui.utils.j0: java.lang.String K(android.content.Context)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r2 = staticinvoke <android.provider.Settings$System: java.lang.String getString(android.content.ContentResolver,java.lang.String)>($r1, \"android_id\")"
+      }
+    },
+    {
+      "id": 2720,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.telephony.TelephonyManager: java.lang.String getDeviceId()>",
+      "location": "<com.taobao.weex.WXEnvironment: java.lang.String getDevId()>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.telephony.TelephonyManager: java.lang.String getDeviceId()>",
+        "url": "/tmp/appshark_out_553/vulnerability/5-DeviceId_APICall.html",
+        "hash": "6250cdb2a2662265eb8cb4d863a375a97f855eb4",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<com.taobao.weex.WXEnvironment: java.lang.String getDevId()>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r2.<android.telephony.TelephonyManager: java.lang.String getDeviceId()>()"
+      }
+    },
+    {
+      "id": 2721,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.provider.Settings$System: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+      "location": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getIMEI(android.content.Context)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.provider.Settings$System: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+        "url": "/tmp/appshark_out_553/vulnerability/82-DeviceId_APICall.html",
+        "hash": "2101db5e556975cd85c845d14ea739ca6c770ad5",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getIMEI(android.content.Context)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r3_2 = staticinvoke <android.provider.Settings$System: java.lang.String getString(android.content.ContentResolver,java.lang.String)>($r4, \"android_id\")"
+      }
+    },
+    {
+      "id": 2722,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+      "location": "<cn.com.union.fido.ui.finger.a: void onAuthenticationSucceeded(android.hardware.fingerprint.FingerprintManager$AuthenticationResult)>",
+      "category": null,
+      "rule_code": "DeviceId_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>",
+        "url": "/tmp/appshark_out_553/vulnerability/60-DeviceId_APICall.html",
+        "hash": "6039b7f87caa58de4becd5388c43d9c53edfd40a",
+        "mode": "APIMode",
+        "rule": "DeviceId_APICall",
+        "level": "L2",
+        "caller": "<cn.com.union.fido.ui.finger.a: void onAuthenticationSucceeded(android.hardware.fingerprint.FingerprintManager$AuthenticationResult)>",
+        "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+        "section": "ComplianceInfo",
+        "statement": "$r14 = staticinvoke <android.provider.Settings$Secure: java.lang.String getString(android.content.ContentResolver,java.lang.String)>($r13, \"android_id\")"
+      }
+    },
+    {
+      "id": 2723,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<org.openudid.OpenUDID_manager: void storeOpenUDID()>->$r1']",
+      "location": "<org.openudid.OpenUDID_manager: void generateOpenUDID()>",
+      "category": null,
+      "rule_code": "DeviceId_FileWrite",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<org.openudid.OpenUDID_manager: void storeOpenUDID()>->$r1']",
+        "url": "/tmp/appshark_out_553/vulnerability/104-DeviceId_FileWrite.html",
+        "hash": "1ef8566c4a6c076aa32f3cb564c07d4e037f5693",
+        "rule": "DeviceId_FileWrite",
+        "sink": [
+          "<org.openudid.OpenUDID_manager: void storeOpenUDID()>->$r1"
+        ],
+        "level": "L3",
+        "caller": "<org.openudid.OpenUDID_manager: void generateOpenUDID()>",
+        "detail": "设备标识符(IMEI/IMSI/OAID等)写入文件或SharedPreferences持久化",
+        "source": [
+          "<org.openudid.OpenUDID_manager: void generateOpenUDID()>->$r3"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<org.openudid.OpenUDID_manager: void generateOpenUDID()>->$r3",
+          "<org.openudid.OpenUDID_manager: java.lang.String OpenUDID>",
+          "<org.openudid.OpenUDID_manager: void storeOpenUDID()>->$r1"
+        ],
+        "entry_method": "<org.openudid.OpenUDID_manager: void startService()>"
+      }
+    },
+    {
+      "id": 2724,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.tencent.turingcam.XStYH: void a(android.content.Context,java.util.Map)>->$r9_2']",
+      "location": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+      "category": null,
+      "rule_code": "DeviceId_FileWrite",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.tencent.turingcam.XStYH: void a(android.content.Context,java.util.Map)>->$r9_2']",
+        "url": "/tmp/appshark_out_553/vulnerability/105-DeviceId_FileWrite.html",
+        "hash": "580b2783fbd3221a830a7dd0320d84c22025da47",
+        "rule": "DeviceId_FileWrite",
+        "sink": [
+          "<com.tencent.turingcam.XStYH: void a(android.content.Context,java.util.Map)>->$r9_2"
+        ],
+        "level": "L3",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+        "detail": "设备标识符(IMEI/IMSI/OAID等)写入文件或SharedPreferences持久化",
+        "source": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r48",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_123",
+          "pf{obj{<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>:550=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_127",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_132_2",
+          "pf{obj{<com.tencent.turingcam.ucT3w: java.lang.String a(android.content.Context)>:119=>java.lang.String}(unknown)->@data}",
+          "<com.tencent.turingcam.ucT3w: java.lang.String a(android.content.Context,java.lang.String)>->$r3",
+          "<com.tencent.turingcam.ucT3w: java.lang.String a(android.content.Context,java.lang.String)>->$r5",
+          "<com.tencent.turingcam.ucT3w: java.lang.String a(android.content.Context,java.lang.String)>->$r3_1",
+          "<com.tencent.turingcam.ucT3w: java.lang.String a(android.content.Context,java.lang.String)>->$r3_4",
+          "<com.tencent.turingcam.Ckq8l: java.lang.String a(byte[])>->@parameter0",
+          "<com.tencent.turingcam.Ckq8l: java.lang.String a(byte[])>->$r1",
+          "<com.tencent.turingcam.Ckq8l: java.lang.String a(byte[])>->$i0",
+          "pf{obj{<com.tencent.turingcam.Ckq8l: java.lang.String a(byte[])>:2=>java.lang.StringBuffer}(unknown)->@data}",
+          "<com.tencent.turingcam.Ckq8l: java.lang.String a(byte[])>->$r2_3",
+          "<com.tencent.turingcam.XStYH: void a(android.content.Context,java.util.Map)>->$r9_2"
+        ],
+        "entry_method": "<com.tencent.turingcam.cPR64: byte[] a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean)>"
+      }
+    },
+    {
+      "id": 2725,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r12_5_2']",
+      "location": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+      "category": null,
+      "rule_code": "DeviceId_Log",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r12_5_2']",
+        "url": "/tmp/appshark_out_553/vulnerability/113-DeviceId_Log.html",
+        "hash": "9d5aca1d4dd3ba54edc9b76025a8adc42851f9d0",
+        "rule": "DeviceId_Log",
+        "sink": [
+          "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r12_5_2"
+        ],
+        "level": "L3",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+        "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+        "source": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r48",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_123",
+          "pf{obj{<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>:550=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_127",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_132_2",
+          "pf{obj{<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>:13=>java.lang.String}(unknown)->@data}",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$r3_2",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$r8",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$c3_2",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$i2_3",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$i2_4",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$b5_2",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$i2_5",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$i4_5",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$b5_3",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$r1",
+          "<com.tencent.turingcam.VBlVU: byte[] a(byte[],byte[])>->@parameter0",
+          "<com.tencent.turingcam.VBlVU: byte[] a(byte[],byte[])>->$r1",
+          "<com.tencent.turingcam.LwgsO: java.lang.String a(byte[])>->$r0_1",
+          "<com.tencent.turingcam.Ckq8l: java.lang.String a(byte[],java.lang.String)>->@parameter0",
+          "<com.tencent.turingcam.Ckq8l: java.lang.String a(byte[],java.lang.String)>->$r1",
+          "<com.tencent.turingcam.Ckq8l: java.lang.String a(byte[],java.lang.String)>->$r2_1",
+          "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r7_8",
+          "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r12_5_2"
+        ],
+        "entry_method": "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>"
+      }
+    },
+    {
+      "id": 2726,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<tech.madp.core.utils.MADPLogger: void d(java.lang.String,java.lang.String)>->$r1']",
+      "location": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getDeviceID(android.content.Context,worker.ServiceWorker)>",
+      "category": null,
+      "rule_code": "DeviceId_Log",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<tech.madp.core.utils.MADPLogger: void d(java.lang.String,java.lang.String)>->$r1']",
+        "url": "/tmp/appshark_out_553/vulnerability/103-DeviceId_Log.html",
+        "hash": "3b9bdbfc3cf8ddceacfa08b4ceb73dc2716dea45",
+        "rule": "DeviceId_Log",
+        "sink": [
+          "<tech.madp.core.utils.MADPLogger: void d(java.lang.String,java.lang.String)>->$r1"
+        ],
+        "level": "L3",
+        "caller": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getDeviceID(android.content.Context,worker.ServiceWorker)>",
+        "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+        "source": [
+          "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getDeviceID(android.content.Context,worker.ServiceWorker)>->$r3"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getDeviceID(android.content.Context,worker.ServiceWorker)>->$r3",
+          "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getDeviceID(android.content.Context,worker.ServiceWorker)>->$r4",
+          "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getDeviceID(android.content.Context,worker.ServiceWorker)>->$r5",
+          "<tech.madp.core.utils.MADPLogger: void d(java.lang.String)>->@parameter0",
+          "<tech.madp.core.utils.MADPLogger: void d(java.lang.String)>->$r0",
+          "<tech.madp.core.utils.MADPLogger: void d(java.lang.String,java.lang.String)>->@parameter1",
+          "<tech.madp.core.utils.MADPLogger: void d(java.lang.String,java.lang.String)>->$r1"
+        ],
+        "entry_method": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getDeviceID(android.content.Context,worker.ServiceWorker)>"
+      }
+    },
+    {
+      "id": 2727,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r12_2_2']",
+      "location": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+      "category": null,
+      "rule_code": "DeviceId_Log",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r12_2_2']",
+        "url": "/tmp/appshark_out_553/vulnerability/114-DeviceId_Log.html",
+        "hash": "59ee90973a5fd2e2aca57181474adf84951a8cb7",
+        "rule": "DeviceId_Log",
+        "sink": [
+          "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r12_2_2"
+        ],
+        "level": "L3",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+        "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+        "source": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r48",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_123",
+          "pf{obj{<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>:550=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_127",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_132_2",
+          "pf{obj{<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>:13=>java.lang.String}(unknown)->@data}",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$r3_2",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$r8",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$c3_2",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$i2_3",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$i2_4",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$b5_2",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$i2_5",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$i4_5",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$b5_3",
+          "<com.tencent.turingcam.XStYH: java.lang.String b(android.content.Context,java.lang.String)>->$r1",
+          "<com.tencent.turingcam.VBlVU: byte[] a(byte[],byte[])>->@parameter0",
+          "<com.tencent.turingcam.VBlVU: byte[] a(byte[],byte[])>->$r1",
+          "<com.tencent.turingcam.LwgsO: java.lang.String a(byte[])>->$r0_1",
+          "<com.tencent.turingcam.Ckq8l: java.lang.String a(byte[],java.lang.String)>->@parameter0",
+          "<com.tencent.turingcam.Ckq8l: java.lang.String a(byte[],java.lang.String)>->$r1",
+          "<com.tencent.turingcam.Ckq8l: java.lang.String a(byte[],java.lang.String)>->$r2_1",
+          "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r7_6",
+          "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r12_2_2"
+        ],
+        "entry_method": "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>"
+      }
+    },
+    {
+      "id": 2728,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.tencent.turingcam.ORjG3: byte[] a(com.tencent.turingcam.afk8T,com.tencent.turingcam.MtmV0,com.tencent.turingcam.bUA8L,java.lang.String)>->$r6_9']",
+      "location": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+      "category": null,
+      "rule_code": "DeviceId_Log",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.tencent.turingcam.ORjG3: byte[] a(com.tencent.turingcam.afk8T,com.tencent.turingcam.MtmV0,com.tencent.turingcam.bUA8L,java.lang.String)>->$r6_9']",
+        "url": "/tmp/appshark_out_553/vulnerability/106-DeviceId_Log.html",
+        "hash": "c6cc20c5b394e2367c99d566207ee65b3d1dc4a0",
+        "rule": "DeviceId_Log",
+        "sink": [
+          "<com.tencent.turingcam.ORjG3: byte[] a(com.tencent.turingcam.afk8T,com.tencent.turingcam.MtmV0,com.tencent.turingcam.bUA8L,java.lang.String)>->$r6_9"
+        ],
+        "level": "L3",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+        "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+        "source": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r48",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_123",
+          "pf{obj{<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>:550=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_127",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_132_2",
+          "pf{obj{<com.tencent.turingcam.SWw7W: java.lang.Object a(android.util.SparseArray,int,java.lang.Class)>:9=>java.lang.Object}(unknown)->@data}",
+          "<com.tencent.turingcam.SWw7W: int b(android.util.SparseArray)>->$i0_1",
+          "<com.tencent.turingcam.ORjG3: byte[] a(com.tencent.turingcam.afk8T,com.tencent.turingcam.MtmV0,com.tencent.turingcam.bUA8L,java.lang.String)>->$i1_3",
+          "<com.tencent.turingcam.ORjG3: byte[] a(com.tencent.turingcam.afk8T,com.tencent.turingcam.MtmV0,com.tencent.turingcam.bUA8L,java.lang.String)>->$r8_2",
+          "<com.tencent.turingcam.ORjG3: byte[] a(com.tencent.turingcam.afk8T,com.tencent.turingcam.MtmV0,com.tencent.turingcam.bUA8L,java.lang.String)>->$r6_9"
+        ],
+        "entry_method": "<com.tencent.turingcam.ORjG3: byte[] a(com.tencent.turingcam.afk8T,com.tencent.turingcam.MtmV0,com.tencent.turingcam.bUA8L,java.lang.String)>"
+      }
+    },
+    {
+      "id": 2729,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_32']",
+      "location": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+      "category": null,
+      "rule_code": "DeviceId_Log",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_32']",
+        "url": "/tmp/appshark_out_553/vulnerability/112-DeviceId_Log.html",
+        "hash": "d7872962b89017aff30ce1d6ba21e32451b18b0b",
+        "rule": "DeviceId_Log",
+        "sink": [
+          "<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_32"
+        ],
+        "level": "L3",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+        "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+        "source": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r48",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_123",
+          "pf{obj{<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>:550=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_127",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_132_2",
+          "pf{obj{<com.tencent.turingcam.SWw7W: java.lang.Object a(android.util.SparseArray,int,java.lang.Class)>:9=>java.lang.Object}(unknown)->@data}",
+          "<com.tencent.turingcam.SWw7W: int b(android.util.SparseArray)>->$i0_1",
+          "<com.tencent.turingcam.T0QUa: com.tencent.turingcam.jfo8q b(android.content.Context,boolean,int)>->$i0_58",
+          "<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>->@parameter0",
+          "<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>->$i0",
+          "<com.tencent.turingcam.jfo8q: void <init>(int,int,int)>->@parameter0",
+          "<com.tencent.turingcam.jfo8q: void <init>(int,int,int)>->$i0",
+          "pf{obj{<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>:2=>com.tencent.turingcam.jfo8q}(int)->c}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$i1_1",
+          "pf{obj{<com.tencent.turingcam.cPR64$spXPg: java.lang.Object call()>:5=>com.tencent.turingcam.MtmV0}(int)->d}",
+          "<com.tencent.turingcam.cPR64: void a(android.content.Context,com.tencent.turingcam.MtmV0)>->$i2_1",
+          "pf{obj{<com.tencent.turingcam.tmnyR: java.lang.StringBuilder a(java.lang.String)>:2=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_32"
+        ],
+        "entry_method": "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>"
+      }
+    },
+    {
+      "id": 2730,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_26']",
+      "location": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+      "category": null,
+      "rule_code": "DeviceId_Log",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_26']",
+        "url": "/tmp/appshark_out_553/vulnerability/108-DeviceId_Log.html",
+        "hash": "ebc48f90d888a33554f095d905dad2cc1cb9fde0",
+        "rule": "DeviceId_Log",
+        "sink": [
+          "<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_26"
+        ],
+        "level": "L3",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+        "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+        "source": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r48",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_123",
+          "pf{obj{<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>:550=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_127",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_132_2",
+          "pf{obj{<com.tencent.turingcam.SWw7W: java.lang.Object a(android.util.SparseArray,int,java.lang.Class)>:9=>java.lang.Object}(unknown)->@data}",
+          "<com.tencent.turingcam.SWw7W: int b(android.util.SparseArray)>->$i0_1",
+          "<com.tencent.turingcam.T0QUa: com.tencent.turingcam.jfo8q b(android.content.Context,boolean,int)>->$i0_58",
+          "<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>->@parameter0",
+          "<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>->$i0",
+          "<com.tencent.turingcam.jfo8q: void <init>(int,int,int)>->@parameter0",
+          "<com.tencent.turingcam.jfo8q: void <init>(int,int,int)>->$i0",
+          "pf{obj{<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>:2=>com.tencent.turingcam.jfo8q}(int)->c}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$i1_1",
+          "pf{obj{<com.tencent.turingcam.cPR64$spXPg: java.lang.Object call()>:5=>com.tencent.turingcam.MtmV0}(int)->d}",
+          "<com.tencent.turingcam.cPR64: void a(android.content.Context,com.tencent.turingcam.MtmV0)>->$i2_1",
+          "pf{obj{<com.tencent.turingcam.tmnyR: java.lang.StringBuilder a(java.lang.String)>:2=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_26"
+        ],
+        "entry_method": "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>"
+      }
+    },
+    {
+      "id": 2731,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_29']",
+      "location": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+      "category": null,
+      "rule_code": "DeviceId_Log",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_29']",
+        "url": "/tmp/appshark_out_553/vulnerability/109-DeviceId_Log.html",
+        "hash": "ae3f5e83fef05673594a65cbc1b72283f5317056",
+        "rule": "DeviceId_Log",
+        "sink": [
+          "<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_29"
+        ],
+        "level": "L3",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+        "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+        "source": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r48",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_123",
+          "pf{obj{<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>:550=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_127",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_132_2",
+          "pf{obj{<com.tencent.turingcam.SWw7W: java.lang.Object a(android.util.SparseArray,int,java.lang.Class)>:9=>java.lang.Object}(unknown)->@data}",
+          "<com.tencent.turingcam.SWw7W: int b(android.util.SparseArray)>->$i0_1",
+          "<com.tencent.turingcam.T0QUa: com.tencent.turingcam.jfo8q b(android.content.Context,boolean,int)>->$i0_58",
+          "<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>->@parameter0",
+          "<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>->$i0",
+          "<com.tencent.turingcam.jfo8q: void <init>(int,int,int)>->@parameter0",
+          "<com.tencent.turingcam.jfo8q: void <init>(int,int,int)>->$i0",
+          "pf{obj{<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>:2=>com.tencent.turingcam.jfo8q}(int)->c}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$i1_1",
+          "pf{obj{<com.tencent.turingcam.cPR64$spXPg: java.lang.Object call()>:5=>com.tencent.turingcam.MtmV0}(int)->d}",
+          "<com.tencent.turingcam.cPR64: void a(android.content.Context,com.tencent.turingcam.MtmV0)>->$i2_1",
+          "pf{obj{<com.tencent.turingcam.tmnyR: java.lang.StringBuilder a(java.lang.String)>:2=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_29"
+        ],
+        "entry_method": "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>"
+      }
+    },
+    {
+      "id": 2732,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.tencent.turingface.sdk.mfa.Bi3eT: com.tencent.turingcam.SkEpO a(byte[])>->$r7']",
+      "location": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+      "category": null,
+      "rule_code": "DeviceId_Log",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.tencent.turingface.sdk.mfa.Bi3eT: com.tencent.turingcam.SkEpO a(byte[])>->$r7']",
+        "url": "/tmp/appshark_out_553/vulnerability/118-DeviceId_Log.html",
+        "hash": "baaeccd871faa944484ce3b0d7f00c3e32cefaba",
+        "rule": "DeviceId_Log",
+        "sink": [
+          "<com.tencent.turingface.sdk.mfa.Bi3eT: com.tencent.turingcam.SkEpO a(byte[])>->$r7"
+        ],
+        "level": "L3",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+        "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+        "source": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r48",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_123",
+          "pf{obj{<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>:550=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_127",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_132_2",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r3",
+          "<com.tencent.turingcam.cPR64: byte[] a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean)>->$r4",
+          "<com.tencent.turingcam.cPR64: byte[] a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean)>->$r6_1",
+          "<com.tencent.turingcam.SWw7W: byte[] a(android.util.SparseArray)>->@parameter0",
+          "<com.tencent.turingcam.SWw7W: byte[] a(android.util.SparseArray)>->$r1",
+          "<com.tencent.turingcam.SWw7W: java.lang.Object a(android.util.SparseArray,int,java.lang.Class)>->@parameter0",
+          "<com.tencent.turingcam.SWw7W: java.lang.Object a(android.util.SparseArray,int,java.lang.Class)>->$r1",
+          "<com.tencent.turingcam.SWw7W: java.lang.Object a(android.util.SparseArray,int,java.lang.Class)>->$r2",
+          "<com.tencent.turingcam.SWw7W: java.lang.Object a(android.util.SparseArray,int,java.lang.Class)>->$r2_1",
+          "<com.tencent.turingcam.SWw7W: byte[] a(android.util.SparseArray)>->$r0",
+          "<com.tencent.turingcam.SWw7W: byte[] a(android.util.SparseArray)>->$r2",
+          "<com.tencent.turingcam.SWw7W: byte[] a(android.util.SparseArray)>->$r2_2",
+          "<com.tencent.turingcam.cPR64: byte[] a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean)>->$r8_1",
+          "<com.tencent.turingcam.cPR64$spXPg: java.lang.Object call()>->$r5",
+          "<com.tencent.turingcam.cPR64$spXPg: java.lang.Object call()>->$i1",
+          "pf{obj{<com.tencent.turingcam.cPR64$spXPg: java.lang.Object call()>:5=>com.tencent.turingcam.MtmV0}(int)->c}",
+          "<com.tencent.turingcam.cPR64: void a(android.content.Context,com.tencent.turingcam.MtmV0)>->$i2_2",
+          "<com.tencent.turingcam.cPR64: void a(android.content.Context,com.tencent.turingcam.MtmV0)>->$r2",
+          "<com.tencent.turingcam.cPR64: void a(android.content.Context,com.tencent.turingcam.MtmV0)>->$r3",
+          "pf{obj{<com.tencent.turingcam.cPR64: void a(android.content.Context,com.tencent.turingcam.MtmV0)>:32=>java.util.HashMap}(unknown)->@data}",
+          "<com.tencent.turingcam.XStYH: void a(android.content.Context,java.util.Map)>->$r6",
+          "<com.tencent.turingcam.XStYH: void a(android.content.Context,java.util.Map)>->$r7",
+          "<com.tencent.turingcam.XStYH: void a(android.content.Context,java.util.Map)>->$r8_1",
+          "<com.tencent.turingcam.XStYH: void a(android.content.Context,java.util.Map)>->$r2_4",
+          "pf{obj{<com.tencent.turingcam.cPR64: com.tencent.turingcam.bUA8L a(android.content.Context,byte[],com.tencent.turingcam.MtmV0)>:31=>com.tencent.turingcam.flIYu}(unknown)->@data}",
+          "<com.tencent.turingcam.YunKQ: com.tencent.turingcam.UMDtK a(com.tencent.turingcam.UMDtK,int,boolean)>->$r2",
+          "<com.tencent.turingcam.YunKQ: com.tencent.turingcam.UMDtK a(com.tencent.turingcam.UMDtK,int,boolean)>->$r3",
+          "<com.tencent.turingcam.YunKQ: com.tencent.turingcam.UMDtK a(com.tencent.turingcam.UMDtK,int,boolean)>->$r1_1",
+          "<com.tencent.turingcam.JF943: void a(com.tencent.turingcam.YunKQ)>->$r3",
+          "<com.tencent.turingcam.JF943: void a(com.tencent.turingcam.YunKQ)>->$r2_1",
+          "pf{obj{<com.tencent.turingface.sdk.mfa.Bi3eT: com.tencent.turingcam.SkEpO a(byte[])>:4=>com.tencent.turingcam.JF943}(com.tencent.turingcam.SkEpO)->b}",
+          "<com.tencent.turingface.sdk.mfa.Bi3eT: com.tencent.turingcam.SkEpO a(byte[])>->$r5_1",
+          "<com.tencent.turingface.sdk.mfa.Bi3eT: com.tencent.turingcam.SkEpO a(byte[])>->$l1",
+          "pf{obj{<com.tencent.turingface.sdk.mfa.Bi3eT: com.tencent.turingcam.SkEpO a(byte[])>:27=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingface.sdk.mfa.Bi3eT: com.tencent.turingcam.SkEpO a(byte[])>->$r7"
+        ],
+        "entry_method": "<com.tencent.turingcam.cPR64$spXPg: java.lang.Object call()>"
+      }
+    },
+    {
+      "id": 2733,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r7_10']",
+      "location": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+      "category": null,
+      "rule_code": "DeviceId_Log",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r7_10']",
+        "url": "/tmp/appshark_out_553/vulnerability/116-DeviceId_Log.html",
+        "hash": "3785eb0e5446f7f04ef20b9ef0b592160c73412d",
+        "rule": "DeviceId_Log",
+        "sink": [
+          "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r7_10"
+        ],
+        "level": "L3",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+        "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+        "source": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r48",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_123",
+          "pf{obj{<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>:550=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_127",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_132_2",
+          "pf{obj{<com.tencent.turingcam.SWw7W: java.lang.Object a(android.util.SparseArray,int,java.lang.Class)>:9=>java.lang.Object}(unknown)->@data}",
+          "<com.tencent.turingcam.SWw7W: int b(android.util.SparseArray)>->$i0_1",
+          "<com.tencent.turingcam.T0QUa: com.tencent.turingcam.jfo8q b(android.content.Context,boolean,int)>->$i0_58",
+          "<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>->@parameter0",
+          "<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>->$i0",
+          "<com.tencent.turingcam.jfo8q: void <init>(int,int,int)>->@parameter0",
+          "<com.tencent.turingcam.jfo8q: void <init>(int,int,int)>->$i0",
+          "pf{obj{<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>:2=>com.tencent.turingcam.jfo8q}(int)->c}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$i1_1",
+          "pf{obj{<com.tencent.turingcam.cPR64$spXPg: java.lang.Object call()>:5=>com.tencent.turingcam.MtmV0}(int)->d}",
+          "<com.tencent.turingcam.cPR64: void a(android.content.Context,com.tencent.turingcam.MtmV0)>->$i2_1",
+          "pf{obj{<com.tencent.turingcam.tmnyR: java.lang.StringBuilder a(java.lang.String)>:2=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.arWPM: java.lang.String b()>->$r4_9",
+          "<com.tencent.turingcam.arWPM: java.lang.String b()>->$r5_2",
+          "<com.tencent.turingcam.arWPM: java.lang.String b()>->$r4_13",
+          "pf{obj{<com.tencent.turingcam.arWPM: java.lang.String b()>:1=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.arWPM: java.lang.String b()>->$r4_15",
+          "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>->$r7_10"
+        ],
+        "entry_method": "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>"
+      }
+    },
+    {
+      "id": 2734,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.tencent.turingcam.cPR64: byte[] a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean)>->$r5_1']",
+      "location": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+      "category": null,
+      "rule_code": "DeviceId_Log",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.tencent.turingcam.cPR64: byte[] a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean)>->$r5_1']",
+        "url": "/tmp/appshark_out_553/vulnerability/119-DeviceId_Log.html",
+        "hash": "9373835b6d280123011ffafbacb07f0dfd7a6c75",
+        "rule": "DeviceId_Log",
+        "sink": [
+          "<com.tencent.turingcam.cPR64: byte[] a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean)>->$r5_1"
+        ],
+        "level": "L3",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+        "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+        "source": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r48",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_123",
+          "pf{obj{<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>:550=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_127",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_132_2",
+          "pf{obj{<com.tencent.turingcam.SWw7W: java.lang.Object a(android.util.SparseArray,int,java.lang.Class)>:9=>java.lang.Object}(unknown)->@data}",
+          "<com.tencent.turingcam.SWw7W: int b(android.util.SparseArray)>->$i0_1",
+          "<com.tencent.turingcam.cPR64: byte[] a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean)>->$i1_1",
+          "<com.tencent.turingcam.cPR64: byte[] a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean)>->$r7",
+          "<com.tencent.turingcam.cPR64: byte[] a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean)>->$r5_1"
+        ],
+        "entry_method": "<com.tencent.turingcam.cPR64: byte[] a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean)>"
+      }
+    },
+    {
+      "id": 2735,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<tech.madp.core.utils.MADPLogger: void d(java.lang.String,java.lang.String)>->$r1']",
+      "location": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: boolean isLocationEnabled(android.content.Context)>",
+      "category": null,
+      "rule_code": "DeviceId_Log",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<tech.madp.core.utils.MADPLogger: void d(java.lang.String,java.lang.String)>->$r1']",
+        "url": "/tmp/appshark_out_553/vulnerability/115-DeviceId_Log.html",
+        "hash": "f5c058516c855f0518282fefe1937e6c578570d2",
+        "rule": "DeviceId_Log",
+        "sink": [
+          "<tech.madp.core.utils.MADPLogger: void d(java.lang.String,java.lang.String)>->$r1"
+        ],
+        "level": "L3",
+        "caller": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: boolean isLocationEnabled(android.content.Context)>",
+        "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+        "source": [
+          "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: boolean isLocationEnabled(android.content.Context)>->$r3"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: boolean isLocationEnabled(android.content.Context)>->$r3",
+          "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: boolean isLocationEnabled(android.content.Context)>->$z0",
+          "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: boolean isLocationEnabled(android.content.Context)>->$z0_1",
+          "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: boolean checkLocationService(android.content.Context)>->$z0",
+          "pf{obj{<tech.madp.core.weexsupport.utils.DeviceInfoUtils: boolean checkLocationService(android.content.Context)>:3=>java.lang.StringBuilder}(unknown)->@data}",
+          "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: boolean checkLocationService(android.content.Context)>->$r2",
+          "<tech.madp.core.utils.MADPLogger: void d(java.lang.String)>->@parameter0",
+          "<tech.madp.core.utils.MADPLogger: void d(java.lang.String)>->$r0",
+          "<tech.madp.core.utils.MADPLogger: void d(java.lang.String,java.lang.String)>->@parameter1",
+          "<tech.madp.core.utils.MADPLogger: void d(java.lang.String,java.lang.String)>->$r1"
+        ],
+        "entry_method": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: boolean checkLocationService(android.content.Context)>"
+      }
+    },
+    {
+      "id": 2736,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_35']",
+      "location": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+      "category": null,
+      "rule_code": "DeviceId_Log",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_35']",
+        "url": "/tmp/appshark_out_553/vulnerability/111-DeviceId_Log.html",
+        "hash": "641d0317e6480a9f8862bbd47c51b8b5a98850f4",
+        "rule": "DeviceId_Log",
+        "sink": [
+          "<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_35"
+        ],
+        "level": "L3",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+        "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+        "source": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r48",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_123",
+          "pf{obj{<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>:550=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_127",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_132_2",
+          "pf{obj{<com.tencent.turingcam.SWw7W: java.lang.Object a(android.util.SparseArray,int,java.lang.Class)>:9=>java.lang.Object}(unknown)->@data}",
+          "<com.tencent.turingcam.SWw7W: int b(android.util.SparseArray)>->$i0_1",
+          "<com.tencent.turingcam.T0QUa: com.tencent.turingcam.jfo8q b(android.content.Context,boolean,int)>->$i0_58",
+          "<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>->@parameter0",
+          "<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>->$i0",
+          "<com.tencent.turingcam.jfo8q: void <init>(int,int,int)>->@parameter0",
+          "<com.tencent.turingcam.jfo8q: void <init>(int,int,int)>->$i0",
+          "pf{obj{<com.tencent.turingcam.jfo8q: com.tencent.turingcam.jfo8q a(int)>:2=>com.tencent.turingcam.jfo8q}(int)->c}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$i1_1",
+          "pf{obj{<com.tencent.turingcam.cPR64$spXPg: java.lang.Object call()>:5=>com.tencent.turingcam.MtmV0}(int)->d}",
+          "<com.tencent.turingcam.cPR64: void a(android.content.Context,com.tencent.turingcam.MtmV0)>->$i2_1",
+          "pf{obj{<com.tencent.turingcam.tmnyR: java.lang.StringBuilder a(java.lang.String)>:2=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>->$r3_35"
+        ],
+        "entry_method": "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>"
+      }
+    },
+    {
+      "id": 2737,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.tencent.turingcam.arWPM: int c(com.tencent.turingcam.fBfpd)>->$r4_3']",
+      "location": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+      "category": null,
+      "rule_code": "DeviceId_Log",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.tencent.turingcam.arWPM: int c(com.tencent.turingcam.fBfpd)>->$r4_3']",
+        "url": "/tmp/appshark_out_553/vulnerability/110-DeviceId_Log.html",
+        "hash": "f9157cbc12b9b9772a5ea021f769f54f443f3049",
+        "rule": "DeviceId_Log",
+        "sink": [
+          "<com.tencent.turingcam.arWPM: int c(com.tencent.turingcam.fBfpd)>->$r4_3"
+        ],
+        "level": "L3",
+        "caller": "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>",
+        "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入日志",
+        "source": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121"
+        ],
+        "section": "ComplianceInfo",
+        "taint_path": [
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_121",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r48",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_123",
+          "pf{obj{<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>:550=>java.lang.StringBuilder}(unknown)->@data}",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_127",
+          "<com.tencent.turingcam.cPR64: java.util.HashMap a(android.content.Context,java.util.Map,com.tencent.turingcam.MtmV0,boolean,com.tencent.turingcam.kwCJn,boolean)>->$r6_132_2",
+          "pf{obj{<com.tencent.turingcam.SWw7W: java.lang.Object a(android.util.SparseArray,int,java.lang.Class)>:9=>java.lang.Object}(unknown)->@data}",
+          "<com.tencent.turingcam.SWw7W: int b(android.util.SparseArray)>->$i0_1",
+          "<com.tencent.turingcam.arWPM: int c(com.tencent.turingcam.fBfpd)>->$i0",
+          "<com.tencent.turingcam.arWPM: int c(com.tencent.turingcam.fBfpd)>->$r12",
+          "<com.tencent.turingcam.arWPM: int c(com.tencent.turingcam.fBfpd)>->$r4_3"
+        ],
+        "entry_method": "<com.tencent.turingcam.JD1Ej: int a(com.tencent.turingcam.TuringFaceBuilder)>"
+      }
+    },
+    {
+      "id": 2738,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.hardware.Camera: android.hardware.Camera open(int)>",
+      "location": "<com.tencent.cloud.huiyansdkocr.a.b: android.hardware.Camera b(int)>",
+      "category": null,
+      "rule_code": "CameraMic_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.hardware.Camera: android.hardware.Camera open(int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/17-CameraMic_APICall.html",
+        "hash": "8753b2d9436291709dcfe6e4501f97f8aaed3309",
+        "mode": "APIMode",
+        "rule": "CameraMic_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.cloud.huiyansdkocr.a.b: android.hardware.Camera b(int)>",
+        "detail": "调用摄像头/麦克风",
+        "section": "ComplianceInfo",
+        "statement": "$r2 = staticinvoke <android.hardware.Camera: android.hardware.Camera open(int)>(0)"
+      }
+    },
+    {
+      "id": 2739,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.hardware.Camera: android.hardware.Camera open(int)>",
+      "location": "<com.tencent.cloud.huiyansdkocr.a.b: android.hardware.Camera b(int)>",
+      "category": null,
+      "rule_code": "CameraMic_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.hardware.Camera: android.hardware.Camera open(int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/9-CameraMic_APICall.html",
+        "hash": "d67ab00fa1215c79b6c84c632138ae6db785913d",
+        "mode": "APIMode",
+        "rule": "CameraMic_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.cloud.huiyansdkocr.a.b: android.hardware.Camera b(int)>",
+        "detail": "调用摄像头/麦克风",
+        "section": "ComplianceInfo",
+        "statement": "$r2_1 = staticinvoke <android.hardware.Camera: android.hardware.Camera open(int)>($i0)"
+      }
+    },
+    {
+      "id": 2740,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.hardware.Camera: android.hardware.Camera open(int)>",
+      "location": "<com.tencent.cloud.huiyansdkface.wecamera.hardware.v1.f: com.tencent.cloud.huiyansdkface.wecamera.hardware.v1.a a(android.hardware.Camera$CameraInfo,int)>",
+      "category": null,
+      "rule_code": "CameraMic_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.hardware.Camera: android.hardware.Camera open(int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/8-CameraMic_APICall.html",
+        "hash": "7e5c53a2384db30c86f49730ac2155c5285bb7ca",
+        "mode": "APIMode",
+        "rule": "CameraMic_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.cloud.huiyansdkface.wecamera.hardware.v1.f: com.tencent.cloud.huiyansdkface.wecamera.hardware.v1.a a(android.hardware.Camera$CameraInfo,int)>",
+        "detail": "调用摄像头/麦克风",
+        "section": "ComplianceInfo",
+        "statement": "$r2 = staticinvoke <android.hardware.Camera: android.hardware.Camera open(int)>($i0)"
+      }
+    },
+    {
+      "id": 2741,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.hardware.Camera: android.hardware.Camera open(int)>",
+      "location": "<com.tencent.cloud.huiyansdkocr.a.b: android.hardware.Camera b(int)>",
+      "category": null,
+      "rule_code": "CameraMic_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.hardware.Camera: android.hardware.Camera open(int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/0-CameraMic_APICall.html",
+        "hash": "903704512c23461d12d95a6a5fdf82e64e885745",
+        "mode": "APIMode",
+        "rule": "CameraMic_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.cloud.huiyansdkocr.a.b: android.hardware.Camera b(int)>",
+        "detail": "调用摄像头/麦克风",
+        "section": "ComplianceInfo",
+        "statement": "$r2_2 = staticinvoke <android.hardware.Camera: android.hardware.Camera open(int)>($i2_1)"
+      }
+    },
+    {
+      "id": 2742,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+      "location": "<cn.com.cfca.sdk.hke.data.a: void <init>(android.content.Context)>",
+      "category": null,
+      "rule_code": "MAC",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+        "url": "/tmp/appshark_out_553/vulnerability/28-MAC.html",
+        "hash": "93870e75fb390fce504871c21048213d105228dc",
+        "mode": "APIMode",
+        "rule": "MAC",
+        "level": "L4",
+        "caller": "<cn.com.cfca.sdk.hke.data.a: void <init>(android.content.Context)>",
+        "detail": "call get mac address",
+        "section": "ComplianceInfo",
+        "statement": "$r5_1 = virtualinvoke $r4.<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>()"
+      }
+    },
+    {
+      "id": 2743,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.NetworkInterface: byte[] getHardwareAddress()>",
+      "location": "<tech.madp.core.weexsupport.utils.b: java.lang.String k()>",
+      "category": null,
+      "rule_code": "MAC",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.NetworkInterface: byte[] getHardwareAddress()>",
+        "url": "/tmp/appshark_out_553/vulnerability/42-MAC.html",
+        "hash": "09c0bf416b7ec72ce5c96c09e08d4170871d528c",
+        "mode": "APIMode",
+        "rule": "MAC",
+        "level": "L4",
+        "caller": "<tech.madp.core.weexsupport.utils.b: java.lang.String k()>",
+        "detail": "call get mac address",
+        "section": "ComplianceInfo",
+        "statement": "$r2 = virtualinvoke $r1_1.<java.net.NetworkInterface: byte[] getHardwareAddress()>()"
+      }
+    },
+    {
+      "id": 2744,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.NetworkInterface: byte[] getHardwareAddress()>",
+      "location": "<com.csii.yk.ui.utils.j0: java.lang.String O(android.content.Context)>",
+      "category": null,
+      "rule_code": "MAC",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.NetworkInterface: byte[] getHardwareAddress()>",
+        "url": "/tmp/appshark_out_553/vulnerability/36-MAC.html",
+        "hash": "c0ca621f73987c1139f2e318b8dd997088014656",
+        "mode": "APIMode",
+        "rule": "MAC",
+        "level": "L4",
+        "caller": "<com.csii.yk.ui.utils.j0: java.lang.String O(android.content.Context)>",
+        "detail": "call get mac address",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke r3_2.<java.net.NetworkInterface: byte[] getHardwareAddress()>()"
+      }
+    },
+    {
+      "id": 2745,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.NetworkInterface: byte[] getHardwareAddress()>",
+      "location": "<com.csii.yk.ui.utils.j0: java.lang.String N()>",
+      "category": null,
+      "rule_code": "MAC",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.NetworkInterface: byte[] getHardwareAddress()>",
+        "url": "/tmp/appshark_out_553/vulnerability/33-MAC.html",
+        "hash": "dca0248c06a1d4a7cbfb00bb5a40d84c16a76880",
+        "mode": "APIMode",
+        "rule": "MAC",
+        "level": "L4",
+        "caller": "<com.csii.yk.ui.utils.j0: java.lang.String N()>",
+        "detail": "call get mac address",
+        "section": "ComplianceInfo",
+        "statement": "$r6 = virtualinvoke r4.<java.net.NetworkInterface: byte[] getHardwareAddress()>()"
+      }
+    },
+    {
+      "id": 2746,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+      "location": "<tech.madp.core.weexsupport.utils.b: java.lang.String l(android.content.Context)>",
+      "category": null,
+      "rule_code": "MAC",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+        "url": "/tmp/appshark_out_553/vulnerability/16-MAC.html",
+        "hash": "e268074bada7d324d57295964b756f2f40285552",
+        "mode": "APIMode",
+        "rule": "MAC",
+        "level": "L4",
+        "caller": "<tech.madp.core.weexsupport.utils.b: java.lang.String l(android.content.Context)>",
+        "detail": "call get mac address",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r3.<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>()"
+      }
+    },
+    {
+      "id": 2747,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.NetworkInterface: byte[] getHardwareAddress()>",
+      "location": "<tech.madp.core.weexsupport.utils.b: java.lang.String m()>",
+      "category": null,
+      "rule_code": "MAC",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.NetworkInterface: byte[] getHardwareAddress()>",
+        "url": "/tmp/appshark_out_553/vulnerability/72-MAC.html",
+        "hash": "7a10159d87033e2694800a92359cd3104987530d",
+        "mode": "APIMode",
+        "rule": "MAC",
+        "level": "L4",
+        "caller": "<tech.madp.core.weexsupport.utils.b: java.lang.String m()>",
+        "detail": "call get mac address",
+        "section": "ComplianceInfo",
+        "statement": "$r5 = virtualinvoke $r4.<java.net.NetworkInterface: byte[] getHardwareAddress()>()"
+      }
+    },
+    {
+      "id": 2748,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+      "location": "<tech.madp.core.weexsupport.utils.b: java.lang.String a(android.content.Context)>",
+      "category": null,
+      "rule_code": "MAC",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+        "url": "/tmp/appshark_out_553/vulnerability/7-MAC.html",
+        "hash": "5e7bf756b1499c49660bc8286c2a7e43d722f8ca",
+        "mode": "APIMode",
+        "rule": "MAC",
+        "level": "L4",
+        "caller": "<tech.madp.core.weexsupport.utils.b: java.lang.String a(android.content.Context)>",
+        "detail": "call get mac address",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r3.<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>()"
+      }
+    },
+    {
+      "id": 2749,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<com.tencent.mm.opensdk.channel.a.a: byte[] a(java.lang.String,int)>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/85-Network_APICall.html",
+        "hash": "2282f8bb8202dacac578629102ace4e1be07d5b1",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.mm.opensdk.channel.a.a: byte[] a(java.lang.String,int)>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r2.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2750,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<tech.madp.core.glide.c$a: java.net.HttpURLConnection build(java.net.URL)>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/89-Network_APICall.html",
+        "hash": "447dbf794ea522f94a838033d0e82c76d26ca9a1",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.glide.c$a: java.net.HttpURLConnection build(java.net.URL)>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r1.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2751,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<ly.count.android.sdk.ConnectionProcessor: void post(java.lang.String)>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/55-Network_APICall.html",
+        "hash": "55773db63dd7fa6d08956e3c0446bb134d67fa07",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<ly.count.android.sdk.ConnectionProcessor: void post(java.lang.String)>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r2.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2752,
+      "observation_type": "security.sensitive_api",
+      "subject": "<org.apache.http.impl.client.AbstractHttpClient: org.apache.http.HttpResponse execute(org.apache.http.client.methods.HttpUriRequest)>",
+      "location": "<cn.com.union.fido.util.b: java.lang.String b(java.lang.String)>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<org.apache.http.impl.client.AbstractHttpClient: org.apache.http.HttpResponse execute(org.apache.http.client.methods.HttpUriRequest)>",
+        "url": "/tmp/appshark_out_553/vulnerability/90-Network_APICall.html",
+        "hash": "a4a1f8e0c8dfbf6c42f5b964cd1dfb1616590fb6",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<cn.com.union.fido.util.b: java.lang.String b(java.lang.String)>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r1.<org.apache.http.impl.client.AbstractHttpClient: org.apache.http.HttpResponse execute(org.apache.http.client.methods.HttpUriRequest)>($r2)"
+      }
+    },
+    {
+      "id": 2753,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection(java.net.Proxy)>",
+      "location": "<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection(java.net.Proxy)>",
+        "url": "/tmp/appshark_out_553/vulnerability/4-Network_APICall.html",
+        "hash": "074a5ade9184e0d620dfbc80bc94626aa44ed779",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r18 = virtualinvoke $r14.<java.net.URL: java.net.URLConnection openConnection(java.net.Proxy)>($r15)"
+      }
+    },
+    {
+      "id": 2754,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<com.tencent.youtu.liveness.YTFetchLicenseHelper$1FetchThreadRunnable: void run()>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/69-Network_APICall.html",
+        "hash": "995f8b1336a5be4b7a654b77cbde95e469c1bda0",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.youtu.liveness.YTFetchLicenseHelper$1FetchThreadRunnable: void run()>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r10 = virtualinvoke $r9.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2755,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<com.taobao.weex.adapter.DefaultWXHttpAdapter: java.net.HttpURLConnection createConnection(java.net.URL)>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/86-Network_APICall.html",
+        "hash": "093d74e19e2756cacd87f7fb4a953dbe77eff672",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<com.taobao.weex.adapter.DefaultWXHttpAdapter: java.net.HttpURLConnection createConnection(java.net.URL)>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r1 = virtualinvoke $r2.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2756,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<com.bumptech.glide.load.data.HttpUrlFetcher$DefaultHttpUrlConnectionFactory: java.net.HttpURLConnection build(java.net.URL)>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/24-Network_APICall.html",
+        "hash": "6228f24a432aa67daf9e7026dea3542262de45a3",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<com.bumptech.glide.load.data.HttpUrlFetcher$DefaultHttpUrlConnectionFactory: java.net.HttpURLConnection build(java.net.URL)>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r1 = virtualinvoke $r2.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2757,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<tech.madp.core.http.HttpRequestTask: tech.madp.core.http.ResponseBean requestNetWork(tech.madp.core.http.Request[])>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/62-Network_APICall.html",
+        "hash": "c81d049f52b9822293680dbad8b598797f3e5181",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.http.HttpRequestTask: tech.madp.core.http.ResponseBean requestNetWork(tech.madp.core.http.Request[])>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r10 = virtualinvoke $r9.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2758,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<ly.count.android.sdk.ConnectionProcessor: java.net.URLConnection urlConnectionForEventData(java.lang.String)>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/40-Network_APICall.html",
+        "hash": "ca08866ba379cc4422ac39a17e292bbf53dbb1f9",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<ly.count.android.sdk.ConnectionProcessor: java.net.URLConnection urlConnectionForEventData(java.lang.String)>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r11 = virtualinvoke $r9.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2759,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<tech.madp.core.i.b.e: java.net.HttpURLConnection c(java.net.URL)>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/32-Network_APICall.html",
+        "hash": "dd322c110a4fb70801097a717d4110e8938d8b2e",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.i.b.e: java.net.HttpURLConnection c(java.net.URL)>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r1.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2760,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<ly.count.android.sdk.ConnectionProcessor: java.net.URLConnection urlConnectionForEventData(java.lang.String)>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/87-Network_APICall.html",
+        "hash": "33b2b3cfc06820c6dc8a622af9f655f95bf4f9ae",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<ly.count.android.sdk.ConnectionProcessor: java.net.URLConnection urlConnectionForEventData(java.lang.String)>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r11_1 = virtualinvoke $r9.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2761,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<com.csii.yk.ui.component.PDFComponent$a: void run()>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/50-Network_APICall.html",
+        "hash": "5d9715b2cdc3c9c37e260fd0103609b18218492e",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<com.csii.yk.ui.component.PDFComponent$a: void run()>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke r1.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2762,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<com.csii.yk.ui.utils.j0$a: void run()>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/29-Network_APICall.html",
+        "hash": "f6fca1c4274529b5e818e45c8b7e8c388347393e",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<com.csii.yk.ui.utils.j0$a: void run()>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke r1_2.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2763,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<tech.madp.core.i.b.e: java.net.HttpURLConnection c(java.net.URL)>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/44-Network_APICall.html",
+        "hash": "f88660e76334960324eb9456a8c3bde07c9ebd21",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.i.b.e: java.net.HttpURLConnection c(java.net.URL)>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r4_1 = virtualinvoke $r1.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2764,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/15-Network_APICall.html",
+        "hash": "08ed34e7aec41e54d1da4fed07d493c30ffc6d79",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingface.sdk.mfa.ShGzN$spXPg: com.tencent.turingface.sdk.mfa.wmqhz$spXPg onHttpPost(byte[])>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r18_1 = virtualinvoke $r14.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2765,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getOutNetIP(int)>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/21-Network_APICall.html",
+        "hash": "970e91f83bd1f95b81a83001f3b345ed507dfe3a",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getOutNetIP(int)>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r1.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2766,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<com.tencent.turingcam.fenkF: com.tencent.turingcam.usfPi a(com.tencent.turingface.sdk.mfa.SkEpO,java.net.URL,java.util.Map)>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/48-Network_APICall.html",
+        "hash": "e34a15d56f9cf1f08fbf1c2e4f89432efbc5d852",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingcam.fenkF: com.tencent.turingcam.usfPi a(com.tencent.turingface.sdk.mfa.SkEpO,java.net.URL,java.util.Map)>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r1.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2767,
+      "observation_type": "security.sensitive_api",
+      "subject": "<java.net.URL: java.net.URLConnection openConnection()>",
+      "location": "<tech.madp.core.glide.c$a: java.net.HttpURLConnection build(java.net.URL)>",
+      "category": null,
+      "rule_code": "Network_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<java.net.URL: java.net.URLConnection openConnection()>",
+        "url": "/tmp/appshark_out_553/vulnerability/71-Network_APICall.html",
+        "hash": "182b5b7b46e3fd28c3b8b0a46f4c583fdc64cc6e",
+        "mode": "APIMode",
+        "rule": "Network_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.glide.c$a: java.net.HttpURLConnection build(java.net.URL)>",
+        "detail": "发起网络请求(HttpURLConnection/OkHttp/HttpClient/Volley)",
+        "section": "ComplianceInfo",
+        "statement": "$r3_1 = virtualinvoke $r1.<java.net.URL: java.net.URLConnection openConnection()>()"
+      }
+    },
+    {
+      "id": 2768,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.hardware.SensorManager: java.util.List getSensorList(int)>",
+      "location": "<tech.madp.core.utils.detection.EmulatorCheckUtil: int getSensorNumber(android.content.Context)>",
+      "category": null,
+      "rule_code": "Sensor_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.hardware.SensorManager: java.util.List getSensorList(int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/47-Sensor_APICall.html",
+        "hash": "945d1f17719cb0fbdd63587bccd44e34d8e8b97a",
+        "mode": "APIMode",
+        "rule": "Sensor_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.utils.detection.EmulatorCheckUtil: int getSensorNumber(android.content.Context)>",
+        "detail": "注册传感器监听",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r3.<android.hardware.SensorManager: java.util.List getSensorList(int)>(-1)"
+      }
+    },
+    {
+      "id": 2769,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.hardware.SensorManager: android.hardware.Sensor getDefaultSensor(int)>",
+      "location": "<tech.madp.core.utils.detection.EmulatorCheckUtil: boolean hasLightSensor(android.content.Context)>",
+      "category": null,
+      "rule_code": "Sensor_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.hardware.SensorManager: android.hardware.Sensor getDefaultSensor(int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/18-Sensor_APICall.html",
+        "hash": "1897cbc7f015108d04ba721689c65fef1b5c4d99",
+        "mode": "APIMode",
+        "rule": "Sensor_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.utils.detection.EmulatorCheckUtil: boolean hasLightSensor(android.content.Context)>",
+        "detail": "注册传感器监听",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r3.<android.hardware.SensorManager: android.hardware.Sensor getDefaultSensor(int)>(5)"
+      }
+    },
+    {
+      "id": 2770,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.hardware.SensorManager: boolean registerListener(android.hardware.SensorEventListener,android.hardware.Sensor,int)>",
+      "location": "<com.tencent.cloud.huiyansdk.ui.fragment.a: void onResume()>",
+      "category": null,
+      "rule_code": "Sensor_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.hardware.SensorManager: boolean registerListener(android.hardware.SensorEventListener,android.hardware.Sensor,int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/10-Sensor_APICall.html",
+        "hash": "c16c6d4365af237b72febbf31d3be3cafe8a6e1a",
+        "mode": "APIMode",
+        "rule": "Sensor_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.cloud.huiyansdk.ui.fragment.a: void onResume()>",
+        "detail": "注册传感器监听",
+        "section": "ComplianceInfo",
+        "statement": "virtualinvoke $r5.<android.hardware.SensorManager: boolean registerListener(android.hardware.SensorEventListener,android.hardware.Sensor,int)>($r6, $r7, 2)"
+      }
+    },
+    {
+      "id": 2771,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.hardware.SensorManager: java.util.List getSensorList(int)>",
+      "location": "<com.alibaba.android.bindingx.core.internal.r: void b(android.hardware.SensorEventListener,int)>",
+      "category": null,
+      "rule_code": "Sensor_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.hardware.SensorManager: java.util.List getSensorList(int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/52-Sensor_APICall.html",
+        "hash": "bc4008bf45c149f756438add3ba8ab0f6b5764a5",
+        "mode": "APIMode",
+        "rule": "Sensor_APICall",
+        "level": "L2",
+        "caller": "<com.alibaba.android.bindingx.core.internal.r: void b(android.hardware.SensorEventListener,int)>",
+        "detail": "注册传感器监听",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke r2.<android.hardware.SensorManager: java.util.List getSensorList(int)>($i0)"
+      }
+    },
+    {
+      "id": 2772,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.hardware.SensorManager: boolean registerListener(android.hardware.SensorEventListener,android.hardware.Sensor,int,android.os.Handler)>",
+      "location": "<com.alibaba.android.bindingx.core.internal.r: boolean a(android.hardware.SensorEventListener,int,int,android.os.Handler)>",
+      "category": null,
+      "rule_code": "Sensor_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.hardware.SensorManager: boolean registerListener(android.hardware.SensorEventListener,android.hardware.Sensor,int,android.os.Handler)>",
+        "url": "/tmp/appshark_out_553/vulnerability/2-Sensor_APICall.html",
+        "hash": "94d8d0d178ea80bbe9f8a8c83ef61ba1c1c90d46",
+        "mode": "APIMode",
+        "rule": "Sensor_APICall",
+        "level": "L2",
+        "caller": "<com.alibaba.android.bindingx.core.internal.r: boolean a(android.hardware.SensorEventListener,int,int,android.os.Handler)>",
+        "detail": "注册传感器监听",
+        "section": "ComplianceInfo",
+        "statement": "$z0_1 = virtualinvoke r3_1.<android.hardware.SensorManager: boolean registerListener(android.hardware.SensorEventListener,android.hardware.Sensor,int,android.os.Handler)>($r1, $r6, $i1, $r2)"
+      }
+    },
+    {
+      "id": 2773,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.hardware.SensorManager: android.hardware.Sensor getDefaultSensor(int)>",
+      "location": "<com.tencent.cloud.huiyansdk.ui.fragment.a: void Y()>",
+      "category": null,
+      "rule_code": "Sensor_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.hardware.SensorManager: android.hardware.Sensor getDefaultSensor(int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/41-Sensor_APICall.html",
+        "hash": "f104a636d3b7a047493d8045309eaab51a8a9c53",
+        "mode": "APIMode",
+        "rule": "Sensor_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.cloud.huiyansdk.ui.fragment.a: void Y()>",
+        "detail": "注册传感器监听",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r3.<android.hardware.SensorManager: android.hardware.Sensor getDefaultSensor(int)>(5)"
+      }
+    },
+    {
+      "id": 2774,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.hardware.SensorManager: java.util.List getSensorList(int)>",
+      "location": "<com.alibaba.android.bindingx.core.internal.r: boolean a(android.hardware.SensorEventListener,int,int,android.os.Handler)>",
+      "category": null,
+      "rule_code": "Sensor_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.hardware.SensorManager: java.util.List getSensorList(int)>",
+        "url": "/tmp/appshark_out_553/vulnerability/49-Sensor_APICall.html",
+        "hash": "5724c4c06d5484db34ffcfdc8386efe5a829a677",
+        "mode": "APIMode",
+        "rule": "Sensor_APICall",
+        "level": "L2",
+        "caller": "<com.alibaba.android.bindingx.core.internal.r: boolean a(android.hardware.SensorEventListener,int,int,android.os.Handler)>",
+        "detail": "注册传感器监听",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke r3.<android.hardware.SensorManager: java.util.List getSensorList(int)>($i0)"
+      }
+    },
+    {
+      "id": 2775,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+      "location": "<cn.com.cfca.sdk.hke.data.a: void <init>(android.content.Context)>",
+      "category": null,
+      "rule_code": "Wifi_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+        "url": "/tmp/appshark_out_553/vulnerability/22-Wifi_APICall.html",
+        "hash": "26a8464b148ff4c5e0f30e9bddaf75b41cc6e9aa",
+        "mode": "APIMode",
+        "rule": "Wifi_APICall",
+        "level": "L2",
+        "caller": "<cn.com.cfca.sdk.hke.data.a: void <init>(android.content.Context)>",
+        "detail": "获取WiFi信息(SSID/BSSID/扫描结果)",
+        "section": "ComplianceInfo",
+        "statement": "$r5_1 = virtualinvoke $r4.<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>()"
+      }
+    },
+    {
+      "id": 2776,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.wifi.WifiManager: android.net.wifi.WifiInfo getConnectionInfo()>",
+      "location": "<com.tencent.turingcam.yMdp8: boolean a(android.content.Context)>",
+      "category": null,
+      "rule_code": "Wifi_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.wifi.WifiManager: android.net.wifi.WifiInfo getConnectionInfo()>",
+        "url": "/tmp/appshark_out_553/vulnerability/26-Wifi_APICall.html",
+        "hash": "97490a90d3de6ca63657baee6e566e9877f634f5",
+        "mode": "APIMode",
+        "rule": "Wifi_APICall",
+        "level": "L2",
+        "caller": "<com.tencent.turingcam.yMdp8: boolean a(android.content.Context)>",
+        "detail": "获取WiFi信息(SSID/BSSID/扫描结果)",
+        "section": "ComplianceInfo",
+        "statement": "$r5 = virtualinvoke $r4.<android.net.wifi.WifiManager: android.net.wifi.WifiInfo getConnectionInfo()>()"
+      }
+    },
+    {
+      "id": 2777,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.wifi.WifiManager: android.net.wifi.WifiInfo getConnectionInfo()>",
+      "location": "<tech.madp.core.weexsupport.utils.b: java.lang.String a(android.content.Context)>",
+      "category": null,
+      "rule_code": "Wifi_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.wifi.WifiManager: android.net.wifi.WifiInfo getConnectionInfo()>",
+        "url": "/tmp/appshark_out_553/vulnerability/30-Wifi_APICall.html",
+        "hash": "0e6ac0db5dbcbef79c4a9d74ecc0ff6e3bd9b606",
+        "mode": "APIMode",
+        "rule": "Wifi_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.b: java.lang.String a(android.content.Context)>",
+        "detail": "获取WiFi信息(SSID/BSSID/扫描结果)",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r2.<android.net.wifi.WifiManager: android.net.wifi.WifiInfo getConnectionInfo()>()"
+      }
+    },
+    {
+      "id": 2778,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.NetworkInfo: java.lang.String getExtraInfo()>",
+      "location": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getCommType(android.content.Context)>",
+      "category": null,
+      "rule_code": "Wifi_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.NetworkInfo: java.lang.String getExtraInfo()>",
+        "url": "/tmp/appshark_out_553/vulnerability/46-Wifi_APICall.html",
+        "hash": "0bebc5bc1d52812f364c4094d1b9534d2c4fa9f8",
+        "mode": "APIMode",
+        "rule": "Wifi_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.DeviceInfoUtils: java.lang.String getCommType(android.content.Context)>",
+        "detail": "获取WiFi信息(SSID/BSSID/扫描结果)",
+        "section": "ComplianceInfo",
+        "statement": "$r1_1 = virtualinvoke $r4.<android.net.NetworkInfo: java.lang.String getExtraInfo()>()"
+      }
+    },
+    {
+      "id": 2779,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+      "location": "<tech.madp.core.weexsupport.utils.b: java.lang.String l(android.content.Context)>",
+      "category": null,
+      "rule_code": "Wifi_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+        "url": "/tmp/appshark_out_553/vulnerability/12-Wifi_APICall.html",
+        "hash": "ffc0b061b74f8008a85ed597f4703adcfd6241c0",
+        "mode": "APIMode",
+        "rule": "Wifi_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.b: java.lang.String l(android.content.Context)>",
+        "detail": "获取WiFi信息(SSID/BSSID/扫描结果)",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r3.<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>()"
+      }
+    },
+    {
+      "id": 2780,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.wifi.WifiManager: android.net.wifi.WifiInfo getConnectionInfo()>",
+      "location": "<tech.madp.core.weexsupport.utils.b: java.lang.String l(android.content.Context)>",
+      "category": null,
+      "rule_code": "Wifi_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.wifi.WifiManager: android.net.wifi.WifiInfo getConnectionInfo()>",
+        "url": "/tmp/appshark_out_553/vulnerability/34-Wifi_APICall.html",
+        "hash": "a82960955aa8f4c20d63a92bdb954d5227c4805c",
+        "mode": "APIMode",
+        "rule": "Wifi_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.b: java.lang.String l(android.content.Context)>",
+        "detail": "获取WiFi信息(SSID/BSSID/扫描结果)",
+        "section": "ComplianceInfo",
+        "statement": "$r3 = virtualinvoke $r2.<android.net.wifi.WifiManager: android.net.wifi.WifiInfo getConnectionInfo()>()"
+      }
+    },
+    {
+      "id": 2781,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+      "location": "<tech.madp.core.weexsupport.utils.b: java.lang.String a(android.content.Context)>",
+      "category": null,
+      "rule_code": "Wifi_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>",
+        "url": "/tmp/appshark_out_553/vulnerability/3-Wifi_APICall.html",
+        "hash": "655cdb92edd2d515f73e3fc4308c71658f821ae1",
+        "mode": "APIMode",
+        "rule": "Wifi_APICall",
+        "level": "L2",
+        "caller": "<tech.madp.core.weexsupport.utils.b: java.lang.String a(android.content.Context)>",
+        "detail": "获取WiFi信息(SSID/BSSID/扫描结果)",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r3.<android.net.wifi.WifiInfo: java.lang.String getMacAddress()>()"
+      }
+    },
+    {
+      "id": 2782,
+      "observation_type": "security.sensitive_api",
+      "subject": "<android.net.wifi.WifiManager: android.net.wifi.WifiInfo getConnectionInfo()>",
+      "location": "<cn.com.cfca.sdk.hke.data.a: void <init>(android.content.Context)>",
+      "category": null,
+      "rule_code": "Wifi_APICall",
+      "evidence_level": "observed",
+      "payload": {
+        "api": "<android.net.wifi.WifiManager: android.net.wifi.WifiInfo getConnectionInfo()>",
+        "url": "/tmp/appshark_out_553/vulnerability/38-Wifi_APICall.html",
+        "hash": "22ead4e2eb1772023adca78e44859de0caad4b6c",
+        "mode": "APIMode",
+        "rule": "Wifi_APICall",
+        "level": "L2",
+        "caller": "<cn.com.cfca.sdk.hke.data.a: void <init>(android.content.Context)>",
+        "detail": "获取WiFi信息(SSID/BSSID/扫描结果)",
+        "section": "ComplianceInfo",
+        "statement": "$r4 = virtualinvoke $r3.<android.net.wifi.WifiManager: android.net.wifi.WifiInfo getConnectionInfo()>()"
+      }
+    },
+    {
+      "id": 2783,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>->$r12']",
+      "location": "<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>",
+      "category": null,
+      "rule_code": "unZipSlip",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>->$r12']",
+        "url": "/tmp/appshark_out_553/vulnerability/117-unZipSlip.html",
+        "hash": "25fdf938eefd9ebac0b6a42d7438ef6470fde47c",
+        "rule": "unZipSlip",
+        "sink": [
+          "<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>->$r12"
+        ],
+        "level": "L4",
+        "caller": "<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>",
+        "detail": "ZIP Slip is a highly critical security vulnerability aimed at these kind of applications. ZIP Slip makes your application vulnerable to Path traversal attack and Sensitive data exposure.",
+        "source": [
+          "<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>->$r2_6"
+        ],
+        "section": "SecurityInfo",
+        "taint_path": [
+          "<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>->$r2_6",
+          "<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>->$r9",
+          "<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>->$r2_7",
+          "<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>->$r5_2",
+          "<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>->$r2_8",
+          "<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>->$r19",
+          "<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>->$r12"
+        ],
+        "entry_method": "<com.taobao.weex.utils.WXFileUtils: void extractSo(java.lang.String,java.lang.String)>"
+      }
+    },
+    {
+      "id": 2784,
+      "observation_type": "dataflow.privacy",
+      "subject": "['<com.tencent.mm.opensdk.channel.MMessageActV2: void sendUsingPendingIntent(android.content.Context,android.content.Intent)>->$r1']",
+      "location": "<com.tencent.mm.opensdk.channel.MMessageActV2: boolean send(android.content.Context,com.tencent.mm.opensdk.channel.MMessageActV2$Args)>",
+      "category": null,
+      "rule_code": "PendingIntentMutable",
+      "evidence_level": "potential",
+      "payload": {
+        "api": "['<com.tencent.mm.opensdk.channel.MMessageActV2: void sendUsingPendingIntent(android.content.Context,android.content.Intent)>->$r1']",
+        "url": "/tmp/appshark_out_553/vulnerability/107-PendingIntentMutable.html",
+        "hash": "9d47ce01f77ea7e48d2773342cf73b8fa78238cf",
+        "rule": "PendingIntentMutable",
+        "sink": [
+          "<com.tencent.mm.opensdk.channel.MMessageActV2: void sendUsingPendingIntent(android.content.Context,android.content.Intent)>->$r1"
+        ],
+        "level": "L4",
+        "caller": "<com.tencent.mm.opensdk.channel.MMessageActV2: boolean send(android.content.Context,com.tencent.mm.opensdk.channel.MMessageActV2$Args)>",
+        "detail": "When a malicious application received the vulnerable PendingIntent, the malicious application can modify the content of the original intent and the intent will be send under the context of the vulnerable application.",
+        "source": [
+          "<com.tencent.mm.opensdk.channel.MMessageActV2: boolean send(android.content.Context,com.tencent.mm.opensdk.channel.MMessageActV2$Args)>->$r8"
+        ],
+        "section": "SecurityInfo",
+        "taint_path": [
+          "<com.tencent.mm.opensdk.channel.MMessageActV2: boolean send(android.content.Context,com.tencent.mm.opensdk.channel.MMessageActV2$Args)>->$r8",
+          "<com.tencent.mm.opensdk.channel.MMessageActV2: boolean send(android.content.Context,com.tencent.mm.opensdk.channel.MMessageActV2$Args)>->$r4",
+          "<com.tencent.mm.opensdk.channel.MMessageActV2: void sendUsingPendingIntent(android.content.Context,android.content.Intent)>->@parameter1",
+          "<com.tencent.mm.opensdk.channel.MMessageActV2: void sendUsingPendingIntent(android.content.Context,android.content.Intent)>->$r1"
+        ],
+        "entry_method": "<com.tencent.mm.opensdk.channel.MMessageActV2: boolean send(android.content.Context,com.tencent.mm.opensdk.channel.MMessageActV2$Args)>"
+      }
+    },
+    {
+      "id": 2785,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.READ_CONTACTS",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.READ_CONTACTS",
+        "source": "appshark",
+        "permission": "android.permission.READ_CONTACTS"
+      }
+    },
+    {
+      "id": 2786,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION",
+        "source": "appshark",
+        "permission": "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION"
+      }
+    },
+    {
+      "id": 2787,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.FOREGROUND_SERVICE",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.FOREGROUND_SERVICE",
+        "source": "appshark",
+        "permission": "android.permission.FOREGROUND_SERVICE"
+      }
+    },
+    {
+      "id": 2788,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.BLUETOOTH_ADMIN",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.BLUETOOTH_ADMIN",
+        "source": "appshark",
+        "permission": "android.permission.BLUETOOTH_ADMIN"
+      }
+    },
+    {
+      "id": 2789,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.VIBRATE",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.VIBRATE",
+        "source": "appshark",
+        "permission": "android.permission.VIBRATE"
+      }
+    },
+    {
+      "id": 2790,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.READ_PRIVILEGED_PHONE_STATE",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.READ_PRIVILEGED_PHONE_STATE",
+        "source": "appshark",
+        "permission": "android.permission.READ_PRIVILEGED_PHONE_STATE"
+      }
+    },
+    {
+      "id": 2791,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.WRITE_EXTERNAL_STORAGE",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.WRITE_EXTERNAL_STORAGE",
+        "source": "appshark",
+        "permission": "android.permission.WRITE_EXTERNAL_STORAGE"
+      }
+    },
+    {
+      "id": 2792,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.REQUEST_INSTALL_PACKAGES",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.REQUEST_INSTALL_PACKAGES",
+        "source": "appshark",
+        "permission": "android.permission.REQUEST_INSTALL_PACKAGES"
+      }
+    },
+    {
+      "id": 2793,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.ACCESS_FINE_LOCATION",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.ACCESS_FINE_LOCATION",
+        "source": "appshark",
+        "permission": "android.permission.ACCESS_FINE_LOCATION"
+      }
+    },
+    {
+      "id": 2794,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.ACCESS_COARSE_LOCATION",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.ACCESS_COARSE_LOCATION",
+        "source": "appshark",
+        "permission": "android.permission.ACCESS_COARSE_LOCATION"
+      }
+    },
+    {
+      "id": 2795,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.INTERNET",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.INTERNET",
+        "source": "appshark",
+        "permission": "android.permission.INTERNET"
+      }
+    },
+    {
+      "id": 2796,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.ACCESS_NETWORK_STATE",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.ACCESS_NETWORK_STATE",
+        "source": "appshark",
+        "permission": "android.permission.ACCESS_NETWORK_STATE"
+      }
+    },
+    {
+      "id": 2797,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.WAKE_LOCK",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.WAKE_LOCK",
+        "source": "appshark",
+        "permission": "android.permission.WAKE_LOCK"
+      }
+    },
+    {
+      "id": 2798,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.ACCESS_WIFI_STATE",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.ACCESS_WIFI_STATE",
+        "source": "appshark",
+        "permission": "android.permission.ACCESS_WIFI_STATE"
+      }
+    },
+    {
+      "id": 2799,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.USE_FINGERPRINT",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.USE_FINGERPRINT",
+        "source": "appshark",
+        "permission": "android.permission.USE_FINGERPRINT"
+      }
+    },
+    {
+      "id": 2800,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.CAMERA",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.CAMERA",
+        "source": "appshark",
+        "permission": "android.permission.CAMERA"
+      }
+    },
+    {
+      "id": 2801,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.READ_EXTERNAL_STORAGE",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.READ_EXTERNAL_STORAGE",
+        "source": "appshark",
+        "permission": "android.permission.READ_EXTERNAL_STORAGE"
+      }
+    },
+    {
+      "id": 2802,
+      "observation_type": "fact.permission",
+      "subject": "android.permission.BLUETOOTH",
+      "location": null,
+      "category": null,
+      "rule_code": null,
+      "evidence_level": "observed",
+      "payload": {
+        "api": "android.permission.BLUETOOTH",
+        "source": "appshark",
+        "permission": "android.permission.BLUETOOTH"
+      }
+    }
+  ]
+}
