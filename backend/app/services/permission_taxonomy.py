@@ -37,6 +37,17 @@ ANDROID_PROTECTION_LEVEL_MAP = {
 # 普通 App 真能申请的 Android 类型。实测 1018 条里只有 143 条落在这里。
 _ANDROID_APPLICABLE = {"危险权限", "危险权限（受限）", "普通权限"}
 
+# 各平台**解析器自己能产出**的 permission_type 取值。
+#
+# 导入时用它判「库里已有的值要不要让机器覆盖」：值在集合里 → 机器能自己算出来，
+# 让它更新（否则 AOSP 的重新分类永远进不来，全库冻结）；不在集合里 → 那是人工判定的、
+# 机器推不出来的知识（如 `已弃用权限`/`危险权限（受限）`/`三方声明权限`），不得覆盖。
+PARSER_PRODUCIBLE_TYPES: dict[str, set[str]] = {
+    "ANDROID": set(ANDROID_PROTECTION_LEVEL_MAP.values()) | {"未标注"},
+    "HARMONYOS": set(PERMISSION_TYPES_BY_PLATFORM["HARMONYOS"]),
+    "IOS": set(PERMISSION_TYPES_BY_PLATFORM["IOS"]),
+}
+
 
 def map_android_protection_level(raw: str | None) -> str:
     """protectionLevel → permission_type。

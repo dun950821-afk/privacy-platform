@@ -39,11 +39,31 @@ SOURCES = [
 ]
 
 
+def _load_previous(manifest_path: pathlib.Path) -> dict[tuple[str, str], dict]:
+    """上一轮清单，按 (platform, file) 索引。
+
+    失败时要把上一次的 sha256/bytes/fetched_at **沿用**下来：抓不到不等于磁盘上那份
+    变坏了——脚本从不删旧文件，失败条目若写 `sha256: null`，清单就会声称「源文件不可验证」，
+    而磁盘上那份其实好端端在。这样清单和仓库里的实际内容会脱节，下载类失败还特别常见
+    （实测 AOSP 清单就偶发读超时）。
+    """
+    if not manifest_path.exists():
+        return {}
+    try:
+        return {(m["platform"], m["file"]): m for m in json.loads(
+            manifest_path.read_text(encoding="utf-8"))}
+    except (ValueError, KeyError, TypeError):
+        return {}
+
+
 def main():
+    manifest_path = ROOT / "SOURCES.json"
+    previous = _load_previous(manifest_path)
     manifest = []
     for platform, filename, url, headers in SOURCES:
         target = ROOT / platform / filename
         target.parent.mkdir(parents=True, exist_ok=True)
+        prev = previous.get((platform, filename)) or {}
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", **headers})
         try:
             with urllib.request.urlopen(req, timeout=120) as resp:
@@ -51,16 +71,26 @@ def main():
         except Exception as exc:                      # 抓不到就记下来，不静默跳过
             print(f"  FAILED {platform}/{filename}: {exc}")
             manifest.append({"platform": platform, "file": filename, "url": url,
-                             "fetched_at": None, "sha256": None, "error": str(exc)})
+                             # 沿用上一轮的三项：文件没被删，它还是好的
+                             "fetched_at": prev.get("fetched_at"),
+                             "sha256": prev.get("sha256"),
+                             "bytes": prev.get("bytes"),
+                             "error": str(exc)})
             continue
+        digest = hashlib.sha256(body).hexdigest()
+        # 字节没变就沿用上一轮的 fetched_at：`fetched_at` 记的是**内容何时到手**，
+        # 不是「脚本何时跑过」。否则每次重抓都会让清单产生一堆无意义的 diff。
+        unchanged = prev.get("sha256") == digest
         target.write_bytes(body)
         manifest.append({"platform": platform, "file": filename, "url": url,
-                         "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-                         "sha256": hashlib.sha256(body).hexdigest(),
+                         "fetched_at": prev.get("fetched_at") if unchanged
+                         else time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                         "sha256": digest,
                          "bytes": len(body)})
-        print(f"  ok {platform}/{filename} {len(body)} bytes")
+        print(f"  ok {platform}/{filename} {len(body)} bytes"
+              + ("（内容未变）" if unchanged else ""))
 
-    (ROOT / "SOURCES.json").write_text(
+    manifest_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     failed = [m for m in manifest if m.get("error")]
     print(f"\n抓取完成 {len(manifest) - len(failed)}/{len(manifest)}；失败 {len(failed)} 条")

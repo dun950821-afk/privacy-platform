@@ -13,7 +13,9 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.kb import KBImportBatch, KBPermission
-from app.services.permission_taxonomy import PLATFORMS, validate_permission_type
+from app.services.permission_taxonomy import (
+    PARSER_PRODUCIBLE_TYPES, PLATFORMS, validate_permission_type,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -105,14 +107,17 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
         # grant_mode **全部**是人工/早期整理的成果，其中 81 行的权限名与 AOSP 清单重叠。
         # 少了这层过滤，首次导入会把它们静默抹成 NULL——而首次导入没有基线可挡。
         incoming = {f: row[f] for f in _UPDATABLE if f in row and row[f] is not None}
-        # `permission_type` 另有保护：库里已有的非空值不覆盖。
-        # 原有 103 行里有 30 行的类型是人工判定的，取值是 `已弃用权限` / `危险权限（受限）` /
-        # `三方声明权限` 这类 **AOSP 的 protectionLevel 推不出来**的——机器覆盖会把它们抹成
-        # AOSP 能表达的那几个值，信息不可逆地丢失，还会翻转 `is_applicable`（实测 14 行由
-        # 不可达翻成可达）。人工要改可以到权限知识库页面上改。
-        # 与上面那层 `None` 过滤合起来才是完整的「不覆盖人工编辑」：可空字段靠 None，
-        # 恒非空字段（本字段）靠这里——首次导入没有时间戳基线可挡，两层都必须在。
-        if existing.permission_type:
+        # `permission_type` 另有保护，但**只保护解析器产不出来的取值**。
+        #
+        # 不能写成「只要非空就不覆盖」：解析器从不返回空，首跑之后每一行都非空，
+        # 于是 AOSP 的重新分类**永远进不来**，全库冻结在这个字段上——而 `is_applicable`
+        # 正是从它推的，错误会是全库级的。
+        #
+        # 判据：值在 PARSER_PRODUCIBLE_TYPES[platform] 里 → 机器算得出来，让它更新；
+        # 不在 → 那是人工判定的知识（`已弃用权限`/`危险权限（受限）`/`三方声明权限`），
+        # 覆盖会把信息不可逆地抹掉并翻转 is_applicable（实测 14 行由不可达翻成可达）。
+        if existing.permission_type \
+                and existing.permission_type not in PARSER_PRODUCIBLE_TYPES[platform]:
             incoming.pop("permission_type", None)
         incoming_raw = row.get("raw_data") or {}
 

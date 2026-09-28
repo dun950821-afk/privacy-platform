@@ -211,3 +211,23 @@ def test_import_does_not_overwrite_human_permission_type(db):
         assert got == "危险权限（受限）", "人工判定的类型被机器覆盖了"
     finally:
         _cleanup(db)
+
+
+def test_import_lets_parser_recoverable_type_update(db):
+    """解析器自己能算出来的取值，机器**应当**能更新它。
+
+    这条与 `test_import_does_not_overwrite_human_permission_type` 是一对，钉住保护的范围：
+    保护只该覆盖「机器推不出来」的值。若写成「只要非空就不覆盖」，解析器从不返回空，
+    首跑之后每行都非空 —— AOSP 的重新分类永远进不来，全库冻结在这个字段上，
+    而 `is_applicable` 正是从它推的。
+    """
+    _cleanup(db)
+    try:
+        import_platform(db, "ANDROID", [_row(P + "u", permission_type="普通权限")])
+        result = import_platform(db, "ANDROID", [_row(P + "u", permission_type="危险权限")])
+        assert result == {"inserted": 0, "updated": 1, "skipped": 0}
+        got = db.execute(text("select permission_type from privacy_kb.permission where permission_name=:n"),
+                         {"n": P + "u"}).scalar()
+        assert got == "危险权限", "机器能算出来的值应当可被更新"
+    finally:
+        _cleanup(db)
