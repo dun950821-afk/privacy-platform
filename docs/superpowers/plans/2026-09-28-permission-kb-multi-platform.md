@@ -864,7 +864,7 @@ def parse_ios_protected_resources(json_text: str) -> list[dict]:
 - [ ] **Step 5: 跑测试确认通过**
 
 Run: `cd backend && /tmp/venv/bin/python -m pytest tests/test_permission_sources.py -v`
-Expected: 11 passed（Task 3 的 5 + Task 4 的 3 + 本任务 3）
+Expected: 14 passed（Task 3 的 6 + Task 4 的 5 + 本任务 3；全套 295 passed）
 
 - [ ] **Step 6: Commit**
 
