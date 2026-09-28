@@ -238,6 +238,7 @@ def build_profile(observations: list[dict], sdk_components: list[dict],
         "collect_app_self": group("self"),
         "collect_third_party": group("third_party"),
         "collect_unidentified": group("unknown"),
+        "unattributed_packages": _unattributed_packages(buckets),
         "permissions": permissions,
         "policy_available": False,
         "notes": [
@@ -257,6 +258,31 @@ def _canonical_permission(name: str) -> str:
         if short.startswith(prefix):
             short = short[len(prefix):]
     return short
+
+
+def _unattributed_packages(buckets: dict) -> list[dict]:
+    """把「未归因」的调用点按包前缀聚合。
+
+    这是「暂时无法识别」的第二个层面：**调用点的包不在知识库里**（SdkPanel 展示的
+    「未识别包簇」是另一回事——那是 manifest 组件没匹配上）。两个层面都要给用户看，
+    否则 595 处采集点就是一片「未识别」，看不出集中在哪几个包。
+    """
+    agg: dict[str, dict] = {}
+    for (owner_key, category), obs in buckets.items():
+        if owner_key[0] != "unknown":
+            continue
+        for o in obs:
+            cls = _caller_class((o.get("payload") or {}).get("caller"))
+            if not cls:
+                continue
+            parts = cls.split(".")
+            prefix = ".".join(parts[:3]) if len(parts) >= 3 else cls
+            item = agg.setdefault(prefix, {"package_prefix": prefix, "call_site_count": 0,
+                                           "categories": set(), "sample": cls})
+            item["call_site_count"] += 1
+            item["categories"].add(category)
+    out = [dict(v, categories=sorted(v["categories"])) for v in agg.values()]
+    return sorted(out, key=lambda x: -x["call_site_count"])
 
 
 def load_profile(db: Session, task) -> dict:

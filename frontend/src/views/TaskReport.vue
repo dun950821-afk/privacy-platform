@@ -139,29 +139,12 @@
         </el-row>
       </el-tab-pane>
 
-      <!-- 分引擎结果：复用工作台那套面板；报告是交付物，按引擎分章、指标在前、明细默认展开 -->
-      <el-tab-pane label="分引擎结果" name="engines">
+      <!-- 隐私画像：与工作台同一套组件。报告是交付物，但不再另做一套展示逻辑 ——
+           两处各写一套的结果就是「报告比工作台少很多」 -->
+      <el-tab-pane label="隐私画像" name="profile">
         <el-alert v-if="leadCount" type="info" :closable="false" show-icon class="mb16"
           :title="`另有 ${leadCount} 条引擎判定为弱点的线索未经平台核实，未列入本报告结论；详见工作台「未核实线索」`" />
-
-        <el-card v-for="e in engineChapters" :key="e.type" shadow="never" class="chapter-card">
-          <template #header>
-            <div class="chapter-head">
-              <span class="chapter-name">{{ e.name }}</span>
-              <span class="chapter-role">{{ e.role }}</span>
-              <div class="chapter-metrics">
-                <el-tag v-for="m in e.metrics" :key="m.label" size="small" effect="plain"
-                        :type="m.value ? 'primary' : 'info'">
-                  {{ m.label }} <b>{{ m.value }}</b>
-                </el-tag>
-              </div>
-            </div>
-          </template>
-          <AppSharkPanel v-if="e.type === 'appshark'" :task-id="taskId" />
-          <AndroguardPanel v-else-if="e.type === 'androguard'" :task-id="taskId"
-                           :execution-summary="e.resultSummary" />
-          <MobSFPanel v-else :task-id="taskId" />
-        </el-card>
+        <ComplianceProfile :task-id="taskId" />
       </el-tab-pane>
 
 
@@ -232,9 +215,7 @@ import StatusTag from '@/components/StatusTag.vue'
 import StatCard from '@/components/StatCard.vue'
 import EmptyBox from '@/components/EmptyBox.vue'
 import VChart from '@/components/VChart.vue'
-import AppSharkPanel from '@/components/AppSharkPanel.vue'
-import AndroguardPanel from '@/components/AndroguardPanel.vue'
-import MobSFPanel from '@/components/MobSFPanel.vue'
+import ComplianceProfile from '@/components/ComplianceProfile.vue'
 import { taskApi } from '@/api/tasks'
 import { fmtSize, fmtDateTime, fmtDuration } from '@/utils/format'
 import {
@@ -248,7 +229,8 @@ const taskId = Number(route.params.id)
 
 const loading = ref(true)
 const report = ref<any>({})
-const activeTab = ref('overview')
+// 默认落在隐私画像：概览只有几个数字，交付物要看的是画像本身
+const activeTab = ref('profile')
 const platformFindings = ref<any[]>([])
 const observations = ref<any[]>([])
 const artifacts = ref<any[]>([])

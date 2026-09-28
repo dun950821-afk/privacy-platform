@@ -149,6 +149,9 @@
       </el-table>
     </el-card>
 
+    <!-- ── SDK 与第三方组件：已识别 / 暂时无法识别 ───────────── -->
+    <SdkPanel :task-id="taskId" :unattributed="profile?.unattributed_packages || []" />
+
     <!-- ── 缺口说明：不假装有数据 ───────────────────────────── -->
     <el-alert type="info" :closable="false" class="block">
       <template #title>以下字段平台尚无数据，一律显示「无数据」，不推断</template>
@@ -171,6 +174,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import EmptyBox from '@/components/EmptyBox.vue'
 import EngineReportViewer from '@/components/EngineReportViewer.vue'
+import SdkPanel from '@/components/SdkPanel.vue'
 import { taskApi } from '@/api/tasks'
 
 const props = defineProps<{ taskId: number }>()

@@ -202,3 +202,17 @@ def test_class_fingerprint_is_used_as_package_prefix():
     # 归因依据不同，界面上要与确证区分
     p = build_profile([obs(1, "<com.baidu.location.b: void a()>", "location")], comps, KB, APP_PKG)
     assert p["collect_third_party"][0]["owner"]["attribution_basis"] == "CLASS_INFERRED"
+
+
+def test_unattributed_packages_grouped_by_package_prefix():
+    """未归因的调用点要按包前缀聚合——否则 595 处采集点都是一片「未识别」，看不出集中在哪。"""
+    p = profile([obs(1, "<com.unknown.thing.A: void d()>", "installed_apps"),
+                 obs(2, "<com.unknown.thing.B: void e()>", "location"),
+                 obs(3, "<com.other.pkg.C: void f()>", "location")])
+    by_prefix = {i["package_prefix"]: i for i in p["unattributed_packages"]}
+    assert by_prefix["com.unknown.thing"]["call_site_count"] == 2
+    assert set(by_prefix["com.unknown.thing"]["categories"]) == {"installed_apps", "location"}
+    assert by_prefix["com.other.pkg"]["call_site_count"] == 1
+    # 已归因的不该出现在这里
+    p2 = profile([obs(1, "<com.intsig.pdf.a.B: void g()>", "location")])
+    assert p2["unattributed_packages"] == []
