@@ -31,6 +31,11 @@ def get_task_engine_queue(db: Session, task_id: int) -> dict:
             "completed_at": str(row.completed_at) if row.completed_at else None,
             "duration_ms": row.duration_ms,
             "error_message": row.error_message,
+            # 引擎自报的产物统计（Androguard 的类数/方法数、AppShark 的扫描规模）
+            # 与覆盖度判定——前端按引擎分区展示要靠它
+            "result_summary": row.result_summary or {},
+            "analysis_coverage": row.analysis_coverage,
+            "coverage_detail": row.coverage_detail or {},
         }
         items.append(item)
         if row.status == "running":

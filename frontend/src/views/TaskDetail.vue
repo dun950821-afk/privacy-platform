@@ -75,6 +75,12 @@
     <!-- 数据区 Tabs -->
     <el-card shadow="never">
       <el-tabs v-model="activeTab">
+        <!-- 检测结果：结论在前，原始结果按引擎各自的特点分区 -->
+        <el-tab-pane label="检测结果" name="workspace">
+          <TaskWorkspace :task-id="taskId" :engine-queue="engineQueue.items || []"
+                          :focus="workspaceFocus" />
+        </el-tab-pane>
+
         <!-- ① 检测阶段 -->
         <el-tab-pane :label="`检测阶段 (${subTasks.length})`" name="subtasks">
           <el-table :data="subTasks" size="small" stripe>
@@ -161,135 +167,6 @@
         </el-tab-pane>
 
         <!-- ③ 事件流 -->
-        <el-tab-pane label="引擎结果 · AppShark" name="engine_appshark">
-          <AppSharkPanel :task-id="taskId" />
-        </el-tab-pane>
-
-        <el-tab-pane :label="`事件流 (${eventTotal})`" name="events">
-          <div class="filter-bar">
-            <el-select v-model="eventTypeFilter" placeholder="事件类型" clearable size="small"
-                       style="width: 160px" @change="handleEventFilterChange">
-              <el-option v-for="opt in eventTypeOptions" :key="opt.value"
-                         :label="opt.label" :value="opt.value" />
-            </el-select>
-            <el-select v-model="eventSdkFilter" placeholder="关联SDK" clearable filterable size="small"
-                       style="width: 220px" @change="handleEventFilterChange">
-              <el-option v-for="s in matchedSdks" :key="s.id" :value="s.id"
-                         :label="`${s.name}（${s.count}）`" />
-            </el-select>
-            <el-input v-model="eventDataTypeFilter" placeholder="数据类型，如 location" clearable
-                      size="small" style="width: 180px"
-                      @change="handleEventFilterChange" @clear="handleEventFilterChange" />
-            <el-popover placement="bottom-end" :width="200" trigger="click">
-              <template #reference>
-                <el-button size="small" :icon="Setting" class="col-setting-btn">列设置</el-button>
-              </template>
-              <div class="col-setting">
-                <div class="col-setting-header">
-                  <span>显示列</span>
-                  <el-button link type="primary" size="small" @click="resetEventCols">重置默认</el-button>
-                </div>
-                <el-checkbox-group v-model="visibleEventCols">
-                  <el-checkbox v-for="col in EVENT_COLUMN_DEFS" :key="col.key" :value="col.key">
-                    {{ col.label }}
-                  </el-checkbox>
-                </el-checkbox-group>
-              </div>
-            </el-popover>
-          </div>
-          <el-table :data="events" size="small" stripe v-loading="loadingEvents"
-                    :row-class-name="eventRowClass" @row-click="openEventDrawer">
-            <el-table-column v-if="eventColVisible('time')" label="时间" width="160">
-              <template #default="{ row }">{{ fmtDateTimeFull(row.timestamp) }}</template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('type')" label="类型" width="110">
-              <template #default="{ row }">
-                <StatusTag :value="row.event_type" :map="EVENT_TYPE" />
-              </template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('consent')" label="同意状态" width="90">
-              <template #default="{ row }">
-                <StatusTag v-if="row.consent_status" :value="row.consent_status" :map="CONSENT_STATUS" />
-                <span v-else class="no-sdk">-</span>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('dataType')" prop="data_type" label="数据类型" width="100">
-              <template #default="{ row }">{{ row.data_type || '-' }}</template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('api')" prop="api" label="API / 路径" min-width="200" show-overflow-tooltip>
-              <template #default="{ row }">
-                <span class="mono">{{ row.api || '-' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('caller')" prop="caller" label="调用方" min-width="150" show-overflow-tooltip>
-              <template #default="{ row }">
-                <span class="mono">{{ row.caller || '-' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('permission')" label="权限" min-width="160" show-overflow-tooltip>
-              <template #default="{ row }">
-                <span v-if="row.permission" class="mono">{{ row.permission.permission_name }}</span>
-                <span v-else class="no-sdk">-</span>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('permissionCategory')" label="权限类别" width="110" show-overflow-tooltip>
-              <template #default="{ row }">
-                <template v-if="row.permission">
-                  {{ row.permission.category || '-' }}
-                  <span v-if="row.permission.permission_type" class="perm-sub">
-                    · {{ row.permission.permission_type }}
-                  </span>
-                </template>
-                <span v-else class="no-sdk">-</span>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('permissionCapability')" label="能力说明" min-width="180" show-overflow-tooltip>
-              <template #default="{ row }">
-                {{ row.permission?.capability || '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('permissionRisk')" label="权限风险" width="90">
-              <template #default="{ row }">
-                <StatusTag v-if="row.permission" :value="row.permission.risk_level" :map="SENSITIVITY" />
-                <span v-else class="no-sdk">-</span>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('sdk')" label="关联SDK" min-width="140" show-overflow-tooltip>
-              <template #default="{ row }">
-                <el-link v-if="row.sdk" type="primary" :underline="false"
-                         @click.stop="openSdkByComponent(row.sdk.id)">
-                  {{ row.sdk.name }}
-                </el-link>
-                <span v-else class="no-sdk">-</span>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('engine')" label="引擎" width="100">
-              <template #default="{ row }">
-                {{ row.engine || row.event_data?.engine || '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('engineVersion')" label="引擎版本" width="100">
-              <template #default="{ row }">
-                {{ row.engine_version || row.event_data?.engine_version || '-' }}
-              </template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('traceId')" label="Trace ID" width="140" show-overflow-tooltip>
-              <template #default="{ row }">
-                <span class="mono">{{ row.trace_id || '-' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column v-if="eventColVisible('eventUid')" label="事件ID" min-width="170" show-overflow-tooltip>
-              <template #default="{ row }">
-                <span class="mono">{{ row.event_uid || '-' }}</span>
-              </template>
-            </el-table-column>
-            <template #empty><EmptyBox description="暂无事件" /></template>
-          </el-table>
-          <el-pagination class="pager" v-model:current-page="eventPage" :page-size="50"
-                         :total="eventTotal" layout="total, prev, pager, next"
-                         @current-change="loadEvents" />
-        </el-tab-pane>
-
         <!-- ④ SDK识别 -->
         <el-tab-pane :label="`SDK识别 (${sdkHits.length})`" name="sdks">
           <el-table :data="sdkHits" size="small" stripe v-loading="loadingSdkHits">
@@ -474,89 +351,6 @@
     </el-card>
 
     <!-- 事件详情抽屉 -->
-    <el-drawer v-model="eventDrawerVisible" title="事件详情" size="560px">
-      <template v-if="currentEvent">
-        <el-descriptions :column="1" border size="small">
-          <el-descriptions-item label="事件ID">
-            <span class="mono">{{ currentEvent.event_uid }}</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="类型">
-            <StatusTag :value="currentEvent.event_type" :map="EVENT_TYPE" />
-          </el-descriptions-item>
-          <el-descriptions-item label="时间">
-            {{ fmtDateTimeFull(currentEvent.timestamp) }}
-          </el-descriptions-item>
-          <el-descriptions-item v-if="currentEvent.consent_status" label="同意状态">
-            <StatusTag :value="currentEvent.consent_status" :map="CONSENT_STATUS" />
-          </el-descriptions-item>
-          <el-descriptions-item v-if="currentEvent.data_type" label="数据类型">
-            {{ currentEvent.data_type }}
-          </el-descriptions-item>
-          <el-descriptions-item v-if="currentEvent.api" label="API">
-            <span class="mono break-all">{{ currentEvent.api }}</span>
-          </el-descriptions-item>
-          <el-descriptions-item v-if="currentEvent.caller" label="调用方">
-            <span class="mono break-all">{{ currentEvent.caller }}</span>
-          </el-descriptions-item>
-          <el-descriptions-item v-if="currentEvent.trace_id" label="Trace ID">
-            <span class="mono">{{ currentEvent.trace_id }}</span>
-          </el-descriptions-item>
-        </el-descriptions>
-
-        <!-- 关联SDK卡片 -->
-        <template v-if="currentEvent.sdk">
-          <div class="json-title">关联SDK（来自知识库匹配）</div>
-          <div class="sdk-card" @click="router.push(`/sdks/${currentEvent.sdk.id}`)">
-            <div class="sdk-card-main">
-              <span class="sdk-card-name">{{ currentEvent.sdk.name }}</span>
-              <span class="sdk-card-vendor">{{ currentEvent.sdk.vendor || '未知厂商' }}</span>
-            </div>
-            <div class="sdk-card-tags">
-              <StatusTag :value="currentEvent.sdk.component_kind" :map="COMPONENT_KIND" />
-              <StatusTag v-if="currentEvent.sdk.sensitivity_level"
-                         :value="currentEvent.sdk.sensitivity_level" :map="SENSITIVITY" />
-              <el-tag v-if="currentEvent.sdk.category_l1" size="small" effect="plain" type="info">
-                {{ currentEvent.sdk.category_l1 }}
-              </el-tag>
-            </div>
-            <el-icon class="sdk-card-arrow"><ArrowRight /></el-icon>
-          </div>
-        </template>
-
-        <!-- 权限知识卡片 -->
-        <template v-if="currentEvent.permission">
-          <div class="json-title">权限知识（来自权限知识库）</div>
-          <el-descriptions :column="1" border size="small">
-            <el-descriptions-item label="权限名称">
-              <span class="mono break-all">{{ currentEvent.permission.permission_name }}</span>
-            </el-descriptions-item>
-            <el-descriptions-item label="权限类别">
-              {{ currentEvent.permission.category || '-' }}
-              <span v-if="currentEvent.permission.permission_type" class="perm-sub">
-                · {{ currentEvent.permission.permission_type }}
-              </span>
-            </el-descriptions-item>
-            <el-descriptions-item label="风险等级">
-              <StatusTag :value="currentEvent.permission.risk_level" :map="SENSITIVITY" />
-            </el-descriptions-item>
-            <el-descriptions-item v-if="currentEvent.permission.capability" label="能力说明">
-              {{ currentEvent.permission.capability }}
-            </el-descriptions-item>
-            <el-descriptions-item v-if="currentEvent.permission.grant_mode" label="授权方式">
-              {{ currentEvent.permission.grant_mode }}
-            </el-descriptions-item>
-            <el-descriptions-item v-if="currentEvent.permission.compliance_focus" label="合规关注">
-              {{ currentEvent.permission.compliance_focus }}
-            </el-descriptions-item>
-          </el-descriptions>
-        </template>
-
-        <template v-if="currentEvent.event_data">
-          <div class="json-title">事件数据 (JSON)</div>
-          <pre class="json-pre">{{ eventDataJson }}</pre>
-        </template>
-      </template>
-    </el-drawer>
 
     <!-- SDK识别详情抽屉 -->
     <el-drawer v-model="sdkDrawerVisible" size="640px" :title="sdkDetail?.sdk_name || 'SDK详情'">
@@ -700,6 +494,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import EmptyBox from '@/components/EmptyBox.vue'
 import AppSharkPanel from '@/components/AppSharkPanel.vue'
+import TaskWorkspace from '@/components/TaskWorkspace.vue'
 import api from '@/api'
 import { taskApi } from '@/api/tasks'
 import { reportApi } from '@/api/reports'
@@ -744,6 +539,7 @@ const engineStatusType = (status: string) => ({ pending: 'info', running: 'prima
 const scenarios = ref<any[]>([])
 const events = ref<any[]>([])
 const eventPage = ref(1)
+const workspaceFocus = ref<any>(null)
 const eventTotal = ref(0)
 const loadingEvents = ref(false)
 const eventTypeFilter = ref('')
@@ -1045,13 +841,9 @@ async function confirmCreateSdk() {
 function jumpToEvent(componentId: number | null, value: string) {
   sdkDrawerVisible.value = false
   clusterDrawerVisible.value = false
-  activeTab.value = 'events'
-  eventSdkFilter.value = componentId || ''
-  eventTypeFilter.value = ''
-  eventDataTypeFilter.value = ''
-  eventPage.value = 1
-  highlightValue.value = value
-  loadEvents()
+  // 原始事件流由工作台承载（已不再是独立 tab），定位条件传给它
+  activeTab.value = 'workspace'
+  workspaceFocus.value = { sdkId: componentId, keyword: value, at: Date.now() }
 }
 
 function eventRowClass({ row }: { row: any }): string {

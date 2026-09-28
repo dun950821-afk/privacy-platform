@@ -327,12 +327,20 @@ def list_events(tid: int, event_type: str = None, scenario_id: int = None,
 
 @router.get("/{tid}/observations")
 def task_observations(tid: int, engine_type: str = None, page: int = 1, page_size: int = 50,
+                      observation_type: str = None, result_semantics: str = None,
                       user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """任务统一观察结果，可按引擎过滤。"""
+    """任务统一观察结果，可按引擎、观察类型、结果语义过滤。
+
+    `result_semantics=supporting_evidence` 用来取「引擎检出但平台未核实」的线索。
+    """
     from app.models import EngineObservation
     q = db.query(EngineObservation).filter(EngineObservation.task_id == tid)
     if engine_type:
         q = q.filter(EngineObservation.engine_type == engine_type)
+    if observation_type:
+        q = q.filter(EngineObservation.observation_type == observation_type)
+    if result_semantics:
+        q = q.filter(EngineObservation.result_semantics == result_semantics)
     total = q.count()
     items = q.order_by(EngineObservation.id).offset((page - 1) * page_size).limit(page_size).all()
     return {"code": 0, "data": {
