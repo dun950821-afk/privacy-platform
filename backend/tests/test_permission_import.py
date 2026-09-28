@@ -167,7 +167,7 @@ def test_import_does_not_blank_existing_value_with_none(db):
     """解析结果为 None 的字段不得把库中已有的值抹掉。
 
     AOSP 解析器按设计输出 capability=None（清单不提供描述文本），而库里 103 行
-    ANDROID 的 capability 与 grant_mode **全部**是人工整理的成果，其中 81 行的
+    ANDROID 的 capability 与 grant_mode **全部**是人工整理的成果，其中 83 行的
     权限名与 AOSP 清单重叠。少了这层保护，首次导入就会把它们静默抹成 NULL——
     而首次导入没有基线可挡。
     """
@@ -193,9 +193,10 @@ def test_import_does_not_blank_existing_value_with_none(db):
 def test_import_does_not_overwrite_human_permission_type(db):
     """人工判定的 permission_type 不得被机器抹掉。
 
-    原库有 30 行的类型是人工判定的，取值是 `已弃用权限` / `危险权限（受限）` 这类
-    AOSP 的 protectionLevel **推不出来**的。机器覆盖会把它们变成 AOSP 能表达的那几个值
-    ——信息不可逆地丢失，还会翻转 is_applicable。
+    快照里有 **32 行**的取值是人工判定的（`已弃用权限` 12 / `三方声明权限` 12 /
+    `危险权限（受限）` 8），AOSP 的 protectionLevel **推不出来**。机器覆盖会把它们
+    变成 AOSP 能表达的那几个值——信息不可逆地丢失；其中 2 行（`三方声明权限`）
+    还会连 `is_applicable` 一起翻（不可达 → 可达）。
 
     `permission_type` 与 `capability`/`grant_mode` 的区别在于它**恒非空**（AOSP 解析器
     对任何 protectionLevel 都会给出一个值），所以上面那层 `None` 过滤护不住它。

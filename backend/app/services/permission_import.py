@@ -104,7 +104,7 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
 
         # 解析结果为 None 的字段**不动既有值**。这不是洁癖：AOSP 解析器按设计输出
         # capability=None（清单不提供描述文本），而库里 103 行 ANDROID 的 capability 与
-        # grant_mode **全部**是人工/早期整理的成果，其中 81 行的权限名与 AOSP 清单重叠。
+        # grant_mode **全部**是人工/早期整理的成果，其中 83 行的权限名与 AOSP 清单重叠。
         # 少了这层过滤，首次导入会把它们静默抹成 NULL——而首次导入没有基线可挡。
         incoming = {f: row[f] for f in _UPDATABLE if f in row and row[f] is not None}
         # `permission_type` 另有保护，但**只保护解析器产不出来的取值**。
@@ -115,7 +115,12 @@ def import_platform(db: Session, platform: str, rows: list[dict]) -> dict:
         #
         # 判据：值在 PARSER_PRODUCIBLE_TYPES[platform] 里 → 机器算得出来，让它更新；
         # 不在 → 那是人工判定的知识（`已弃用权限`/`危险权限（受限）`/`三方声明权限`），
-        # 覆盖会把信息不可逆地抹掉并翻转 is_applicable（实测 14 行由不可达翻成可达）。
+        # 覆盖会把信息不可逆地抹掉。实测库里这类值且有 AOSP 判定可对照的共 **16 行**
+        # （parser 逐行 diff 活库），且**每一行的 AOSP 判定都不同**：8 行
+        # `危险权限（受限）`→`危险权限`、6 行 `已弃用权限`→`普通权限`、2 行
+        # `三方声明权限`→`普通权限`。其中 **2 行**连 `is_applicable` 都会翻
+        # （`三方声明权限` 不可达 → `普通权限` 可达）；`已弃用权限` 已归入可达
+        # （见 permission_taxonomy），覆盖它不翻判定，但仍会永久丢掉「弃用」这层信息。
         if existing.permission_type \
                 and existing.permission_type not in PARSER_PRODUCIBLE_TYPES[platform]:
             incoming.pop("permission_type", None)
