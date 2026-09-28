@@ -1645,7 +1645,7 @@ def permission_meta(platform: str = None,
 @router.get("")
 def list_permissions(category: str = None, permission_type: str = None,
                      risk_level: str = None, keyword: str = None,
-                     platform: str = None, applicable: bool = None,
+                     platform: str = None, applicable: bool | None = None,
                      is_active: bool = None, page: int = 1, page_size: int = 50,
                      user: User = Depends(require_permission("permission:read")),
                      db: Session = Depends(get_db)):
@@ -1653,17 +1653,44 @@ def list_permissions(category: str = None, permission_type: str = None,
     if platform:
         q = q.filter(KBPermission.platform == platform)
 
-    if applicable:
-        # 可达性不能只在 SQL 里判：鸿蒙还要看 grant_mode，SQL 里拼不干净。
-        # 取全量在 Python 侧过滤，分页放在过滤之后（数据量在千级，可以接受）。
-        rows = [r for r in q.order_by(KBPermission.permission_name).all()
-                if is_applicable(r.platform, r.permission_type, r.grant_mode)]
-        total = len(rows)
-        items = rows[(page - 1) * page_size: page * page_size]
-    else:
+    if applicable is None:
         total = q.count()
         items = q.order_by(KBPermission.permission_name) \
                  .offset((page - 1) * page_size).limit(page_size).all()
+    else:
+        # 可达性不能只在 SQL 里判：鸿蒙还要看 grant_mode，SQL 里拼不干净。
+        # 取全量在 Python 侧过滤，分页放在过滤之后（数据量在千级，可以接受）。
+        #
+        # **三态**：true = 只看可达，false = 只看**不可达**，不传 = 不筛。
+        # 不能写成 `if applicable:`——那样 false 会静默退化成「不筛选」，
+        # 调用方明确要「不可达」那一档却拿到全量，是个不报错的错答案。
+        rows = [r for r in q.order_by(KBPermission.permission_name).all()
+                if is_applicable(r.platform, r.permission_type, r.grant_mode) is applicable]
+        total = len(rows)
+        items = rows[(page - 1) * page_size: page * page_size]
+```
+
+并补一条测试钉住三态：
+
+```python
+def test_applicable_filter_is_tri_state(client, admin_headers, db, seeded):
+    """`applicable` 必须三态：true 只看可达、false 只看不可达、不传不筛。
+
+    写成 `if applicable:` 的话 false 会退化成「不筛选」——调用方要「不可达」却拿到全量，
+    是个不报错的错答案。
+    """
+    only_reachable = client.get("/api/v1/permissions", headers=admin_headers,
+                                params={"platform": "ANDROID", "applicable": "true",
+                                        "keyword": P}).json()["data"]["items"]
+    only_unreachable = client.get("/api/v1/permissions", headers=admin_headers,
+                                  params={"platform": "ANDROID", "applicable": "false",
+                                          "keyword": P}).json()["data"]["items"]
+    unfiltered = client.get("/api/v1/permissions", headers=admin_headers,
+                            params={"platform": "ANDROID", "keyword": P}).json()["data"]["items"]
+
+    assert [i["permission_name"] for i in only_reachable] == [P + "danger"]
+    assert [i["permission_name"] for i in only_unreachable] == [P + "sig"]
+    assert len(unfiltered) == 2, "不传 applicable 时两行都要在"
 ```
 
 （`total` 与 `items` 在分支外不再各算一次——把原来那两行推进 else 分支里。）
