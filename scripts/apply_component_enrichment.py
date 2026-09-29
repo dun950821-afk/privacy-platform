@@ -78,6 +78,31 @@ def _norm_vendor(name: str) -> str:
     return re.sub(r"[,\s\.\-_、+]+", "", s).strip()
 
 
+# `X Push(Y Proxy)` 这 17 条的「厂商」口径：**取指纹包名的归属方（谁是代码作者）**。
+#
+# 起初两批给出相反答案，我把它挂起了。后来把 15 条的实际指纹摊开看，规律很清楚——
+# 12 条本来就是这个口径：
+#
+#     MiPush(TPNS Proxy)    指纹 com.tencent.android.mipush.*       → 腾讯
+#     Meizu Push(JPush)     指纹 cn.jpush.android...meizu*          → 极光
+#     vivo Push(Baidu)      指纹 com.baidu...viproxy.*              → 百度
+#
+# 只有 3 条 HUAWEI/HONOR 的填了**通道方**，是 outlier：
+#
+#     HUAWEI Push(TPNS)     com.tencent.android.hwpush.*   batch 填 华为 → 应为腾讯
+#     HUAWEI Push(Aliyun)   org.android.agoo.huawei.*      batch 填 华为 → 应为阿里云
+#     HONOR Push(Aliyun)    org.android.agoo.honor.*       batch 填 荣耀 → 应为阿里云
+#
+# 选这个口径的理由：**它就是指纹说的**（可机械核验），且答的正是平台主线那个问题
+# ——「谁在采集」指的是谁的代码在采集，不是谁的品牌挂在上面。
+# 更正是可逆的：指纹没变，只是把厂商字段对齐到指纹。
+PROXY_VENDOR_FIX = {
+    "HUAWEI Push(TPNS Proxy)": ("腾讯", "指纹 com.tencent.android.hwpush.* 是腾讯的包名"),
+    "HUAWEI Push(Aliyun Proxy)": ("阿里云", "指纹 org.android.agoo.* 是阿里云移动推送的包名"),
+    "HONOR Push(Aliyun Proxy)": ("阿里云", "指纹 org.android.agoo.* 是阿里云移动推送的包名"),
+}
+
+
 def load_batches(pattern: str = "/tmp/enrich_out_*.tsv") -> tuple[list[dict], list[str]]:
     rows, problems = [], []
     for path in sorted(pathlib.Path("/").glob(pattern.lstrip("/"))):
@@ -129,6 +154,35 @@ def main() -> None:
             comp = by_id.get(r["id"])
             if not comp or comp.name != r["name"]:
                 bad_id.append((r["id"], r["name"], comp.name if comp else "<不存在>"))
+
+        # 对齐 Proxy 的厂商口径（见 PROXY_VENDOR_FIX），不做挂起
+        proxy_fixed = 0
+        for r in best.values():
+            fix = PROXY_VENDOR_FIX.get(r["name"])
+            if fix and r["vendor"] != fix[0]:
+                r["vendor"] = fix[0]
+                proxy_fixed += 1
+        if proxy_fixed:
+            print(f"  Proxy 厂商口径对齐：改 {proxy_fixed} 条（依据见脚本 PROXY_VENDOR_FIX）")
+        # 覆盖度：**每个输入 id 都要在输出里**。
+        # 起先只查了「输出对得上输入」，那是单向的——agent 若把首行当表头吃掉，
+        # 缺的那条根本不会出现在输出里，也就检查不到。批次文件确实没有表头
+        # （我用 psql -At 导的），提示词里却写了「含表头」，所以这个坑是真踩过的。
+        expected: dict[str, str] = {}
+        for path in sorted(pathlib.Path("/tmp").glob("enrich_batch_*.tsv")):
+            for line in path.read_text(encoding="utf-8").splitlines():
+                parts = line.split("\t")
+                if parts and parts[0].isdigit():
+                    expected[parts[0]] = path.name
+        covered = [i for i in expected if i in best]
+        missing_in = sorted(set(expected) - set(best))              # 批次还没产出
+        print(f"  输入 {len(expected)} 条：已产出 {len(covered)} 条，"
+              f"**尚未产出 {len(missing_in)} 条**（对应批次还在跑）")
+        uncovered = missing_in
+        if uncovered:
+            by_batch = collections.Counter(expected[i] for i in uncovered)
+            for b, n in sorted(by_batch.items()):
+                print(f"     待产出 {n:3} 条  <- {b}")
 
         print(f"  去重后 {len(best)} 条（重复 {dup} 条，保留 confidence 高的）")
         print(f"  词表越界 {len(bad_vocab)} 处")
