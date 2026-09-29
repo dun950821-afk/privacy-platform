@@ -28,37 +28,7 @@ PACKER_PREFIXES = {
     "com.tencent.StubShell", "com.edog",
 }
 
-MATCH_TYPES = ["PACKAGE_PREFIX", "CLASS"]
-
-
-def _load_fingerprints(db: Session):
-    """加载匹配指纹（含权重），按值长度降序保证最长前缀优先"""
-    rows = db.query(KBComponentFingerprint, KBComponent) \
-        .join(KBComponent, KBComponentFingerprint.component_id == KBComponent.id) \
-        .filter(KBComponentFingerprint.fingerprint_type.in_(MATCH_TYPES),
-                KBComponentFingerprint.is_negative == False,
-                KBComponentFingerprint.match_mode.in_(["EXACT", "PREFIX"]),
-                KBComponent.is_active == True) \
-        .all()
-    fps = []
-    for fp, comp in rows:
-        val = (fp.normalized_value or "").strip().lower()
-        if val:
-            fps.append((val, fp, comp))
-    fps.sort(key=lambda x: len(x[0]), reverse=True)
-    return fps
-
-
-def _match(fps, *candidates):
-    """返回 (fp, component) 或 None"""
-    for cand in candidates:
-        if not cand:
-            continue
-        c = cand.strip().lower()
-        for val, fp, comp in fps:
-            if c.startswith(val):
-                return fp, comp
-    return None
+from app.services.component_matcher import cached_component_index  # noqa: E402
 
 
 def _cluster_prefix(class_name: str) -> str:
@@ -173,12 +143,13 @@ def analyze_task(db: Session, task: DetectionTask, refresh: bool = False) -> Sca
             .delete(synchronize_session=False)
         db.flush()
 
-    events = db.query(DetectionEvent).filter(
-        DetectionEvent.task_id == task.id,
-        DetectionEvent.event_type == "static_component",
-    ).all()
+    # 原来只扫 static_component（清单里注册的组件）。那会把「不注册组件、只被调用」
+    # 的 SDK 整批漏掉：单任务里 static_sensitive_api 有 1200+ 条事件、777 个不同
+    # caller，正是包名前缀指纹该命中的地方。事件页（tasks.list_events）本来就是按
+    # 全量事件匹配的，两处口径不一致会让同一个 App 在两个页面上显示不同的 SDK 集合。
+    events = db.query(DetectionEvent).filter(DetectionEvent.task_id == task.id).all()
 
-    fps = _load_fingerprints(db)
+    index = cached_component_index(db)
     app_package = ""
     version = db.query(AppVersion).get(task.app_version_id)
     if version and version.app:
@@ -189,19 +160,17 @@ def analyze_task(db: Session, task: DetectionTask, refresh: bool = False) -> Sca
     unmatched: list[DetectionEvent] = []
 
     for e in events:
-        m = _match(fps, e.caller, e.api)
+        m = index.match(e.caller, e.api)
         if m:
-            fp, comp = m
-            entry = hit_map.setdefault(comp.id, {"component": comp, "evidence": []})
-            entry["evidence"].append((e, fp))
+            entry = hit_map.setdefault(m["component_id"], {"component": m, "evidence": []})
+            entry["evidence"].append((e, m))
         else:
             unmatched.append(e)
 
     # 写入命中结果与证据
     for comp_id, entry in hit_map.items():
-        comp = entry["component"]
         evidences = entry["evidence"]
-        total_score = min(100, sum(max((fp.weight or 0), 0) for _, fp in evidences))
+        total_score = min(100, sum(max((m["weight"] or 0), 0) for _, m in evidences))
         hit_status = hit_overrides.get(comp_id) or (
             "CONFIRMED" if total_score >= 70 else
             "PROBABLE" if total_score >= 40 else "CANDIDATE"
@@ -211,20 +180,24 @@ def analyze_task(db: Session, task: DetectionTask, refresh: bool = False) -> Sca
             total_score=total_score,
             confidence_level=_confidence(total_score),
             hit_status=hit_status,
-            primary_package=(evidences[0][1].normalized_value if evidences else None),
+            primary_package=(evidences[0][1]["matched_value"] if evidences else None),
             evidence_count=len(evidences),
         )
         db.add(hit)
         db.flush()
-        for e, fp in evidences:
+        for e, m in evidences:
             db.add(ScanHitEvidence(
-                component_hit_id=hit.id, fingerprint_id=fp.id, event_id=e.id,
-                evidence_type=e.data_type or fp.fingerprint_type,
+                component_hit_id=hit.id, fingerprint_id=m["fingerprint_id"], event_id=e.id,
+                evidence_type=e.data_type or m["fingerprint_type"],
                 evidence_value=e.api or e.caller or "",
-                score=max((fp.weight or 0), 0),
-                is_primary=fp.fingerprint_type == "PACKAGE_PREFIX",
-                raw_data={"matched_fingerprint": fp.normalized_value,
-                          "match_type": fp.fingerprint_type, "source": "Manifest"},
+                score=max((m["weight"] or 0), 0),
+                is_primary=m["fingerprint_type"] == "PACKAGE_PREFIX",
+                raw_data={"matched_fingerprint": m["matched_value"],
+                          "match_type": m["fingerprint_type"],
+                          "match_mode": m["match_mode"],
+                          # 原来固定写 "Manifest"——只扫清单组件时成立，现在也扫 API/
+                          # 权限事件，写死会给出错误的出处。改成事件自身类型。
+                          "source": e.event_type},
             ))
 
     # 写入未识别包簇

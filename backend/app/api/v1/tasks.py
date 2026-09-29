@@ -195,43 +195,19 @@ def retry_task(tid: int, user: User = Depends(require_permission("task:write")),
 
 
 # ============ 事件 ↔ SDK知识库 关联匹配 ============
+#
+# 指纹索引与匹配语义在 services/component_matcher.py 一处实现，这里和 sdk_analysis
+# 共用。原先两处各有一份、都按前缀比、都不看 match_mode，见该模块的文档字符串。
 
 def _load_sdk_match_index(db):
-    """加载包名/类名指纹索引（最长前缀优先），用于事件归属 SDK 匹配"""
-    from app.models.kb import KBComponentFingerprint, KBComponent, KBVendor
-    rows = db.query(KBComponentFingerprint, KBComponent, KBVendor) \
-        .join(KBComponent, KBComponentFingerprint.component_id == KBComponent.id) \
-        .outerjoin(KBVendor, KBComponent.vendor_id == KBVendor.id) \
-        .filter(KBComponentFingerprint.fingerprint_type.in_(["PACKAGE_PREFIX", "CLASS"]),
-                KBComponentFingerprint.is_negative == False,
-                KBComponentFingerprint.match_mode.in_(["EXACT", "PREFIX"]),
-                KBComponent.is_active == True) \
-        .all()
-    index = []
-    for fp, comp, vendor in rows:
-        val = (fp.normalized_value or "").strip().lower()
-        if not val:
-            continue
-        index.append((val, {
-            "id": comp.id, "name": comp.name,
-            "vendor": vendor.name if vendor else None,
-            "component_kind": comp.component_kind,
-            "category_l1": comp.category_l1,
-            "sensitivity_level": comp.sensitivity_level,
-        }))
-    index.sort(key=lambda x: len(x[0]), reverse=True)
-    return index
+    """带缓存的组件指纹索引（按 match_mode 语义匹配）。"""
+    from app.services.component_matcher import cached_component_index
+    return cached_component_index(db)
 
 
 def _match_sdk(index, *candidates):
-    """按调用方/API 的包名前缀匹配 SDK（调用方优先，最长前缀命中）"""
-    for cand in candidates:
-        if not cand:
-            continue
-        c = cand.strip().lower()
-        for val, comp in index:
-            if c.startswith(val):
-                return comp
+    """按调用方/API 匹配组件（调用方优先，EXACT → 最长 PREFIX → 最长 SUFFIX）。"""
+    return index.match(*candidates)
     return None
 
 
@@ -279,33 +255,49 @@ def list_events(tid: int, event_type: str = None, scenario_id: int = None,
     index = _load_sdk_match_index(db)
     perm_index = _load_permission_index(db)
 
-    # 本任务命中的 SDK 汇总（不受 sdk_id 过滤影响，供筛选下拉与统计）
+    # 一次全量扫描同时产出「命中汇总」与「逐条事件的匹配结果」。
+    # 原来汇总扫一遍、分页时又对着当页逐条重匹配一遍——同一件事做了两次，
+    # 而第二遍的结果是第一遍的子集。单任务实测 1700+ 条事件，这一遍省掉的是
+    # 一次「候选串 × 全量指纹」的扫描。
     matched_map = {}
-    for caller, api in apply_base_filters(
-            db.query(DetectionEvent.caller, DetectionEvent.api)).all():
+    sdk_by_event: dict[int, dict | None] = {}
+    for eid, caller, api in apply_base_filters(
+            db.query(DetectionEvent.id, DetectionEvent.caller, DetectionEvent.api)).all():
         comp = _match_sdk(index, caller, api)
+        sdk_by_event[eid] = comp
         if comp:
-            entry = matched_map.setdefault(comp["id"], {**comp, "count": 0})
+            entry = matched_map.setdefault(comp["component_id"], {**comp, "count": 0})
             entry["count"] += 1
     matched_sdks = sorted(matched_map.values(), key=lambda x: x["count"], reverse=True)
 
     q = apply_base_filters(db.query(DetectionEvent))
 
-    # 按 SDK 过滤：命中该组件包名/类名前缀的事件
+    # 按 SDK 过滤：命中该组件指纹的事件。
+    # 这里必须按 match_mode 分派，否则「筛选结果」与上面 matched_sdks 的角标会对不上：
+    # 匹配器已按 EXACT/PREFIX/SUFFIX 语义判，筛选用一律 LIKE '%v%' 就会多出条目。
     if sdk_id:
-        prefixes = [r[0] for r in db.query(KBComponentFingerprint.normalized_value).filter(
+        from app.services.component_matcher import MATCH_MODES, MATCHABLE_TYPES
+        rows = db.query(KBComponentFingerprint.normalized_value,
+                        KBComponentFingerprint.match_mode).filter(
             KBComponentFingerprint.component_id == sdk_id,
-            KBComponentFingerprint.fingerprint_type.in_(["PACKAGE_PREFIX", "CLASS"]),
-            KBComponentFingerprint.is_negative == False).all() if r[0]]
-        if prefixes:
-            conds = []
-            for p in prefixes:
-                lp = p.strip().lower() + "%"
-                conds.append(func.lower(DetectionEvent.caller).like(lp))
-                conds.append(func.lower(DetectionEvent.api).like(lp))
-            q = q.filter(or_(*conds))
-        else:
-            q = q.filter(DetectionEvent.id == 0)
+            KBComponentFingerprint.fingerprint_type.in_(MATCHABLE_TYPES),
+            KBComponentFingerprint.match_mode.in_(MATCH_MODES),
+            KBComponentFingerprint.is_negative == False).all()
+        conds = []
+        for value, mode in rows:
+            v = (value or "").strip().lower()
+            if not v:
+                continue
+            for col in (DetectionEvent.caller, DetectionEvent.api):
+                field = func.lower(col)
+                m = (mode or "").upper()
+                if m == "EXACT":
+                    conds.append(field == v)
+                elif m == "SUFFIX":
+                    conds.append(field.like("%" + v))
+                else:
+                    conds.append(field.like(v + "%"))
+        q = q.filter(or_(*conds)) if conds else q.filter(DetectionEvent.id == 0)
 
     total = q.count()
     items = q.order_by(DetectionEvent.timestamp.asc()).offset((page-1)*page_size).limit(page_size).all()
@@ -316,7 +308,7 @@ def list_events(tid: int, event_type: str = None, scenario_id: int = None,
             "consent_status": e.consent_status, "data_type": e.data_type,
             "api": e.api, "caller": e.caller, "trace_id": e.trace_id,
             "engine": e.engine_name, "engine_version": e.engine_version,
-            "sdk": _match_sdk(index, e.caller, e.api),
+            "sdk": sdk_by_event.get(e.id),
             "permission": _match_permission(perm_index, e.api),
             "event_data": e.event_data
         } for e in items],
