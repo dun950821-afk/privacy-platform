@@ -181,6 +181,7 @@ commit `487fa2175c4a`）。
 | cell | `Cell_APICall` | `security.sensitive_api` | —（增强） | — | 未命中 |
 | network_information | `Carrier_APICall` | `security.sensitive_api` | —（增强） | — | 未命中 |
 | （无类目） | `PermissionRequest_APICall` | `security.sensitive_api` | —（增强） | — | 未命中 |
+| photos | `Photos_APICall` | `security.sensitive_api` | —（增强） | 11(3) | 已验证 |
 
 > `MAC` 同为官方规则，其核实见 §2：它声称的只是「调用了取 MAC 地址的 API」，命中即
 > 成立——已核实 `WifiInfo.getMacAddress()` 与 `NetworkInterface.getHardwareAddress()` 两处。
@@ -219,10 +220,10 @@ commit `487fa2175c4a`）。
 
 | 来源 | 取值 |
 |---|---|
-| AppShark 有规则（12） | device_information、location、camera、media、clipboard、network_information、installed_apps、sensor、advertising_identifier、account、bluetooth、cell |
+| AppShark 有规则（13） | device_information、location、camera、media、clipboard、network_information、installed_apps、sensor、advertising_identifier、account、bluetooth、cell、photos |
 | Androguard 有映射（7） | location、phone、files、contacts、camera、microphone、sms |
-| 有规则映射（17） | 上列并集，去重后 17 个 |
-| **无任何引擎规则（5）** | biometric、calendar、personal_information、photos、unknown |
+| 有规则映射（18） | 上列并集，去重后 18 个 |
+| **无任何引擎规则（4）** | biometric、calendar、personal_information、unknown |
 
 `sink_type` 枚举共 9 个取值，当前有规则产出的 **7** 个：`file`、`ipc`、`log`、`network`、
 `database`、`webview`、`clipboard`（后三个是 2026-09-29 补的）。
@@ -245,9 +246,71 @@ commit `487fa2175c4a`）。
 | contacts | network | 静态不可表达 | Task 1 实验：URL 常量作 sink 零命中（APIMode 只匹配方法签名）；`ContentResolver.query` 作 source 在 LibraryOnly + InstantDefault 模型下不传播到网络 sink |
 | sms | network | 静态不可表达 | 同 Task 1 结论（与 contacts 同类，共用 `ContentResolver` 调用点） |
 | 通话记录 | network | 静态不可表达 | 同上。注意这行的类目名**不是枚举取值**——枚举里没有 `calllog`（见 §5 的更正），也就是说通话记录既不可静态表达、也没有类目落点 |
+| photos | network | 静态不可表达 | 2026-09-29 实验，见下 |
+| calendar | network | **无法判定** | **不是「静态不可表达」**——三个样本都完全不涉及日历，见下 |
 
-**这不是覆盖缺口，是能力边界**，不能靠为每个类目写规则来解决（设计 §1.3）。
+### 6.1 photos 的能力边界实验（2026-09-29）
+
+按 Task 1 的同一套判定分支做，但**先确认样本真的调用了这些 API**，否则「零命中」与
+「不可表达」分不开。
+
+**样本侧取证**（app_version 11，DEX 字符串池 + 方法/字段引用）：
+
+```text
+MediaStore$Images$Media;->getBitmap          ← 被调用
+MediaStore$Images$Thumbnails;->getThumbnail  ← 被调用
+MediaStore$Images$Media;->EXTERNAL_CONTENT_URI / INTERNAL_CONTENT_URI  ← 被读取
+MediaStore$Images$Media;->query / getContentUri  ← 未被调用
+```
+
+**实验**（绕开平台管线直接跑 AppShark CLI，独立规则目录，避免污染规则集与注册表）：
+
+| 试验 | 规则 | 命中 |
+|---|---|---|
+| L2 事实 | `EXPL2_PhotosRead`（APIMode，sink 用上面实际被调用的签名） | **3** |
+| L3 数据流 | `EXPL3_PhotosToNetwork`（Return source 用 `getBitmap`/`getThumbnail`/`query`，sink 用网络栈） | 0 |
+| 对照探针 | `EXPL4_ContentResolverProbe`（Return source 用通用 `ContentResolver.query`） | 0 |
+
+L2 命中的 3 个真实调用点：
+
+```text
+com.dahuatech.utilslib.SpanUtils$CustomIconMarginSpan.uri2Bitmap(Uri)
+n.k.a.o.f(n.k.a.w,int)                                    （混淆类，调 Thumbnails）
+com.yitong.mbank.app.utils.webview.d.h(int,int,Intent)     （WebView 文件选择回调）
+```
+
+**判定：L2 命中 + L3 不命中 → 读取可检出、流向不可检出。** 于是
+`photos × network` 标「静态不可表达」，同时**保留 L2**：`Photos_APICall` 就是据此补的
+正式规则，已在平台管线里对同一任务复现 3 条命中（`data_category=photos`、
+`result_semantics=supporting_evidence`），「只跑隔离 CLI 不算过管线」这条也一并验了。
+
+`EXPL4` 零命中复现了 Task 1 在 contacts 上的结论：通用 `ContentResolver.query` 的返回值
+在 `LibraryOnly` + 默认模型下不传播到网络 sink。所以这不是相册独有的问题。
+
+> **source 只用「返回值即数据」的接口**：`MediaStore$Images$Media.getContentUri` 返回的是
+> Uri，按本项目对 Field source 的语义约定（URI 常量是查询条件、不是数据）不算数据，
+> 故既不作 source 也不作 sink。实验里**没有**用 `EXTERNAL_CONTENT_URI` 当 Field source
+> ——那正是设计文档 §10 推翻 v1 计划时点名的错误构造。
+
+### 6.2 calendar：不能写「静态不可表达」
+
+**三个样本都完全不涉及日历**：`CalendarContract` 在 DEX 字符串池里零命中，
+三个 APK 也都没声明任何 CALENDAR 权限（`READ_CALENDAR` 一条都没有）。既没有 source
+使用，就无从判断「读取能不能检出、流向能不能表达」——**任何结论都拿不到证据**。
+
+因此这一格写「无法判定」，不写「静态不可表达」。这两者混同正是本文件开头要防的那类
+错误：`ContentProviderPathResolver` 那次「触发过就算覆盖」，以及把没查证的环境限制
+（「本环境无法访问 MASWE」）当成事实写进设计文档，都是同一个毛病的不同形态。
+
+要判定它，需要一个**真的读写日历**的样本。
+
+**「静态不可表达」不是覆盖缺口，是能力边界**，不能靠为每个类目写规则来解决（设计 §1.3）。
 G3 记录了试图用字面值匹配绕过它所带来的后果。
+
+但**「无法判定」与「静态不可表达」必须分开**：前者是样本不覆盖、没有证据，后者是有证据
+的能力边界。把它俩写成同一个状态，等于用「测过没测出来」冒充「证明了做不到」——
+calendar 一行就是这么处理的（写「无法判定」）。同理，本表任何一格如果要写
+「静态不可表达」，都必须能指向一次**source 确实被使用**的实验。
 
 ---
 

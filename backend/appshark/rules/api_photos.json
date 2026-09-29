@@ -1,0 +1,18 @@
+{
+  "Photos_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "Photos_APICall",
+      "detail": "读取相册图片(MediaStore.Images 取位图/缩略图)",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalPhotos_APICall",
+      "complianceCategoryDetail": "相册图片_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<android.provider.MediaStore$Images$Media: * getBitmap(*)>": {},
+      "<android.provider.MediaStore$Images$Thumbnails: * getThumbnail(*)>": {},
+      "<android.provider.MediaStore$Images$Media: * query(*)>": {}
+    }
+  }
+}

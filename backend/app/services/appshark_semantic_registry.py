@@ -49,6 +49,13 @@ REGISTRY = {
     # 「发起过运行时权限申请」这个事实，供后续判「非业务场景提前索权」用。
     # 空类目意味着它不参与任何 join，只做证据。
     "PermissionRequest_APICall": dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category=None,               sink_type=None),
+    # 相册。签名取自 2026-09-29 的能力边界实验（见 docs/rule-coverage.md §6）：
+    # 先在 app_version 11 上把「样本实际调用的 MediaStore API」查出来，再据此写规则，
+    # 而不是照着一份想象里的 API 清单写。只收**返回值即图片数据**的三个接口——
+    # `MediaStore$Images$Media.getContentUri` 返回的是 Uri，按本项目对 Field source 的
+    # 语义约定（URI 常量是查询条件、不是数据）不算数据，故不收。
+    # 相册的「读取→外传」不可静态表达，已实验证明，见覆盖度矩阵 §6。
+    "Photos_APICall":         dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category="photos",            sink_type=None),
     "Camera_APICall":         dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category="camera",              sink_type=None),
     "Media_APICall":          dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category="media",               sink_type=None),
     "Clipboard_APICall":      dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category="clipboard",           sink_type=None),
