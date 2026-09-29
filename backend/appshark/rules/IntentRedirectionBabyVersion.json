@@ -6,12 +6,13 @@
     "desc": {
       "name": "IntentRedirectionBabyVersion",
       "category": "IntentRedirection",
-      "detail": "Intent redirection, but a very basic version",
+      "detail": "Intent 重定向，但只是一个非常基础的版本",
+      "detail_en": "Intent redirection, but a very basic version",
       "wiki": "",
       "possibility": "2",
       "model": "high",
       "complianceCategory": "IntentRedirectionBabyVersion",
-      "complianceCategoryDetail": "Intent redirection, but a very basic version",
+      "complianceCategoryDetail": "Intent 重定向，但只是一个非常基础的版本",
       "level": "L4",
       "provenance": {
         "repo": "bytedance/appshark",

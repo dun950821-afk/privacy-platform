@@ -5,10 +5,11 @@
     "PrimTypeAsTaint": true,
     "desc": {
       "name": "serial_Log",
-      "detail": "write serial to log",
+      "detail": "将设备序列号写入日志",
+      "detail_en": "write serial to log",
       "category": "ComplianceInfo",
       "complianceCategory": "serial_Log",
-      "complianceCategoryDetail": "serial_Log",
+      "complianceCategoryDetail": "设备序列号写入日志",
       "level": "L4",
       "provenance": {
         "repo": "bytedance/appshark",

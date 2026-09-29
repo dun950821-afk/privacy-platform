@@ -5,10 +5,11 @@
     "PrimTypeAsTaint": true,
     "desc": {
       "name": "IMEI_SendBroadcast",
-      "detail": "IMEI SendBroadcast",
+      "detail": "通过广播发送 IMEI",
+      "detail_en": "IMEI SendBroadcast",
       "category": "ComplianceInfo",
       "complianceCategory": "IMEI_SendBroadcast",
-      "complianceCategoryDetail": "IMEI_SendBroadcast",
+      "complianceCategoryDetail": "IMEI 广播发送",
       "level": "L4",
       "provenance": {
         "repo": "bytedance/appshark",

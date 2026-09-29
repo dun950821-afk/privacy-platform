@@ -5,12 +5,13 @@
     "desc": {
       "name": "PendingIntentMutable",
       "category": "PendingIntent",
-      "detail": "When a malicious application received the vulnerable PendingIntent, the malicious application can modify the content of the original intent and the intent will be send under the context of the vulnerable application.",
+      "detail": "当恶意应用收到存在缺陷的 PendingIntent 后，可修改原 Intent 的内容，且该 Intent 将在存在该缺陷的应用的上下文中被发送。",
+      "detail_en": "When a malicious application received the vulnerable PendingIntent, the malicious application can modify the content of the original intent and the intent will be send under the context of the vulnerable application.",
       "wiki": "",
       "possibility": "4",
       "model": "middle",
       "complianceCategory": "PendingIntentMutable",
-      "complianceCategoryDetail": "When a malicious application received the vulnerable PendingIntent, the malicious application can modify the content of the original intent and the intent will be send under the context of the vulnerable application.",
+      "complianceCategoryDetail": "当恶意应用收到存在缺陷的 PendingIntent 后，可修改原 Intent 的内容，且该 Intent 将在存在该缺陷的应用的上下文中被发送。",
       "level": "L4",
       "provenance": {
         "repo": "bytedance/appshark",

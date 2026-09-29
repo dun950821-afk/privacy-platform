@@ -5,12 +5,13 @@
     "desc": {
       "name": "unZipSlip",
       "category": "FileRisk",
-      "detail": "ZIP Slip is a highly critical security vulnerability aimed at these kind of applications. ZIP Slip makes your application vulnerable to Path traversal attack and Sensitive data exposure.",
+      "detail": "ZIP Slip 是一类针对此类应用的高危安全漏洞：它会使你的应用易受路径穿越攻击与敏感数据泄露影响。",
+      "detail_en": "ZIP Slip is a highly critical security vulnerability aimed at these kind of applications. ZIP Slip makes your application vulnerable to Path traversal attack and Sensitive data exposure.",
       "wiki": "",
       "possibility": "4",
       "model": "middle",
       "complianceCategory": "unZipSlip",
-      "complianceCategoryDetail": "ZIP Slip is a highly critical security vulnerability aimed at these kind of applications. ZIP Slip makes your application vulnerable to Path traversal attack and Sensitive data exposure.",
+      "complianceCategoryDetail": "ZIP Slip 是一类针对此类应用的高危安全漏洞：它会使你的应用易受路径穿越攻击与敏感数据泄露影响。",
       "level": "L4",
       "provenance": {
         "repo": "bytedance/appshark",

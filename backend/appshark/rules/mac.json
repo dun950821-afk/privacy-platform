@@ -3,10 +3,11 @@
     "APIMode": true,
     "desc": {
       "name": "MAC",
-      "detail": "call get mac address",
+      "detail": "调用获取 MAC 地址的接口",
+      "detail_en": "call get mac address",
       "category": "ComplianceInfo",
       "complianceCategory": "MAC",
-      "complianceCategoryDetail": "MAC",
+      "complianceCategoryDetail": "MAC 地址获取",
       "level": "L4",
       "provenance": {
         "repo": "bytedance/appshark",
