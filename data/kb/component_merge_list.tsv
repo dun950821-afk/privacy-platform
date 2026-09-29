@@ -30,3 +30,18 @@ libSDL	SDL	同一库的两种写法。**drop 独有 libsdl.so**（keep 是 libsd
 AndroidX CameraX	Jetpack Camera	Jetpack 是 AndroidX 的品牌名。**drop 独有 2 个 .so**（libimage_processing_util_jni / libsurface_util_jni），需迁移
 穿山甲广告 SDK	Pangle SDK	同一 SDK：Pangle 是字节穿山甲的海外品牌名，包前缀重合（com.bytedance.sdk.openadsdk / com.ss.android.socialbase 等）。keep 用中文名与库内「快手广告 SDK」「腾讯广告 SDK」一致；drop 独有 19 条指纹需迁移
 OPPO/HeyTap 推送 SDK	OPPO Push	同一 SDK（OPPO/欢太推送）被拆成两条：keep 是 2026-08-03 原始精编条目（9 指纹 + 3 权限 + 数据声明 + 来源 + 别名），drop 是 2026-09-29 LibChecker 导入进来的新条目（5 指纹，无任何元数据）。drop 的 5 条 MANIFEST EXACT 取值（com.heytap.mcssdk.* / com.coloros.mcssdk.pushservice / com.heytap.msp.push.service.*）全部被 keep 的前缀 com.heytap.mcs / com.coloros.mcs / com.heytap.msp.push 覆盖，故无需迁移指纹
+AndroidX Credential Manager	Jetpack Credentials	同一库：androidx.credentials.*。「Jetpack」与「AndroidX」是同一品牌的新旧名，keep 前缀 androidx.credentials 已覆盖 drop 全部 9 条取值
+AndroidX ProfileInstaller	Jetpack ProfileInstaller	同一库：androidx.profileinstaller.*，类名逐字相同只差品牌前缀。keep 已覆盖
+DCloud uni-app	uni-app	同一实体：keep 是带厂商限定的全名，drop 是简称。keep 前缀 io.dcloud 已覆盖 drop 全部 7 条
+ExoPlayer / Media3	Jetpack Media3	同一实体：Media3 就是 ExoPlayer 迁入 Jetpack 后的身份，keep 前缀 androidx.media3 + com.google.android.exoplayer2 已覆盖
+QQ 互联 SDK	腾讯开放平台	同一实体：drop 只有 2 条取值，正是 QQ 互联的 com.tencent.connect.common.AssistActivity 与 com.tencent.tauth.AuthActivity——**是从 QQ 互联的类反推出来的条目**，且已产生 8 条 scan_hit 在替 keep 出场，keep 前缀已覆盖
+TopOn / AnyThink	AnyThink SDK	同一实体：TopOn 是 AnyThink 的国内品牌名，两者前缀同为 com.anythink.*。keep 已覆盖 drop 全部 12 条
+Vungle Android SDK	Liftoff Monetize	同一实体：Vungle 已更名为 Liftoff，drop 全部 4 条取值都在 com.vungle.* 下与 keep 同源。keep 已覆盖
+Xiaomi Account SDK	小米账号开放平台	同一实体：中英两名，前缀同为 com.xiaomi.account / com.xiaomi.passport。keep 已覆盖
+抖音开放平台 SDK	抖音 SDK	同一实体：「抖音 SDK」是泛称，drop 唯一取值 com.bytedance.sdk.open.douyin.ui.DouyinWebAuthorizeActivity 属开放平台登录能力，与 keep 同源
+百度移动广告 SDK	移动应用推广 SDK	同一实体：都是百度 mobads（com.baidu.mobads.*），keep 已覆盖 drop 全部 8 条
+腾讯云慧眼 SDK	人脸核身 SDK	同一实体：慧眼即人脸核身，前缀同为 com.tencent.cloud.huiyan*。keep 已覆盖 drop 全部 3 条
+腾讯防水墙 Captcha	防水墙	同一实体：keep 是带产品线的全名，drop 是简称，前缀同为 com.tencent.captcha。keep 已覆盖
+荣耀 Push Kit	HONOR Push	同一实体：中英两名，前缀同为 com.hihonor.push / com.hihonor.mcs。keep 已覆盖
+阿里云号码认证服务	一键登录 SDK	同一实体：阿里云号码认证的推广名即「一键登录」，前缀同为 com.mobile.auth.gatewayauth。keep 已覆盖
+魅族 PushSDK	Meizu Push	同一实体：中英两名，前缀同为 com.meizu.cloud.pushsdk。keep 已覆盖

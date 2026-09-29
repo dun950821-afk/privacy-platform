@@ -1,0 +1,49 @@
+# 组件重复候选：**评估后决定不合并**的对（人工资产，入仓即为准）。
+#
+# 为什么要有这个文件：`find_duplicate_candidates.py` 是按「覆盖判定」生成候选的
+# （B 的每条指纹能否被 A 命中），它**分不出**两种情况：
+#   - 名字即同一实体（如 Stripe SDK / Stripe Android SDK）→ 应合并
+#   - 伞形覆盖模块（如 Google Play services ⊇ Google Analytics）→ **不合并**
+# 上一轮把两者混在一张候选表里人工分拣，但**拒绝的理由没有落盘**，于是每次重跑都会
+# 把上百对伞形覆盖重新翻出来。这个文件就是把那部分判断记下来。
+#
+# 设计依据（2026-09-29 定）：伞形覆盖**取更细的身份，用关系表达包含**——
+# 一个 App 里有 Google Analytics，不代表它有 Google Play services 的全部能力，
+# 合并会把这些区别抹掉。Proxy 条目同理：`MiPush(GMP Proxy)` 说的是「小米推送走
+# GMP 通道」，是独立事实，与小米推送本体不是同一条。
+#
+# 格式：a	b	b	理由（无序对）
+Huawei HMS Core	HMS Business Touch Kit	伞形覆盖：HMS Core 是 com.huawei.hms 大包，Business Touch Kit 是其子套件
+Huawei HMS Core	HMS Audio Kit	伞形覆盖：Audio Kit 是 com.huawei.hms 下的子套件
+Huawei HMS Core	HUAWEI Health Kit	伞形覆盖：Health Kit 是 com.huawei.hms 下的子套件
+Huawei HMS Core	HUAWEI DTM	伞形覆盖：DTM（动态标签管理）是 com.huawei.hms 下的子套件
+Huawei HMS Core	HMS ML Kit	伞形覆盖：ML Kit 是 com.huawei.hms 下的子套件
+Huawei HMS Core	华为帐号服务	伞形覆盖：帐号服务是 com.huawei.hms 下的子套件
+Google Play services	Google Tag Manager	伞形覆盖：Tag Manager 是 com.google.android.gms 下的模块
+Google Play services	Legacy Photo Picker	伞形覆盖：同上
+Google Play services	Google Analytics	伞形覆盖：同上。GMS 是宿主，Analytics 是其中一个模块；有 Analytics 不代表有全套 GMS
+Google Play services	Google Cast	伞形覆盖：同上
+Google Play services	OSS Licenses Gradle Plugin	伞形覆盖：同上
+Jetpack Media	Jetpack MediaRouter	伞形覆盖：androidx.media 是包，MediaRouter 是其子模块
+Jetpack Media	Jetpack Media Session	伞形覆盖：同上
+ExoPlayer / Media3	Jetpack Media Session	伞形覆盖：Media Session 是 Media3 的一个子模块（androidx.media3.session.*），Media3 本体保留在 ExoPlayer / Media3
+AndroidX CameraX	Jetpack Camera2	伞形覆盖：CameraX 是 androidx.camera 大包，camera2 是其一个后端实现模块
+Jetpack ViewPager	Jetpack ViewPager2	**不是重复**：ViewPager 与 ViewPager2 是两个不同代际的库，API 与类名都不同（androidx.viewpager vs androidx.viewpager2），只是覆盖判定把它们排在一起
+Kotlin	Kotlin Sequences	伞形覆盖：kotlin 是包，Sequences 是其子模块
+Kotlin	Kotlin Reflect	伞形覆盖：同上
+支付宝 SDK	Nebula SDK	伞形覆盖：Nebula 是支付宝内的小程序容器（com.alipay.mobile.nebula*），是支付宝体系下的独立模块
+极光推送 SDK	JAd SDK	**不是重复**：JAd 是极光的广告 SDK（cn.jiguang.ads.*），与推送是两条产品线
+个推消息推送 SDK	Meizu Push(GeTui Proxy)	Proxy 条目：说的是「魅族推送走个推通道」，是独立事实（见已定的 Proxy 口径）
+小米推送 SDK	MiPush(GMP Proxy)	Proxy 条目：小米推送走 GMP 通道
+极光推送 SDK	MiPush(JPush Proxy)	Proxy 条目：小米推送走极光通道
+极光推送 SDK	Meizu Push(JPush Proxy)	Proxy 条目：魅族推送走极光通道
+百度云推送 SDK	HUAWEI Push(Baidu Cloud Proxy)	Proxy 条目：华为推送走百度云通道
+百度云推送 SDK	Meizu Push(Baidu Cloud Proxy)	Proxy 条目：同上
+百度云推送 SDK	OPPO Push(Baidu Cloud Proxy)	Proxy 条目：同上
+百度云推送 SDK	vivo Push(Baidu Cloud Proxy)	Proxy 条目：同上
+百度云推送 SDK	MiPush(Baidu Cloud Proxy)	Proxy 条目：同上
+百度云推送 SDK	Honor Push(Baidu Cloud Proxy)	Proxy 条目：同上
+# 存疑、暂不处理（留人工）：
+#   华为广告联盟 Openalliance  vs  HUAWEI Ads Kit
+#     两者都指向 com.huawei.openalliance.ad.*，像同一实体；但「广告联盟」与
+#     「Ads Kit」在华为口径里是否指同一交付物，我没有依据，故不动。
