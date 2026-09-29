@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <PageHeader title="规则管理" subtitle="隐私合规判定规则库">
+    <PageHeader title="判定规则库" subtitle="合规判定规则的登记与版本台账；当前不参与检测执行">
       <el-button type="primary" :icon="Plus" @click="openCreate">新建规则</el-button>
     </PageHeader>
 

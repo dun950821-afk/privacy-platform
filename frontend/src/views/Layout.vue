@@ -119,7 +119,10 @@ const MENUS: MenuGroup[] = [
   { label: '知识库', items: [
     { path: '/sdks', title: 'SDK知识库', icon: Box },
     { path: '/permissions', title: '权限知识库', icon: Key },
-    { path: '/rules', title: '规则管理', icon: Document },
+    // 这页不执行检测：它的 10 条判定规则用的是 `when` 那套 DSL，关联器只加载
+    // category=correlation 的规则，求值器也不认这套 schema。叫「规则管理」会让人
+    // 以为改这里能改检测行为，所以按它实际的角色命名——登记与版本台账。
+    { path: '/rules', title: '判定规则库', icon: Document },
     { path: '/correlation-rules', title: '关联规则', icon: Connection },
     { path: '/engines', title: '检测引擎', icon: Cpu },
     { path: '/appshark-rules', title: '静态规则', icon: MagicStick },

@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <PageHeader :title="rule.name || '规则详情'" :subtitle="rule.rule_key">
+    <PageHeader :title="rule.name || '判定规则详情'" :subtitle="rule.rule_key">
       <el-button :icon="Back" @click="router.push('/rules')">返回</el-button>
       <el-button type="primary" :icon="Plus" @click="openVersion">新建版本</el-button>
     </PageHeader>

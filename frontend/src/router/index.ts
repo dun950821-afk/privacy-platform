@@ -45,9 +45,9 @@ const routes = [
       { path: 'appshark-rules', name: 'AppsharkRules', component: () => import('@/views/AppsharkRules.vue'),
         meta: { title: '静态规则', group: '知识库' } },
       { path: 'rules', name: 'Rules', component: () => import('@/views/Rules.vue'),
-        meta: { title: '规则管理', group: '知识库' } },
+        meta: { title: '判定规则库', group: '知识库' } },
       { path: 'rules/:id', name: 'RuleDetail', component: () => import('@/views/RuleDetail.vue'),
-        meta: { title: '规则详情', group: '知识库' } },
+        meta: { title: '判定规则详情', group: '知识库' } },
       { path: 'correlation-rules', name: 'CorrelationRules', component: () => import('@/views/CorrelationRules.vue'),
         meta: { title: '关联规则', group: '知识库' } },
       // 报告
