@@ -23,13 +23,28 @@
 先比**层级**（见下），同一层级内再比 match_mode：**取匹配到的最长值**，长度相同按
 EXACT > PREFIX > SUFFIX。
 
+## 候选串形态：**必须先剥掉 AppShark 的 `<类: 方法签名>` 外壳**
+
+这是 2026-09-29 才发现的、影响最大的一处：AppShark 事件的 `caller` 长这样
+
+    <com.baidu.location.d.a: void b(com.baidu.location.BDNotifyListener)>
+
+而匹配是 `candidate.startswith(前缀)`——**以 `<` 开头的串永远不可能以
+`com.baidu.location` 开头**。实测 app_version 11：
+
+    static_sensitive_api  15284 条   命中率 **0%**   ← 修复前
+    static_data_flow       2935 条   命中率 **0%**
+    static_component       2448 条   命中率 100%     ← caller 是裸类名，不受影响
+
+修掉外壳后两类分别变成 78.1% / 81.6%，一个样本恢复 14326 条归属。
+详见 `normalize_candidate()`。
+
 ## 层级
 
-尝试顺序 **清单级 → 代码级 → 权限级**：
+尝试顺序 **清单级 → 代码级**（权限级已在 2026-09-29 移除，理由见文末）：
 
     _TIER_MANIFEST(1)    MANIFEST_ACTIVITY / _SERVICE / _RECEIVER / _PROVIDER
-    _TIER_CODE(0)        PACKAGE_PREFIX / CLASS
-    _TIER_PERMISSION(2)  PERMISSION
+    _TIER_CODE(0)        PACKAGE_PREFIX / CLASS / NATIVE_SO
 
 清单在前，是因为**两者说的是不同的事**：清单登记 =「这个组件声明使用/暴露了这个
 类」，包名前缀 =「这个类定义在谁的命名空间下」。问「谁在采集」，前者更贴题——一个
@@ -116,6 +131,35 @@ MATCHABLE_TYPES = (
 
 # 按语义分派：EXACT 要相等、PREFIX 要比开头、SUFFIX 要比结尾。
 MATCH_MODES = ("EXACT", "PREFIX", "SUFFIX")
+
+
+def normalize_candidate(value: str | None) -> str:
+    """把候选串归一成可比形态：**去掉 AppShark 的 `<类: 方法签名>` 外壳**。
+
+    AppShark 事件里 `caller` / `api` 长这样：
+
+        <com.baidu.location.d.a: void b(com.baidu.location.BDNotifyListener)>
+        ['<com.tencent.turingface...: void x()>->$r0']
+
+    而匹配是 `candidate.startswith(前缀)`。**以 `<` 开头的串永远不可能以
+    `com.baidu.location` 开头**——于是凡是这种形态的事件，包名前缀匹配全军覆没。
+
+    实测（app_version 11）：`static_sensitive_api` 15284 条、`static_data_flow` 2935 条
+    **命中率恒为 0%**；而 `static_component`（caller 是裸类名）命中率 100%。
+    这两类恰恰是最能说明「谁在采集」的——敏感 API 调用与数据流。
+
+    只去外壳，不改内容：`<A: void b()>` → `a`；`['<A: void b()>->$r0']` → `a`。
+    非该形态的原样小写返回（裸类名、`.so` 文件名、权限名都走这条路）。
+    """
+    c = (value or "").strip()
+    if not c:
+        return ""
+    # `['<...>->$r0']` / `<...>` 两种包装都先剥掉
+    c = c.lstrip("[")
+    c = c.lstrip("'\"").strip()
+    if c.startswith("<"):
+        c = c[1:].split(":")[0].strip()
+    return c.lower()
 
 # 层级：决定「谁有资格给归属」。数字小的先试，命中即返回。
 #
@@ -262,7 +306,7 @@ class ComponentIndex:
         for cand in candidates:
             if not cand:
                 continue
-            c = cand.strip().lower()
+            c = normalize_candidate(cand)
             if not c:
                 continue
             for tier in _TIERS:
