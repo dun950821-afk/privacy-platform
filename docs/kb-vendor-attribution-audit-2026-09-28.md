@@ -86,3 +86,42 @@ Chartboost 等大量海外 SDK 的规则，也**没有** `com.fhvideo`、`me.iwf
 6. `cn.com.union.fido`：旁证指向 CFCA，非官方声明
 7. `com.fhvideo` 的包名↔厂商绑定
 8. `com.tencent.mobileqq.qfix` → 腾讯云移动应用安全
+
+## 五、`X Push(Y Proxy)` 的归属口径 —— **2026-09-29 结案**
+
+库里 24 条形如 `X Push(Y Proxy)` 的组件（`Meizu Push(GeTui Proxy)`、`MiPush(TPNS Proxy)`…）。
+它们记的是「**X 的推送，走 Y 这条通道**」，于是厂商该填通道方（Y）还是被推送方（X）
+是个真问题——同一批里两种都可能说得通。
+
+**口径：取「指纹包名归属方」。** 依据是**指纹本身**，不是猜测。24 条逐一核对过，
+现在全部自洽：
+
+    org.android.agoo.*                     → 阿里云（agoo 是阿里云移动推送）
+    com.tencent.android.*push*/*tpush*     → 腾讯（TPNS）
+    com.baidu.android.pushservice.*proxy*  → 百度
+    cn.jpush.android.*                     → 极光
+    com.igexin.sdk.*                       → 每日互动（个推）
+    com.meizu.message.* / com.xiaomi.push.* / com.vivo.vivo* /
+    com.huawei.messageservice / com.umeng* / com.alibaba.sdk.android.push.*
+                                           → 各家自己的类，即指向被推送方
+
+**为什么定这条口径**：指纹是库里唯一可核的证据。24 条里 19 条原本就按指纹方填，
+只有 5 条（`HUAWEI/vivo Push(TPNS Proxy)`、`HUAWEI/HONOR/vivo Push(Aliyun Proxy)`）
+填的是另一侧。改 5 条比改 19 条代价小，且**改后与指纹一致**。
+
+**一处残留的含糊（已知，不处理）**：`HUAWEI Push(TPNS Proxy)` 挂着**两条**指纹，
+分别指向两侧——
+
+    com.huawei.android.hms.tpns.hwhmsmessageservice   （华为命名空间）
+    com.tencent.android.hwpush.hwpushmessagereceiver  （腾讯命名空间）
+
+按「取更细的身份」本可辩给华为，按上面的口径判给了腾讯。**这条无论怎么判都有依据**，
+留作已知项。
+
+**为什么不「复原原始人工意图」**：原始来源 xlsx
+（`/mnt/linux_share/yinsi/安卓SDK与包名检测知识库_扩充版.xlsx`）**已不存在**，
+仓库里也没有导入脚本可以回溯当时填值的人怎么想。**这条线索断了，不是没查，是没有可查的。**
+
+**所以结案**：口径已定并落进 `scripts/apply_kb_governance_fixes.py` 的 `PROXY_FIX`
+（含每条的判据），24 条现在自洽。若哪天要改，改的是**口径**，不是这 5 行的值——
+届时 24 条要一起动，别只回退其中几条。
