@@ -40,8 +40,10 @@ def test_raw_sections_cover_sections_that_have_no_event_mapping():
         "certificate_analysis": {"certificate_info": "Binary is signed\nv1 signature: True"},
         "trackers": {"detected_trackers": 0, "total_trackers": 432, "trackers": []},
     }
-    paths = {s["path"] for s in split_sections(raw)}
-    for want in ("appsec.security_score", "manifest_analysis.manifest_findings",
-                 "secrets", "sbom.sbom_versioned", "certificate_analysis.certificate_info",
-                 "trackers.trackers"):
-        assert want in paths, f"{want} 没被拆出来——这一段又会变成『不存在』"
+    rows = {s["path"]: s for s in split_sections(raw)}
+    for want in ("appsec.high", "manifest_analysis.manifest_findings", "secrets",
+                 "sbom.sbom_versioned", "certificate_analysis", "trackers.trackers"):
+        assert want in rows, f"{want} 没被拆出来——这一段又会变成『不存在』"
+    # 标量随父行：security_score / certificate_info 分别在各自父行的 payload 里
+    assert rows["appsec"]["payload"]["security_score"] == 47
+    assert "Binary is signed" in rows["certificate_analysis"]["payload"]["certificate_info"]

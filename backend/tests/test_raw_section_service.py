@@ -43,20 +43,46 @@ def test_flat_dict_yields_one_row_per_key():
     assert by_path(rows)["a"]["payload"] == 1
 
 
-def test_nested_dict_yields_rows_for_parent_and_child():
-    """父子都产出：只留叶子会丢掉父节点上的兄弟标量。"""
+def test_parent_keeps_scalars_and_containers_get_their_own_rows():
+    """标量留在父行，容器各自成行——值只存一次。"""
     rows = split_sections({"appsec": {"security_score": 47, "high": [{"x": 1}]}})
     paths = by_path(rows)
-    assert "appsec" in paths, "父节点要有一行，否则 security_score 这类兄弟标量会丢"
-    assert "appsec.security_score" in paths
-    assert "appsec.high" in paths
+    assert paths["appsec"]["payload"] == {"security_score": 47}, "标量归父行"
+    assert paths["appsec.high"]["payload"] == [{"x": 1}], "list 另成一行"
+    assert "appsec.security_score" not in paths, "标量不重复成行"
 
 
-def test_parent_row_payload_is_the_whole_subtree():
-    """父节点的 payload 原样保留整棵子树，不裁剪。"""
-    sub = {"security_score": 47, "high": [{"x": 1}]}
-    rows = split_sections({"appsec": sub})
-    assert by_path(rows)["appsec"]["payload"] == sub
+def test_container_is_not_duplicated_in_parent_payload():
+    """**放大倍数的护栏。** 曾经每个节点都存整棵子树，实测 3.0×——
+    MobSF 单任务 3MB 变 9MB。父行只装标量后回到 1.0×。"""
+    raw = {"ComplianceInfo": {"Cat": {"Rule": {"level": "L3", "vulners": list(range(2000))}}}}
+    rows = split_sections(raw)
+    # 2000 个元素的列表只能在一个 payload 里出现
+    carriers = [r["path"] for r in rows if isinstance(r["payload"], list)]
+    assert carriers == ["ComplianceInfo.Cat.Rule.vulners"], f"列表被存了多份：{carriers}"
+    total = sum(len(json.dumps(r["payload"])) for r in rows)
+    original = len(json.dumps(raw))
+    assert total < original * 1.3, f"放大 {total/original:.1f}×，值又被重复存了"
+
+
+def test_all_data_is_recoverable_from_rows():
+    """无损：把行按路径拼回去必须等于原文。"""
+    raw = {
+        "AppInfo": {"AppName": "营行企业银行", "PackageName": "com.x", "min_sdk": 16},
+        "ComplianceInfo": {"Cat": {"Rule": {"level": "L3", "note": None,
+                                            "vulners": [{"hash": "h"}]}}},
+        "DeepLinkInfo": {},
+        "UsePermissions": ["android.permission.INTERNET"],
+    }
+    rows = split_sections(raw)
+    rebuilt: dict = {}
+    for r in sorted(rows, key=lambda r: r["path"]):
+        cur = rebuilt
+        segs = r["path"].split(".")
+        for s in segs[:-1]:
+            cur = cur.setdefault(s, {})
+        cur[segs[-1]] = r["payload"]
+    assert rebuilt == raw
 
 
 # ── 规则 2：list 是终点 ────────────────────────────────────────────────
@@ -123,8 +149,12 @@ def test_appshark_compliance_path_reaches_the_vulnerability_list():
     want = "ComplianceInfo.PersonalDeviceInformation_APICall.DeviceId_APICall.vulners"
     assert want in paths, f"应能定位到规则下的漏洞列表，实际路径：{sorted(paths)}"
     assert paths[want]["item_count"] == 1
-    # 规则本身的标量也要留住
-    assert "ComplianceInfo.PersonalDeviceInformation_APICall.DeviceId_APICall.level" in paths
+    # 规则自身的标量留在规则那一行（不再各自成路径，但数据在）
+    rule_row = paths["ComplianceInfo.PersonalDeviceInformation_APICall.DeviceId_APICall"]
+    assert rule_row["payload"] == {"category": "PersonalDeviceInformation",
+                                   "detail": "设备标识符读取",
+                                   "name": "DeviceId_APICall",
+                                   "level": "L3"}
 
 
 def test_mobsf_key_sections_are_reachable():
@@ -137,6 +167,9 @@ def test_mobsf_key_sections_are_reachable():
     paths = by_path(split_sections(raw))
     for want in ("trackers.trackers", "appsec.high", "sbom.sbom_versioned", "urls"):
         assert want in paths, f"缺 {want}"
+    # 标量随父行：查询时读 payload 字段
+    assert paths["appsec"]["payload"] == {"security_score": 47}
+    assert paths["trackers"]["payload"]["total_trackers"] == 432
 
 
 def test_path_with_dots_in_keys_is_still_queryable():
@@ -144,8 +177,10 @@ def test_path_with_dots_in_keys_is_still_queryable():
     这是可接受的（路径只供人读），但 payload 必须原样可查。"""
     raw = {"permissions": {"android.permission.CALL_PHONE": {"status": "dangerous"}}}
     paths = by_path(split_sections(raw))
-    assert "permissions.android.permission.CALL_PHONE.status" in paths
-    assert paths["permissions"]["payload"] == raw["permissions"], "父行原文完整，可绕开路径歧义"
+    assert "permissions.android.permission.CALL_PHONE" in paths
+    assert paths["permissions.android.permission.CALL_PHONE"]["payload"] == {"status": "dangerous"}
+    # 歧义靠 like 匹配绕开：查这条权限用 payload 而不是路径
+    assert paths["permissions.android.permission.CALL_PHONE"]["payload"]["status"] == "dangerous"
 
 
 # ── 哈希与健壮性 ───────────────────────────────────────────────────────

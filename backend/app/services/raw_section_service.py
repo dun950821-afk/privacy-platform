@@ -22,13 +22,26 @@
 
 ## 拆分规则（唯一的语义约定，改这里要同步改 tests/test_raw_section_service.py）
 
-1. 对 dict **递归下钻**，每个节点产出一行。父与子**都**产出——只留叶子会丢掉父节点上的
-   兄弟标量（如 `appsec.security_score` 与 `appsec.high` 并列，只留叶子就没有 score 那行）。
-2. **list 是终点**：整个列表作为一行 payload，**不展开元素**。MobSF 的 `files` 实测 944 个元素，
+1. **值只存一次。** dict 的 payload 只装「不另成行的孩子」（标量、空 dict）；非空 dict 与
+   list 各自成一行，**不重复出现在父行里**。
+2. **list 是终点**：整个列表一行装下，**不展开元素**。MobSF 的 `files` 实测 944 个元素，
    展开会炸；不展开则一行装下。
-3. 深度上限 `max_depth=4`，防御畸形嵌套导致行数爆炸。**超限时截断但保留原文**——
-   深度保护不能变成数据丢失。
-4. `payload` **原样**保存，绝不裁剪。这是本表存在的全部意义。
+3. 深度上限 `max_depth=4`，防御畸形嵌套导致行数爆炸。**到达上限的节点整棵收下一行**——
+   截断不能变成数据丢失。
+4. 中间层 dict（孩子全是容器）**不占行**，它的内容由子行承载。
+
+### 为什么不是「每个节点都带整棵子树」
+
+最初的实现是每个节点都存完整子树，实测**放大 3.0×**（同一段数据在每层祖先里各存一份）：
+MobSF 单任务 ~3MB → 9MB，而整库当时才 114MB。改成本规则后实测 **1.0×**，且同样无损、
+同样保得住 `ComplianceInfo.…DeviceId_APICall.vulners` 这类细粒度路径。
+
+代价是父节点的标量不再单独成路径（如 `AppInfo.PackageName` 不是一行，它在 `AppInfo` 行的
+payload 里）。这个代价可以接受——无损性有构造性验证（把行按路径拼回原树，与原文逐字节相等，
+见 test_all_data_is_recoverable_from_rows）。
+
+行数也划算：同一份 11MB 大样本下，「每个标量各成一行」的写法要 9962 行，本规则只要几百行。
+多出来的行不带来信息，只带来索引开销。
 
 ## 关于路径里的点号
 
@@ -59,15 +72,27 @@ def split_sections(raw: Any, *, max_depth: int = DEFAULT_MAX_DEPTH) -> list[dict
     return rows
 
 
+def _is_container(value: Any) -> bool:
+    """会独立成行的值：非空 dict、list。它们**不留在父行的 payload 里**——
+    这是「值只存一次」的全部实现，见模块 docstring 里的体积实测。"""
+    return (isinstance(value, dict) and bool(value)) or isinstance(value, list)
+
+
 def _walk(path: str, value: Any, rows: list[dict], *, depth: int, max_depth: int) -> None:
-    rows.append(_row(path, value))
-    if not isinstance(value, dict) or not value:
+    if not isinstance(value, dict):
+        rows.append(_row(path, value))
         return
     if depth >= max_depth:
-        # 截断处这一行已经带上了整棵子树，所以内容不丢
+        # 到此不再下钻，也就没有子行会承载它们——整棵归自己，避免截断变成丢数据
+        rows.append(_row(path, value))
         return
+    owned = {k: v for k, v in value.items() if not _is_container(v)}
+    if owned or not value:
+        # 空 dict 也要留一行，否则 {"DeepLinkInfo": {}} 这种「有键但内容为空」会消失
+        rows.append(_row(path, owned))
     for key, child in value.items():
-        _walk(f"{path}.{key}", child, rows, depth=depth + 1, max_depth=max_depth)
+        if _is_container(child):
+            _walk(f"{path}.{key}", child, rows, depth=depth + 1, max_depth=max_depth)
 
 
 def _row(path: str, value: Any) -> dict:

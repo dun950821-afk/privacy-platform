@@ -71,11 +71,11 @@ def test_execute_returns_raw_sections_for_worker_to_persist(monkeypatch):
     result = asyncio.run(AndroguardAdapter({}).execute(ctx))
 
     assert result.success
-    paths = {s["path"] for s in result.raw_sections}
-    for want in ("endpoints", "endpoints.urls", "certificate", "sensitive_apis"):
-        assert want in paths, f"execute() 没带上 {want}，worker 就落不了这一段"
-    ep = next(s for s in result.raw_sections if s["path"] == "endpoints.urls")
-    assert ep["payload"] == ["https://mbank.example.com/PrivacyC.html"]
+    rows = {s["path"]: s for s in result.raw_sections}
+    # endpoints 的子项全是 list，所以它自己不占行，由 endpoints.urls 等承载
+    for want in ("endpoints.urls", "endpoints.domains", "certificate", "sensitive_apis"):
+        assert want in rows, f"execute() 没带上 {want}，worker 就落不了这一段"
+    assert rows["endpoints.urls"]["payload"] == ["https://mbank.example.com/PrivacyC.html"]
 
 
 def test_collect_facts_rejects_missing_file(tmp_path):
