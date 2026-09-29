@@ -49,6 +49,9 @@ CATEGORIES = {
     "电子签名", "界面与基础库", "社交登录与分享", "移动门户", "系统增强与工具",
     "统计分析与归因", "网络与云服务", "行业框架", "视频监控", "设备标识与基础服务",
     "语音与智能交互", "跨平台与游戏", "身份认证", "通知", "通讯录",
+    # 2026-09-29 新增：多个 agent 遇到这类组件时，词表里没有对应项就**留空没硬套**，
+    # 于是暴露出缺口。补上后回填了 ABSCL / zipw / Adblock。
+    "蓝牙与附近设备", "压缩与归档", "广告过滤",
 }
 KINDS = {"SDK", "OPEN_SOURCE_LIBRARY", "FRAMEWORK", "VENDOR_COMPONENT", "SYSTEM_COMPONENT"}
 SENSITIVITIES = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
