@@ -109,8 +109,23 @@ def test_unmatchable_types_are_excluded():
         assert t not in MATCHABLE_TYPES, f"{t} 不该参与归属匹配"
     # 能匹配的类型一个都不能少
     for t in ("PACKAGE_PREFIX", "CLASS", "MANIFEST_ACTIVITY",
-              "MANIFEST_SERVICE", "MANIFEST_RECEIVER", "MANIFEST_PROVIDER"):
+              "MANIFEST_SERVICE", "MANIFEST_RECEIVER", "MANIFEST_PROVIDER",
+              "NATIVE_SO"):
         assert t in MATCHABLE_TYPES, f"{t} 应参与匹配"
+
+
+def test_native_library_fingerprints_match_so_file_names():
+    """.so 文件名是独立一域的标识——候选是 APK 里 lib/** 的文件名，不是类名。
+
+    接上它是因为数据一直在采集（androguard_runner 的 `native_libraries`）却从没
+    变成过事件，而 LibChecker 的规则里有一半以上（1491/2832）是 native 库名。
+    """
+    idx = _index(("libflutter.so", "EXACT", 5, "NATIVE_SO"))
+    m = idx.match("libflutter.so")
+    assert m is not None and m["component_id"] == 5
+    assert idx.match("libflutterx.so") is None, "EXACT 不得当空前缀"
+    # 类名候选不该被 native 指纹命中（不同域）
+    assert idx.match("com.example.libflutter") is None
 
 
 def test_matched_value_and_mode_are_reported():

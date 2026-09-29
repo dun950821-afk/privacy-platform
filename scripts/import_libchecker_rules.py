@@ -53,6 +53,7 @@ TYPE_MAP = {
     3: "MANIFEST_RECEIVER",
     4: "MANIFEST_PROVIDER",
     5: "PACKAGE_PREFIX",
+    0: "NATIVE_SO",   # .so 文件名；候选来自 APK 的 lib/**，2026-09-29 接上
 }
 
 TYPE_CN = {0: "native", 1: "service", 2: "activity", 3: "receiver",
@@ -86,6 +87,8 @@ def convert_regex(pattern: str) -> tuple[str, str] | None:
 # 各指纹类型的分值，沿用知识库既有约定（见 component_fingerprint 的 weight 分布）
 WEIGHT_BY_TYPE = {
     "PACKAGE_PREFIX": 40,
+    # .so 文件名是很强的标识（一个库就那几个文件名），与包名前缀同级
+    "NATIVE_SO": 40,
     "MANIFEST_ACTIVITY": 35, "MANIFEST_SERVICE": 35,
     "MANIFEST_RECEIVER": 35, "MANIFEST_PROVIDER": 35,
 }
@@ -146,6 +149,10 @@ def apply_import(db, usable_rules, cmap, source_sha: str) -> dict:
         return comp, True
 
     stats["deferred_proxy"] = 0
+    # **批内也要去重**：库里有唯一约束 (component_id, fingerprint_type,
+    # normalized_value, match_mode)，但只查库挡不住同一批里的重复——两条都"库里没有"，
+    # 第二条插入时才撞约束（实测 libYUV 的 libyuv.so 在 rules.db 里就是两条）。
+    seen: set[tuple] = set()
     for u in usable_rules:
         m = cmap.get(u["label"])
         if m and m["relation"] == "PROXY_DEPENDS_ON":
@@ -155,12 +162,18 @@ def apply_import(db, usable_rules, cmap, source_sha: str) -> dict:
         target_name = m["our_component"] if (m and m["relation"] == "SAME") else u["label"]
         comp, _ = ensure_component(target_name)
 
+        key = (comp.id, u["fingerprint_type"], u["value"], u["match_mode"])
+        if key in seen:
+            stats["fingerprints_skipped"] += 1
+            continue
         exists = db.query(F).filter(
             F.component_id == comp.id, F.fingerprint_type == u["fingerprint_type"],
             F.normalized_value == u["value"], F.match_mode == u["match_mode"]).first()
         if exists:
+            seen.add(key)
             stats["fingerprints_skipped"] += 1
             continue
+        seen.add(key)
 
         db.add(F(component_id=comp.id, fingerprint_type=u["fingerprint_type"],
                  value=u["value"], normalized_value=u["value"],

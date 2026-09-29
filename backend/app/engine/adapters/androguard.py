@@ -90,6 +90,19 @@ class AndroguardAdapter(EngineAdapter):
                     "event_data": {"component": name, "type": key}
                 })
 
+        # native 库（APK 里 lib/**/*.so 的文件名），供 native 指纹匹配。
+        # 数据一直在采集（runners/androguard_runner.py 的 `native_libraries`），
+        # 只是从没变成过事件——2026-09-29 接上。空列表是常见情况（纯 Java 应用）。
+        for lib in raw_result.get("native_libraries") or []:
+            events.append({
+                "event_type": "static_native_lib",
+                "timestamp": ts,
+                "data_type": "NATIVE_LIB",
+                "api": lib,
+                # caller 留空：native 库没有调用方。匹配器按 api 匹配。
+                "event_data": {"library": lib, "source": "apk_lib_dir"}
+            })
+
         return events
 
     def collect_artifacts(self) -> list[dict]:

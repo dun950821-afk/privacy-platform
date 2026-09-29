@@ -49,6 +49,8 @@ Support Library	Android Support Library (legacy)	SAME	全称 vs 简称
 File Provider	AndroidX Core FileProvider	SAME	全称 vs 简称
 HMS Analytics Kit	HMS Analytics Kit（华为分析服务）	SAME	我们补了中文注释
 HMS Core	华为 HMS Core 基础 Activity	UMBRELLA_BUNDLES	HMS Core 是伞形，我们只收了它下面的基础 Activity
+GreenDAO	greenDAO	SAME	仅大小写不同（接入 native 规则时才撞上）
+IJKPlayer	IjkPlayer	SAME	仅大小写不同（同上）
 HMS Core AAID	华为 AAID 设备标识	SAME	AAID 是 HMS Core 下的设备标识服务
 AppGallery Connect	华为 AppGallery Connect Core	SAME	我们收的是它的 Core 模块
 App Center	Microsoft App Center Crashes	SAME	我们收的是它的崩溃模块

@@ -111,6 +111,7 @@ MATCHABLE_TYPES = (
     "PACKAGE_PREFIX", "CLASS",
     "MANIFEST_ACTIVITY", "MANIFEST_SERVICE",
     "MANIFEST_RECEIVER", "MANIFEST_PROVIDER",
+    "NATIVE_SO",
 )
 
 # 按语义分派：EXACT 要相等、PREFIX 要比开头、SUFFIX 要比结尾。
@@ -131,6 +132,9 @@ _TIERS = (_TIER_MANIFEST, _TIER_CODE)
 TIER_OF = {
     "PACKAGE_PREFIX": _TIER_CODE,
     "CLASS": _TIER_CODE,
+    # native 库名与类名/包名不同域（它是 `lib*.so` 的文件名），放代码级即可——
+    # 一个 .so 文件名不会被类名前缀命中，反之亦然，实际不会竞争。
+    "NATIVE_SO": _TIER_CODE,
     "MANIFEST_ACTIVITY": _TIER_MANIFEST,
     "MANIFEST_SERVICE": _TIER_MANIFEST,
     "MANIFEST_RECEIVER": _TIER_MANIFEST,

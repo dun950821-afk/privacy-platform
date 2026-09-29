@@ -14,6 +14,7 @@ KIND_MAP = {
     "fact.permission": "fact",
     "fact.sensitive_permission": "fact",
     "fact.component": "fact",
+    "fact.native_library": "fact",
     "security.endpoint": "fact",
     "security.tracker": "security_finding",
     "security.sensitive_api": "fact",
@@ -28,6 +29,7 @@ TYPE_MAP = {
     "static_permission": "fact.permission",
     "static_sensitive_permission": "fact.sensitive_permission",
     "static_component": "fact.component",
+    "static_native_lib": "fact.native_library",
     "static_data_flow": "dataflow.privacy",
     "static_sensitive_api": "security.sensitive_api",
 }
