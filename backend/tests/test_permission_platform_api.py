@@ -57,7 +57,7 @@ def test_list_filters_by_platform(client, admin_headers, db, seeded):
 
 
 def test_applicable_filter_excludes_signature_level(client, admin_headers, db, seeded):
-    """Android 那 875 条签名/系统级默认不进版面。"""
+    """Android 那 855 条签名/系统级默认不进版面。"""
     got = client.get("/api/v1/permissions", headers=admin_headers,
                      params={"platform": "ANDROID", "applicable": "true", "keyword": P}).json()["data"]
     names = [i["permission_name"] for i in got["items"]]

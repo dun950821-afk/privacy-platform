@@ -286,21 +286,29 @@ async function openCreate() {
 async function openEdit(row: PermissionItem) {
   resetForm()
   editingId.value = row.id
-  const res: any = await permissionApi.get(row.id)
-  Object.assign(form, {
-    permission_name: res.data.permission_name || '',
-    // 平台是这一行的身份，编辑态禁用；填进来是为了让禁用框显示的是这一行真实的平台
-    platform: res.data.platform || 'ANDROID',
-    category: res.data.category || '',
-    permission_type: res.data.permission_type || '',
-    risk_level: res.data.risk_level || '',
-    capability: res.data.capability || '',
-    grant_mode: res.data.grant_mode || '',
-    compliance_focus: res.data.compliance_focus || '',
-    official_reference: res.data.official_reference || '',
-  })
-  // 按**这一行**的平台取词表：否则编辑 iOS 行时类型下拉列的是筛选栏平台的词表
-  await loadDialogMeta(form.platform)
+  // 与 openCreate 同款：不 try/catch 的话，取数一失败就是「点了编辑没反应」——
+  // 弹窗不开、没有任何提示，只在控制台留一个未处理的 rejection。
+  // 这里不能像 openCreate 那样先开弹窗：表单的字段全来自这次响应，先开只会是个空表。
+  try {
+    const res: any = await permissionApi.get(row.id)
+    Object.assign(form, {
+      permission_name: res.data.permission_name || '',
+      // 平台是这一行的身份，编辑态禁用；填进来是为了让禁用框显示的是这一行真实的平台
+      platform: res.data.platform || 'ANDROID',
+      category: res.data.category || '',
+      permission_type: res.data.permission_type || '',
+      risk_level: res.data.risk_level || '',
+      capability: res.data.capability || '',
+      grant_mode: res.data.grant_mode || '',
+      compliance_focus: res.data.compliance_focus || '',
+      official_reference: res.data.official_reference || '',
+    })
+    // 按**这一行**的平台取词表：否则编辑 iOS 行时类型下拉列的是筛选栏平台的词表
+    await loadDialogMeta(form.platform)
+  } catch {
+    ElMessage.error('权限详情加载失败，请稍后重试')
+    return
+  }
   showDialog.value = true
 }
 

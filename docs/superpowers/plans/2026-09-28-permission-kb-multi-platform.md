@@ -193,7 +193,7 @@ git commit -m "feat(kb): 权限表增加 platform 列，旧行回填 ANDROID"
 # backend/tests/test_permission_taxonomy.py
 """平台词表与「普通 App 可达」判定。
 
-Android 实测 1018 条里 875 条是签名/系统级——普通 App 声明了也拿不到。
+Android 实测 1018 条里 855 条是签名/系统级——普通 App 声明了也拿不到。
 可达性判定收敛在这个模块，API 与页面共用，不各自硬编码。
 """
 import pytest
@@ -305,7 +305,7 @@ ANDROID_PROTECTION_LEVEL_MAP = {
     "module": "特殊权限",
 }
 
-# 普通 App 真能申请的 Android 类型。实测 1018 条里只有 143 条落在这里。
+# 普通 App 真能申请的 Android 类型。实测 1018 条里只有 163 条落在这里。
 _ANDROID_APPLICABLE = {"危险权限", "危险权限（受限）", "普通权限"}
 
 # 各平台**解析器自己能产出**的 permission_type 取值。
@@ -1528,7 +1528,7 @@ def test_list_filters_by_platform(client, admin_headers, db, seeded):
 
 
 def test_applicable_filter_excludes_signature_level(client, admin_headers, db, seeded):
-    """Android 那 875 条签名/系统级默认不进版面。"""
+    """Android 那 855 条签名/系统级默认不进版面。"""
     got = client.get("/api/v1/permissions", headers=admin_headers,
                      params={"platform": "ANDROID", "applicable": "true", "keyword": P}).json()["data"]
     names = [i["permission_name"] for i in got["items"]]
