@@ -22,3 +22,26 @@ def test_mobsf_normalizes_security_observations():
     assert "static_tracker" in types
     assert "static_url" in types
     assert "security_observation" in types
+
+
+def test_raw_sections_cover_sections_that_have_no_event_mapping():
+    """MobSF 的 53 个段落里只有 4 个有事件映射，其余原本等于不存在。
+
+    这里挑几个从未被提取、但明显有后续价值的段落，锁住它们能被拆出来。
+    """
+    from app.services.raw_section_service import split_sections
+
+    raw = {
+        "appsec": {"security_score": 47, "high": [{"title": "x"}], "warning": []},
+        "manifest_analysis": {"manifest_findings": [{"rule": "vulnerable_os_version"}],
+                              "manifest_summary": {}},
+        "secrets": ["Private key: -----BEGIN EC PRIVATE KEY-----"],
+        "sbom": {"sbom_versioned": ["androidx.appcompat:appcompat@1.0.0"], "sbom_packages": []},
+        "certificate_analysis": {"certificate_info": "Binary is signed\nv1 signature: True"},
+        "trackers": {"detected_trackers": 0, "total_trackers": 432, "trackers": []},
+    }
+    paths = {s["path"] for s in split_sections(raw)}
+    for want in ("appsec.security_score", "manifest_analysis.manifest_findings",
+                 "secrets", "sbom.sbom_versioned", "certificate_analysis.certificate_info",
+                 "trackers.trackers"):
+        assert want in paths, f"{want} 没被拆出来——这一段又会变成『不存在』"
