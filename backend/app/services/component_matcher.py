@@ -133,23 +133,20 @@ MATCHABLE_TYPES = (
 MATCH_MODES = ("EXACT", "PREFIX", "SUFFIX")
 
 
-def normalize_candidate(value: str | None) -> str:
-    """把候选串归一成可比形态：**去掉 AppShark 的 `<类: 方法签名>` 外壳**。
+def strip_appshark_shell(value: str | None) -> str:
+    """剥掉 AppShark 的 `<类: 方法签名>` 外壳，**保留原大小写**。
 
     AppShark 事件里 `caller` / `api` 长这样：
 
         <com.baidu.location.d.a: void b(com.baidu.location.BDNotifyListener)>
         ['<com.tencent.turingface...: void x()>->$r0']
 
-    而匹配是 `candidate.startswith(前缀)`。**以 `<` 开头的串永远不可能以
-    `com.baidu.location` 开头**——于是凡是这种形态的事件，包名前缀匹配全军覆没。
+    匹配路径要小写化后比前缀，包簇路径要保留原样展示——但「外壳长什么样」只能有
+    一处定义。两条路径曾各写各的：匹配侧剥了壳、聚类侧没剥，于是
+    `static_sensitive_api` 的包簇带着 `<com.thirdparty.tracker` 这样的残壳。
+    所以只此一处实现外壳规则，`normalize_candidate()` 在它之上加小写。
 
-    实测（app_version 11）：`static_sensitive_api` 15284 条、`static_data_flow` 2935 条
-    **命中率恒为 0%**；而 `static_component`（caller 是裸类名）命中率 100%。
-    这两类恰恰是最能说明「谁在采集」的——敏感 API 调用与数据流。
-
-    只去外壳，不改内容：`<A: void b()>` → `a`；`['<A: void b()>->$r0']` → `a`。
-    非该形态的原样小写返回（裸类名、`.so` 文件名、权限名都走这条路）。
+    非该形态的原样返回（裸类名、`.so` 文件名、权限名、URL 都走这条路）。
     """
     c = (value or "").strip()
     if not c:
@@ -159,7 +156,22 @@ def normalize_candidate(value: str | None) -> str:
     c = c.lstrip("'\"").strip()
     if c.startswith("<"):
         c = c[1:].split(":")[0].strip()
-    return c.lower()
+    return c
+
+
+def normalize_candidate(value: str | None) -> str:
+    """把候选串归一成可比形态：剥掉 AppShark 外壳后小写化。
+
+    匹配是 `candidate.startswith(前缀)`。**以 `<` 开头的串永远不可能以
+    `com.baidu.location` 开头**——不剥壳的话，凡是这种形态的事件包名前缀匹配全军覆没。
+
+    实测（app_version 11）：`static_sensitive_api` 15284 条、`static_data_flow` 2935 条
+    **命中率恒为 0%**；而 `static_component`（caller 是裸类名）命中率 100%。
+    这两类恰恰是最能说明「谁在采集」的——敏感 API 调用与数据流。
+
+    只去外壳，不改内容：`<A: void b()>` → `a`；`['<A: void b()>->$r0']` → `a`。
+    """
+    return strip_appshark_shell(value).lower()
 
 # 层级：决定「谁有资格给归属」。数字小的先试，命中即返回。
 #

@@ -8,6 +8,7 @@
 用户的人工标记（误报/白名单/自研/关联等）在重新分析时保留。
 """
 import logging
+import re
 from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -28,7 +29,68 @@ PACKER_PREFIXES = {
     "com.tencent.StubShell", "com.edog",
 }
 
-from app.services.component_matcher import cached_component_index  # noqa: E402
+from app.services.component_matcher import (  # noqa: E402
+    cached_component_index, strip_appshark_shell,
+)
+
+# ── 未识别包簇的准入规则 ────────────────────────────────────────────────────
+#
+# 只有**代码符号**才有资格当包前缀。判据分两道门，缺一不可。
+
+# 第一道：这个事件类型的 api/caller 装的是类名/包名吗？
+#
+# 不在表里的类型必须能说出为什么：
+#   static_permission / static_sensitive_permission —— 装的是权限名。权限是共性不是特征
+#       （同 component_matcher.MATCHABLE_TYPES 的结论），且 `android.permission.*` 会被
+#       切出一个叫「android.permission」的包簇，任务 2216 上它挂着 14 个「类」。
+#   static_url —— 装的是 URL，`http://www.openssl.org/support/faq` 曾成为包前缀。
+#   static_native_lib —— 装的是 .so 文件名，该走 NATIVE_SO 指纹那条路，不是包。
+#   static_basic_info / static_tracker —— 不承载类名。
+#
+# 对着新事件类型**默认不放行**：漏掉一个真包簇只是少一条待分析线索，放进一个假包簇
+# 会让人以为 App 里有个并不存在的第三方组件，审计时按它去查隐私政策就白查了。
+# 要放行新类型时，先确认真实事件里它的候选串是代码符号。
+CLUSTERABLE_EVENT_TYPES = frozenset({
+    "static_component",     # 清单里登记的 Activity/Service/Receiver/Provider
+    "static_sensitive_api",  # 敏感 API 调用点（AppShark 签名）
+    "static_data_flow",     # 污点数据流
+    "security_observation",  # 引擎观察
+})
+
+# 第二道：这个串属于平台命名空间吗？
+#
+# Android 操作系统与 Java/Kotlin 运行时的类必然出现在调用点里，它们是「操作系统」，
+# 不是「未识别的第三方组件」。剥壳修复后 `static_sensitive_api` 的候选变成合法 FQCN，
+# 不挡这一道的话 `android.content.pm` 会以 4647 条事件的体量成为最大的那个「包簇」
+# ——把一个众所周知的东西列成「待分析」比列不出来更误导。
+PLATFORM_PREFIXES = (
+    "android.", "androidx.",
+    "java.", "javax.", "kotlin.", "kotlinx.",
+    "dalvik.", "sun.", "com.sun.", "libcore.",
+    "org.w3c.", "org.xml.", "org.json.", "org.ietf.",
+    "junit.", "org.junit.",
+)
+
+# Java 标识符：包名/类名的每一段都必须是这个形态
+_JAVA_IDENT = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
+
+
+def _cluster_candidate(event: DetectionEvent) -> str | None:
+    """取事件的「可作包前缀」候选串；判不出来返回 None（宁可不产出，不猜）。"""
+    if event.event_type not in CLUSTERABLE_EVENT_TYPES:
+        return None
+    name = strip_appshark_shell(event.api or event.caller or "")
+    if not name:
+        return None
+    parts = name.split(".")
+    # 至少两段才算包名——裸露的权限常量（ACCESS_FINE_LOCATION）只有一段，会被
+    # `_cluster_prefix` 原样返回，于是「权限名」直接变成了「包前缀」。
+    # 每段都必须是合法 Java 标识符：挡住 http://www、data:%p、file://%s 这类。
+    if len(parts) < 2 or not all(_JAVA_IDENT.match(p) for p in parts):
+        return None
+    if name.lower().startswith(PLATFORM_PREFIXES):
+        return None
+    return name
 
 
 def _cluster_prefix(class_name: str) -> str:
@@ -201,9 +263,15 @@ def analyze_task(db: Session, task: DetectionTask, refresh: bool = False) -> Sca
             ))
 
     # 写入未识别包簇
+    #
+    # 候选串来自 `e.api or e.caller`，而这两列在不同事件类型下装的东西完全不同
+    # （权限名 / URL / .so 文件名 / AppShark 签名）。此前直接把它当类名切分，实测
+    # 全库 272 条包簇里 190 条（70%）根本不是包名。准入判定收进 _cluster_candidate()。
     cluster_map: dict[str, dict] = {}
     for e in unmatched:
-        name = e.api or e.caller or ""
+        name = _cluster_candidate(e)
+        if not name:
+            continue
         prefix = _cluster_prefix(name)
         if not prefix:
             continue
