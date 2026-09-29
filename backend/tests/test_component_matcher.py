@@ -95,15 +95,21 @@ def test_match_mode_filter_accepts_all_three():
 
 
 def test_unmatchable_types_are_excluded():
-    """API_SIGNATURE 的取值是中文能力标签、MAVEN_COORDINATE 需要构建期坐标，
-    都不是可匹配的字符串。它们一旦进了 MATCHABLE_TYPES，匹配器就会拿
-    「sqlite/orm/键值存储/加密数据库」去和类名比。"""
-    assert "API_SIGNATURE" not in MATCHABLE_TYPES
-    assert "MAVEN_COORDINATE" not in MATCHABLE_TYPES
+    """不可匹配的类型一条都不能混进来。两类理由：
+
+    - `API_SIGNATURE` 的取值是中文能力标签、`MAVEN_COORDINATE` 需要构建期坐标，
+      **压根没有可比的字符串**；
+    - `PERMISSION` 有可比字符串，但**指认不出唯一组件**——库里
+      `android.permission.INTERNET` 关联着 229 个组件。它曾被我接进来，是错的：
+      实测 `ACCESS_FINE_LOCATION` 同时挂在高德与百度两个定位 SDK 上，匹配器只能
+      按组件 id 抛硬币。权限是**共性**不是**特征**，它与组件的关系本来就存在
+      `privacy_kb.component_permission` 表里。
+    """
+    for t in ("API_SIGNATURE", "MAVEN_COORDINATE", "PERMISSION"):
+        assert t not in MATCHABLE_TYPES, f"{t} 不该参与归属匹配"
     # 能匹配的类型一个都不能少
-    for t in ("PACKAGE_PREFIX", "CLASS", "PERMISSION",
-              "MANIFEST_ACTIVITY", "MANIFEST_SERVICE",
-              "MANIFEST_RECEIVER", "MANIFEST_PROVIDER"):
+    for t in ("PACKAGE_PREFIX", "CLASS", "MANIFEST_ACTIVITY",
+              "MANIFEST_SERVICE", "MANIFEST_RECEIVER", "MANIFEST_PROVIDER"):
         assert t in MATCHABLE_TYPES, f"{t} 应参与匹配"
 
 
@@ -169,14 +175,15 @@ def test_code_tier_still_wins_when_no_manifest_match():
     assert idx.match("com.a.lib.Thing")["component_id"] == 2
 
 
-def test_permission_tier_is_last_resort():
-    """权限名与类名/包名不同域，放最后；且只有权限串才该走到它。"""
-    idx = _index(
-        ("android.permission.nfc", "EXACT", 9, "PERMISSION"),
-        ("android", "PREFIX", 8),
-    )
-    # 代码级（"android" 前缀）先命中，权限级不会抢到
-    assert idx.match("android.permission.nfc")["component_id"] == 8
+def test_permission_fingerprints_do_not_take_part_in_attribution():
+    """权限指纹不参与归属——连登记进索引都不该发生。
+
+    这条是「共性不等于特征」的可执行版本：把一条权限指纹塞进索引，它也匹配不到，
+    因为 `TIER_OF` 里没有它对应的层级。
+    """
+    idx = _index(("android.permission.nfc", "EXACT", 9, "PERMISSION"))
+    assert idx.match("android.permission.nfc") is None
+    assert idx.size == 0, "权限指纹不该被索引收下"
 
 
 def test_id_is_kept_for_frontend_contract():

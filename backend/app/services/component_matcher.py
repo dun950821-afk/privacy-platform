@@ -78,12 +78,25 @@ ImagePickerFileProvider 判给了笼统的「Flutter」。
 调用方负责给对候选。事件的 `caller`、`api`、组件名、权限名都直接传进来即可：
 不同 `fingerprint_type` 的取值本就分属这些字段，按语义匹配由本模块负责。
 
-## 未纳入的类型
+## 未纳入的类型，与一条被纠正的建模错误
 
 `API_SIGNATURE`（959 条）的取值是**中文能力标签**（`sqlite/orm/键值存储/加密数据库`），
 不是可匹配的签名，任何候选串都无从比起；`MAVEN_COORDINATE`（200 条）需要构建期依赖
 坐标，当前管线不从 APK 提取。两者都不在 `MATCHABLE_TYPES` 里——它们是描述性数据，
 不是匹配项，**不要把它们接进匹配器**。
+
+`PERMISSION`（760 条）**曾经被接进来，是错的，已移除**。取「某组件声明了权限 P」去
+反推「P 在 App 里」在建模上就不成立：权限是**共性**，不是**特征**。库里
+`android.permission.INTERNET` 关联着 **229 个组件**、`ACCESS_NETWORK_STATE` 103 个、
+`CAMERA` 74 个——从一条权限声明判不出 App 用的是哪一个。实测把 26 条权限指纹接进
+匹配后，`ACCESS_FINE_LOCATION` 同时挂在高德定位 SDK 与百度定位 SDK 上，匹配器只能
+按组件 id 抛硬币，产出的是**看着像结论的噪声**。
+
+权限与组件的关系**本来就有**正确的存放处：`privacy_kb.component_permission` 表
+（760 条关系，与这批指纹一一对应）。它是**关系**，用于展示与「谁需要什么权限」的
+分析；要参与归属，必须与更强的证据组合（例如权限 + 代码级指纹同时命中），
+不能单凭权限定归属。这条判断在接新指纹类型时都适用：
+**先问它能不能指认唯一组件，再问它能不能匹配。**
 """
 from __future__ import annotations
 
@@ -91,13 +104,13 @@ from sqlalchemy.orm import Session
 
 from app.models.kb import KBComponent, KBComponentFingerprint, KBVendor
 
-# 能参与匹配的指纹类型。加类型前先确认它的取值是「可比的字符串」，
-# 而不是能力标签之类的描述性数据。
+# 能参与匹配的指纹类型。加类型前先确认两件事：
+#   1) 取值是「可比的字符串」，不是能力标签之类的描述性数据；
+#   2) 它**足以指认唯一组件**——共性太强的东西不能当指纹（见 PERMISSION 的教训）。
 MATCHABLE_TYPES = (
     "PACKAGE_PREFIX", "CLASS",
     "MANIFEST_ACTIVITY", "MANIFEST_SERVICE",
     "MANIFEST_RECEIVER", "MANIFEST_PROVIDER",
-    "PERMISSION",
 )
 
 # 按语义分派：EXACT 要相等、PREFIX 要比开头、SUFFIX 要比结尾。
@@ -109,11 +122,11 @@ MATCH_MODES = ("EXACT", "PREFIX", "SUFFIX")
 #   清单级 —— 该组件在自己的清单里登记了这个类。但这只说明「它声明了这个组件」，
 #             同一个类完全可能被两个组件同时登记（库里确有，见 _duplicates）
 #   权限级 —— 只能匹配权限名，与类名/包名不同域，放最后
-_TIER_CODE, _TIER_MANIFEST, _TIER_PERMISSION = 0, 1, 2
+_TIER_CODE, _TIER_MANIFEST = 0, 1
 # 尝试顺序：**清单级在前**。清单登记说的是「这个组件声明使用/暴露了这个类」，
 # 对「谁在采集」这个问题，这比「这个类定义在谁的命名空间下」更贴题——
 # 一个 SDK 完全可能复用别人命名空间下的类并把它登记进自己的清单。
-_TIERS = (_TIER_MANIFEST, _TIER_CODE, _TIER_PERMISSION)
+_TIERS = (_TIER_MANIFEST, _TIER_CODE)
 
 TIER_OF = {
     "PACKAGE_PREFIX": _TIER_CODE,
@@ -122,7 +135,6 @@ TIER_OF = {
     "MANIFEST_SERVICE": _TIER_MANIFEST,
     "MANIFEST_RECEIVER": _TIER_MANIFEST,
     "MANIFEST_PROVIDER": _TIER_MANIFEST,
-    "PERMISSION": _TIER_PERMISSION,
 }
 
 
