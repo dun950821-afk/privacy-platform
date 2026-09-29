@@ -8,7 +8,7 @@
 export const DATA_CATEGORY_CN: Record<string, string> = {
   device_information: '设备标识信息',
   installed_apps: '已安装应用列表',
-  network_information: '网络信息（WiFi/基站）',
+  network_information: '网络信息（WiFi/运营商）',
   location: '位置信息',
   contacts: '通讯录',
   camera: '摄像头',
@@ -24,6 +24,8 @@ export const DATA_CATEGORY_CN: Record<string, string> = {
   account: '账号信息',
   biometric: '生物识别',
   advertising_identifier: '广告标识符',
+  cell: '基站与小区信息',
+  bluetooth: '蓝牙设备信息',
   personal_information: '个人信息',
   unknown: '未知',
 }

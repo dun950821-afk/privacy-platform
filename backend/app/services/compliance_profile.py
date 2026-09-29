@@ -31,15 +31,20 @@ NO_PERMISSION_CATEGORIES = {
 }
 
 # 个人信息敏感度：个保法意义上的敏感个人信息 + 常见高敏感类目
+#
+# `cell` 纳入：基站/小区信息（LAC/CID/基站 ID）能反推行踪轨迹，属个保法的敏感个人信息。
+# `bluetooth` 不纳入：蓝牙设备名/适配器名的识别力与 device_information 同级，
+# 而 device_information 本就不在这一档，单把它提上来会让两档失去可比性。
 SENSITIVE_CATEGORIES = {
     "contacts", "location", "camera", "microphone", "sms", "phone",
     "files", "photos", "biometric", "calendar", "account", "clipboard",
+    "cell",
 }
 
 DATA_CATEGORY_CN = {
     "device_information": "设备标识信息",
     "installed_apps": "已安装应用列表",
-    "network_information": "网络信息（WiFi/基站）",
+    "network_information": "网络信息（WiFi/运营商）",
     "location": "位置信息",
     "contacts": "通讯录",
     "camera": "摄像头",
@@ -55,6 +60,8 @@ DATA_CATEGORY_CN = {
     "account": "账号信息",
     "biometric": "生物识别",
     "advertising_identifier": "广告标识符",
+    "cell": "基站与小区信息",
+    "bluetooth": "蓝牙设备信息",
     "personal_information": "个人信息",
     "unknown": "未知",
 }
