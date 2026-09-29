@@ -1,0 +1,22 @@
+{
+  "Cell_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "Cell_APICall",
+      "detail": "获取基站/小区信息(LAC/CID/基站ID/网络ID)",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalCell_APICall",
+      "complianceCategoryDetail": "基站与小区信息_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<android.telephony.TelephonyManager: * getCellLocation(*)": {},
+      "<android.telephony.TelephonyManager: * getAllCellInfo(*)": {},
+      "<android.telephony.TelephonyManager: * requestCellInfoUpdate(*)": {},
+      "<android.telephony.gsm.GsmCellLocation: * getLac(*)": {},
+      "<android.telephony.gsm.GsmCellLocation: * getCid(*)": {},
+      "<android.telephony.cdma.CdmaCellLocation: * getBaseStationId(*)": {},
+      "<android.telephony.cdma.CdmaCellLocation: * getNetworkId(*)": {}
+    }
+  }
+}

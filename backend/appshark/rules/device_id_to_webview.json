@@ -1,0 +1,40 @@
+{
+  "DeviceId_WebView": {
+    "SliceMode": true,
+    "traceDepth": 10,
+    "PrimTypeAsTaint": true,
+    "desc": {
+      "name": "DeviceId_WebView",
+      "detail": "设备标识符(IMEI/IMSI/OAID等)传入WebView(URL/Javascript桥)",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalDeviceInformation_WebView",
+      "complianceCategoryDetail": "个人设备信息_传入WebView",
+      "level": "L3"
+    },
+    "source": {
+      "Return": [
+        "<android.telephony.TelephonyManager: * getDeviceId(*)>",
+        "<android.telephony.TelephonyManager: * getImei(*)>",
+        "<android.telephony.TelephonyManager: * getMeid(*)>",
+        "<android.telephony.TelephonyManager: * getSubscriberId(*)>",
+        "<android.telephony.TelephonyManager: * getLine1Number(*)>",
+        "<android.telephony.TelephonyManager: * getSimSerialNumber(*)>",
+        "<android.os.Build: * getSerial(*)>",
+        "<android.net.wifi.WifiInfo: * getMacAddress(*)>",
+        "<android.provider.Settings$Secure: * getString(*)>",
+        "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>",
+        "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>"
+      ],
+      "Field": [
+        "<android.os.Build: * SERIAL>"
+      ]
+    },
+    "sink": {
+      "<android.webkit.WebView: * loadUrl(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.webkit.WebView: * loadData(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.webkit.WebView: * loadDataWithBaseURL(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.webkit.WebView: * evaluateJavascript(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.webkit.WebView: * addJavascriptInterface(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] }
+    }
+  }
+}

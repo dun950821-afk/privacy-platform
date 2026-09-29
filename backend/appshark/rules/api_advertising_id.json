@@ -1,0 +1,19 @@
+{
+  "AdvertisingId_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "AdvertisingId_APICall",
+      "detail": "调用广告标识符获取API(OAID/VAID/AAID/GAID)",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalAdvertisingIdentifier_APICall",
+      "complianceCategoryDetail": "广告标识符_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>": {},
+      "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>": {},
+      "<com.bun.miitmdid.supplier.IdSupplier: * getVAID(*)>": {},
+      "<com.bun.miitmdid.supplier.IdSupplier: * getAAID(*)>": {}
+    }
+  }
+}

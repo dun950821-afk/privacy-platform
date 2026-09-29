@@ -16,7 +16,13 @@
       "<android.content.pm.PackageManager: * queryIntentServices(*)>": {},
       "<android.content.pm.PackageManager: * queryIntentContentProviders(*)>": {},
       "<android.content.pm.PackageManager: * getPackageInfo(*)>": {},
-      "<android.content.pm.PackageManager: * getApplicationInfo(*)>": {}
+      "<android.content.pm.PackageManager: * getApplicationInfo(*)>": {},
+      "<android.app.ApplicationPackageManager: * getInstalledPackages(*)>": {},
+      "<android.app.ApplicationPackageManager: * getInstalledApplications(*)>": {},
+      "<android.app.ApplicationPackageManager: * queryIntentActivities(*)>": {},
+      "<android.app.ApplicationPackageManager: * getInstallerPackageName(*)>": {},
+      "<android.app.ApplicationPackageManager: * getPackageInfoAsUser(*)>": {},
+      "<android.app.ActivityManager: * getRunningAppProcesses(*)>": {}
     }
   }
 }

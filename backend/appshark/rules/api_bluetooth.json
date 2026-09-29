@@ -1,0 +1,17 @@
+{
+  "Bluetooth_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "Bluetooth_APICall",
+      "detail": "获取蓝牙设备信息(本地适配器名/已配对设备名)",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalBluetooth_APICall",
+      "complianceCategoryDetail": "蓝牙设备信息_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<android.bluetooth.BluetoothAdapter: * getName(*)": {},
+      "<android.bluetooth.BluetoothDevice: * getName(*)": {}
+    }
+  }
+}

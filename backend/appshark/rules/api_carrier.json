@@ -1,0 +1,19 @@
+{
+  "Carrier_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "Carrier_APICall",
+      "detail": "获取运营商与服务状态信息(MCC/MNC/国家码)",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalNetworkEnv_APICall",
+      "complianceCategoryDetail": "网络环境信息_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<android.telephony.TelephonyManager: * getNetworkOperator(*)": {},
+      "<android.telephony.TelephonyManager: * getSimOperator(*)": {},
+      "<android.telephony.TelephonyManager: * getSimCountryIso(*)": {},
+      "<android.telephony.TelephonyManager: * getServiceState(*)": {}
+    }
+  }
+}

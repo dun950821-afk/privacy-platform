@@ -10,7 +10,9 @@
       "level": "L2"
     },
     "sink": {
-      "<android.hardware.Camera: * open(*)>": {}
+      "<android.hardware.Camera: * open(*)>": {},
+      "<android.hardware.camera2.CameraManager: * openCamera(*)": {},
+      "<androidx.camera.core.ImageCapture: * takePicture(*)": {}
     }
   }
 }

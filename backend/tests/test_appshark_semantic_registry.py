@@ -54,7 +54,18 @@ def test_camera_and_media_split_claims_only_what_is_proven():
     assert not any("Camera" in sig for sig in sinks), \
         "Media_APICall 不得包含 Camera API，否则 camera 会被重复声明"
     camera_sinks = json.load(open(os.path.join(RULE_DIR, "api_camera.json")))["Camera_APICall"]["sink"]
-    assert list(camera_sinks) == ["<android.hardware.Camera: * open(*)>"]
+    # 2026-09-29 从 camile.json 补入 camera2 的 openCamera 与 androidx 的
+    # ImageCapture.takePicture：前者就是打开摄像头，后者就是拍照，与 Camera.open
+    # 同属「无歧义」那一类，所以进 camera 这一格。通配参数的那批仍留在 media。
+    assert list(camera_sinks) == [
+        "<android.hardware.Camera: * open(*)>",
+        "<android.hardware.camera2.CameraManager: * openCamera(*)",
+        "<androidx.camera.core.ImageCapture: * takePicture(*)",
+    ]
+    # 这条断言才是本测试真正要守的东西：只要 Camera 里混进通配参数的采集 API，
+    # 上面那个集合快照会通过更新来「修好」，这一条不会。
+    assert not any("MediaRecorder" in s or "AudioRecord" in s for s in camera_sinks), \
+        "通配参数的音视频采集 API 不得混进 camera"
 
 
 def test_retired_and_current_are_disjoint():

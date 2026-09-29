@@ -1,0 +1,41 @@
+{
+  "DeviceId_Database": {
+    "SliceMode": true,
+    "traceDepth": 10,
+    "PrimTypeAsTaint": true,
+    "desc": {
+      "name": "DeviceId_Database",
+      "detail": "设备标识符(IMEI/IMSI/OAID等)写入本地数据库",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalDeviceInformation_Database",
+      "complianceCategoryDetail": "个人设备信息_写入数据库",
+      "level": "L3"
+    },
+    "source": {
+      "Return": [
+        "<android.telephony.TelephonyManager: * getDeviceId(*)>",
+        "<android.telephony.TelephonyManager: * getImei(*)>",
+        "<android.telephony.TelephonyManager: * getMeid(*)>",
+        "<android.telephony.TelephonyManager: * getSubscriberId(*)>",
+        "<android.telephony.TelephonyManager: * getLine1Number(*)>",
+        "<android.telephony.TelephonyManager: * getSimSerialNumber(*)>",
+        "<android.os.Build: * getSerial(*)>",
+        "<android.net.wifi.WifiInfo: * getMacAddress(*)>",
+        "<android.provider.Settings$Secure: * getString(*)>",
+        "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>",
+        "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>"
+      ],
+      "Field": [
+        "<android.os.Build: * SERIAL>"
+      ]
+    },
+    "sink": {
+      "<android.database.sqlite.SQLiteDatabase: * insert(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.database.sqlite.SQLiteDatabase: * insertOrThrow(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.database.sqlite.SQLiteDatabase: * insertWithOnConflict(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.database.sqlite.SQLiteDatabase: * replace(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.database.sqlite.SQLiteDatabase: * update(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.database.sqlite.SQLiteDatabase: * execSQL(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] }
+    }
+  }
+}

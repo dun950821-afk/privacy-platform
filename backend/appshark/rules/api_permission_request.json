@@ -1,0 +1,17 @@
+{
+  "PermissionRequest_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "PermissionRequest_APICall",
+      "detail": "发起运行时权限申请(requestPermissions)",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PermissionRequest_APICall",
+      "complianceCategoryDetail": "权限申请_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<androidx.core.app.ActivityCompat: * requestPermissions(*)": {},
+      "<android.support.v4.app.ActivityCompat: * requestPermissions(*)": {}
+    }
+  }
+}

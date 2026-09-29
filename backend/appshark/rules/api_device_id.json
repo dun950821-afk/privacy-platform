@@ -3,7 +3,7 @@
     "APIMode": true,
     "desc": {
       "name": "DeviceId_APICall",
-      "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId/OAID/GAID)",
+      "detail": "调用设备标识获取API(IMEI/IMSI/MEID/序列号/MAC/AndroidId)",
       "category": "ComplianceInfo",
       "complianceCategory": "PersonalDeviceInformation_APICall",
       "complianceCategoryDetail": "个人设备信息_API调用",
@@ -21,10 +21,7 @@
       "<android.net.wifi.WifiInfo: * getMacAddress(*)>": {},
       "<android.provider.Settings$Secure: * getString(*)>": {},
       "<android.provider.Settings$System: * getString(*)>": {},
-      "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>": {},
-      "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>": {},
-      "<com.bun.miitmdid.supplier.IdSupplier: * getVAID(*)>": {},
-      "<com.bun.miitmdid.supplier.IdSupplier: * getAAID(*)>" : {}
+      "<android.app.admin.DevicePolicyManager: * getWifiMacAddress(*)": {}
     }
   }
 }

@@ -26,6 +26,29 @@ REGISTRY = {
     # 音源/视频源是可传 Surface 或 REMOTE_SUBMIX 的通配参数，不能据此判定用了
     # 摄像头或麦克风，因此只标到「音视频采集」这一层（media）。
     # 把能确证的映射成不能确证的，与把不能确证的声称为能确证的，都是错的（设计 §4.2）。
+    # 广告标识符原先混在 DeviceId_APICall 里（OAID/VAID/AAID/GAID 四个 sink 都是它）。
+    # 拆出来的理由是证据强度：getOAID / getAdvertisingIdInfo 的返回值就是广告标识符，
+    # 没有歧义——不像 G2 那次的 MediaRecorder 音源是通配参数、拆不动。
+    # 归到 device_information 会让 advertising_identifier 这一格永远亮不起来，
+    # 而它在 compliance_profile 的 SENSITIVE_CATEGORIES 里是有份量的。
+    # 拆分只动归类：同一个 API 调用点仍会被检出，只是从此算广告标识符而不是设备标识符。
+    "AdvertisingId_APICall":  dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category="advertising_identifier", sink_type=None),
+    # account 类目原先在枚举里但没有任何规则产出（覆盖度矩阵 §5）。只收**直接返回
+    # Account[] 的三个取账号列表方法**；getAccountsByTypeAndFeatures 返回的是
+    # AccountManagerFuture，未经验证不写进来。
+    "Account_APICall":        dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category="account",             sink_type=None),
+    # 以下四条来自 camile.json（AppShark tag v0.1.2 的规则包，8 条规则 52 个 sink），
+    # 但**没有按上游的分组原样引入**：上游「获取电话相关信息」把设备标识与基站信息
+    # 装在同一条规则里、「获取系统信息」把 WiFi MAC 与剪贴板装在一起，照搬会重演
+    # OAID 混进设备标识那种错误归类。这里只取上游的 sink 签名，按平台自己的
+    # data_category 重新分组。
+    "Bluetooth_APICall":      dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category="bluetooth",           sink_type=None),
+    "Cell_APICall":           dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category="cell",                sink_type=None),
+    "Carrier_APICall":        dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category="network_information", sink_type=None),
+    # 权限申请不是「采集了某类数据」，所以 data_category 留空——它记录的是
+    # 「发起过运行时权限申请」这个事实，供后续判「非业务场景提前索权」用。
+    # 空类目意味着它不参与任何 join，只做证据。
+    "PermissionRequest_APICall": dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category=None,               sink_type=None),
     "Camera_APICall":         dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category="camera",              sink_type=None),
     "Media_APICall":          dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category="media",               sink_type=None),
     "Clipboard_APICall":      dict(result_type=RESULT_SUPPORTING, observation_type="security.sensitive_api", data_category="clipboard",           sink_type=None),
@@ -40,6 +63,11 @@ REGISTRY = {
     "Clipboard_Log":            dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="clipboard",          sink_type="log"),
     "DeviceId_FileWrite":       dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="device_information", sink_type="file"),
     "DeviceId_Log":             dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="device_information", sink_type="log"),
+    # 补上三个原先没有任何规则产出的流向：database / webview / clipboard。
+    # 覆盖度矩阵 §5 把它们列为「未覆盖」——不是待验证，是当时根本没有规则。
+    "DeviceId_Database":        dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="device_information", sink_type="database"),
+    "DeviceId_WebView":         dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="device_information", sink_type="webview"),
+    "DeviceId_Clipboard":       dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="device_information", sink_type="clipboard"),
     "DeviceId_NetworkTransfer": dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="device_information", sink_type="network"),
     "Location_NetworkTransfer": dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="location",           sink_type="network"),
 

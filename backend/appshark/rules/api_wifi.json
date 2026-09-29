@@ -3,7 +3,7 @@
     "APIMode": true,
     "desc": {
       "name": "Wifi_APICall",
-      "detail": "获取WiFi信息(SSID/BSSID/扫描结果)",
+      "detail": "获取网络环境信息(WiFi SSID/BSSID/扫描结果/网络类型/IP)",
       "category": "ComplianceInfo",
       "complianceCategory": "PersonalNetworkEnv_APICall",
       "complianceCategoryDetail": "网络环境信息_API调用",
@@ -15,7 +15,13 @@
       "<android.net.wifi.WifiInfo: * getMacAddress(*)>": {},
       "<android.net.wifi.WifiManager: * getScanResults(*)>": {},
       "<android.net.wifi.WifiManager: * getConnectionInfo(*)>": {},
-      "<android.net.NetworkInfo: * getExtraInfo(*)>": {}
+      "<android.net.NetworkInfo: * getExtraInfo(*)>": {},
+      "<android.net.NetworkInfo: * getType(*)>": {},
+      "<android.net.NetworkInfo: * getTypeName(*)>": {},
+      "<android.net.NetworkInfo: * isConnected(*)>": {},
+      "<android.net.NetworkInfo: * isAvailable(*)>": {},
+      "<android.net.wifi.WifiManager: * getConfiguredNetworks(*)>": {},
+      "<java.net.InetAddress: * getHostAddress(*)>": {}
     }
   }
 }

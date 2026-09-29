@@ -1,0 +1,18 @@
+{
+  "Account_APICall": {
+    "APIMode": true,
+    "desc": {
+      "name": "Account_APICall",
+      "detail": "调用账号信息获取API(AccountManager 取账号列表)",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalAccount_APICall",
+      "complianceCategoryDetail": "账号信息_API调用",
+      "level": "L2"
+    },
+    "sink": {
+      "<android.accounts.AccountManager: * getAccounts(*)>": {},
+      "<android.accounts.AccountManager: * getAccountsByType(*)>": {},
+      "<android.accounts.AccountManager: * getAccountsByTypeForPackage(*)>": {}
+    }
+  }
+}
