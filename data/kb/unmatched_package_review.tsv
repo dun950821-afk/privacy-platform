@@ -1,0 +1,43 @@
+# 4 个样本「认不出归属」的包 —— 逐条判定（可评审清单）
+#
+# 背景：修掉「匹配前没剥 AppShark 的 `<类: 方法签名>` 外壳」之后重跑，
+# 未归属的调用点按原因分成三类（app_version 11/12/13/8 合计）：
+#
+#     ① 混淆包名（静态不可归属）              338 条   7.6%   ← 能力边界，不是缺口
+#     ② 同厂商、但库里缺这个命名空间的前缀      3023 条  68.2%  ← 本次处理对象
+#     ③ 库里没有这个 SDK                    1048 条  23.6%  ← 需新建组件，另议
+#
+# 本文件只列 ② 类里「同根已有组件」的候选，逐条给判定。
+#
+# 判定口径（用户 2026-09-29 定）：
+#   缺陷     = 同一个 SDK 自己的另一个模块命名空间，现有前缀漏登记了 → **补**
+#   写法不同 = 疑为同一 SDK 的另一种拼写 → **上网查证**；查证不实就**不加**
+#   另立     = 其实是别的产品/厂商 → 不并，按 ③ 处理
+#
+package	count	判定	归属组件	依据
+com.netease.nrtc	388	**不加**		官方文档明确：依赖坐标 com.netease.yunxin:nertc、代码包名 com.netease.lava.nertc.sdk，**不存在 com.netease.nrtc 这一写法**。既然不是写法差异，就不该并进网易云信
+com.tencent.turingcam	334	**不加**		腾讯图灵盾（端侧安全产品）。查证只能确认 turingcam 是它的标签，**无法确认完整包名**；且库里没有图灵盾组件——属 ③ 不属 ②，不该并进腾讯 Bugly（同根只是都姓腾讯）
+com.baidu.lbsapi	229	**另议**		百度 LBS API。库里百度系组件没有前缀，无法判定该归百度地图 SDK 还是百度定位 SDK；归错比不归更糟
+com.baidu.mapsdkplatform	224	**另议**		同上，百度地图
+com.baidu.mshield	186	**另议**		百度安全，库里无对应组件
+com.baidu.vi	102	**另议**
+com.baidu.mapapi	100	**另议**
+com.baidu.sec	94	**另议**
+com.baidu.b	76	**另议**
+com.baidu.platform	71	**另议**
+com.baidu.c	66	**另议**
+com.baidu.mapauto	28	**另议**
+com.baidu.xclient	18	**另议**
+cn.com.cfca	71	**另立**		CFCA = 中国金融认证中心，是独立厂商。库里「科蓝 CFCA 数字证书模块」是科蓝的封装，不是 CFCA 本体
+com.mm.android	59	**另议**		大华系（乐橙）。与现有 com.dahuatech 前缀不同根，需先确认归属
+com.huawei.secure	48	**另议**		华为安全，库里无对应组件
+com.android.business	42	**另议**		疑似钉钉（DingTalk 的非常规命名空间），需查证
+com.king.camera	28	**另议**		与 ZXingLite 同根纯属 com.king 巧合，无证据
+com.tencent.turingface	28	**不加**		同 turingcam
+com.netease.share	17	**另议**		网易分享，需查证是否云信模块
+com.yitong.utils	27	**另议**		屹通的工具包——但它可能是**项目自己的代码**而非第三方 SDK，不该标为组件
+com.dahua.ui	14	**另议**		大华 UI 模块
+com.igexin.assist	210	**已补**	个推消息推送 SDK	个推自有命名空间，现有前缀只登记了 sdk 与 getui，遗漏 assist 模块 —— 真缺陷
+com.igexin.b	26	**不加**		com.igexin.b 只有两段，作前缀会过宽（会命中 com.igexin.beta 之类），不补
+com.networkbench.nbslens	14	**已补**	听云 App SDK	听云自有命名空间，现有前缀只登记了 agent，遗漏 nbslens —— 真缺陷
+com.networkbench.com	5	**已补**	听云 App SDK	同上，com 模块
