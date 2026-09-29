@@ -91,16 +91,51 @@ com\.bytedance\.mira\.stub\.p[0-9]*\.StubService[0-9]*$
 总共 123 条 regex 里，**非 native 的部分几乎都转成了前缀**，只有这 6 条落在可证明
 范围之外。
 
-## 五、建议的推进顺序
+## 五、组件映射表已建，冲突 72 → 剩 14
 
-1. **先建组件别名/层级映射表**（§1 的三类）——这是唯一的前置，且工作量可控
-   （冲突 72 处，涉及的新组件 288 个里大部分是纯新增，不需要映射）
+`data/kb/libchecker_component_map.tsv`（人工资产，同 `curated_permission_snapshot.tsv`
+的做法）。覆盖全部 45 个会撞车的 label，校验过：**45 行逐个对得上知识库里的组件名，
+0 个写错**。
+
+转成映射后重跑干跑：
+
+```
+冲突 72 处
+  ├─ 经映射表判定为同一实体（可安全并入）  58
+  └─ 仍需处理                            14   ← 见下
+```
+
+剩下这 14 处**恰好都不是别名问题，而是要建模决策**：
+
+**UMBRELLA（9 处）——粒度取谁**
+```
+Firebase          ⊃ Google Data Transport     3 条
+HMS Core          ⊃ 华为 HMS Core 基础 Activity  2 条
+ML Kit            ⊃ Google ML Kit Common      2 条
+百度地图 SDK        ⊃ 百度定位 SDK                1 条
+高德地图 SDK        ⊃ 高德定位 SDK                1 条
+```
+LibChecker 收的是伞形，我们收的是伞下的模块。要定的是**知识库的粒度口径**：
+跟着 LibChecker 改成粗的，还是保留我们的细粒度并把两者建成父子关系。
+
+**AGGREGATED_BY（5 处）——聚合关系怎么表达**
+```
+HUAWEI Push(GeTui Proxy) / MiPush(GeTui Proxy) / OPPO Push(GeTui Proxy)
+  / vivo Push(GeTui Proxy)  → 都撞 '个推消息推送 SDK'
+```
+LibChecker 把「经由个推接入的厂商推送」单列成一个身份。我们目前只有「个推消息推送 SDK」
+一个组件。**两者不是二选一**——「App 装了 OPPO 推送、且经个推接入」与「装了 OPPO 推送」
+是不同的结论。要定的是这个关系怎么落库。
+
+## 六、建议的推进顺序
+
+1. **先定上面那 14 处的口径**（粒度 + 聚合关系）——这是最后一道前置
 2. **导入 type 1-5 共 1222 条**：清单类 + DEX，正好补我们最薄的 `MANIFEST_*`（现 225 条）
 3. **native 单列一期**：加指纹类型与候选来源
 4. 导入时**沿用 `upstream-provenance.json` 那套来源登记**
    （repo / commit / rulesVersion / license），与 AppShark 规则一致
 
-## 六、这次的导入**没有**做的事
+## 七、这次的导入**没有**做的事
 
 - **没有写库**：`--apply` 目前直接报错退出，不是忘了实现，是刻意的
 - 没有把 LibChecker 的 PERMISSION/能力类信息接进归属（它没有这类规则，但这条原则

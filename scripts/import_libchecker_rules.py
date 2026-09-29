@@ -92,6 +92,27 @@ def load_rules(db_path: pathlib.Path) -> list[dict]:
              "type": r[2], "is_regex": bool(r[3])} for r in rows]
 
 
+def load_component_map() -> dict[str, dict]:
+    """读组件映射表（`data/kb/libchecker_component_map.tsv`）。
+
+    这张表是**人工资产**（同类先例：`data/kb/curated_permission_snapshot.tsv`）。
+    它回答的是「LibChecker 的这个组件名，对应我们哪一个」——中英对照这类知识
+    （MiPush = 小米推送、旷视 = Face++）推不出来，所以不能自动生成。
+    """
+    path = (pathlib.Path(__file__).resolve().parent.parent
+            / "data" / "kb" / "libchecker_component_map.tsv")
+    mapping: dict[str, dict] = {}
+    if not path.exists():
+        return mapping
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.startswith("#") or line.startswith("libchecker_label"):
+            continue
+        parts = line.split("\t")
+        if len(parts) >= 3:
+            mapping[parts[0]] = {"our_component": parts[1], "relation": parts[2]}
+    return mapping
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--rules-db", default="/tmp/lc_rules2.db",
@@ -162,18 +183,35 @@ def main() -> None:
                 is_new.append(u)
 
         new_labels = {u["label"] for u in is_new} - known_names
+
+        # 过一遍组件映射表：映射到「该取值的现有归属」的冲突，就不再是冲突
+        cmap = load_component_map()
+        resolved, unresolved = [], []
+        for c in conflict:
+            m = cmap.get(c["label"])
+            if m and m["relation"] == "SAME" and m["our_component"] in c["existing_owners"]:
+                resolved.append({**c, "mapped_to": m["our_component"]})
+            else:
+                unresolved.append({**c, "relation": (m or {}).get("relation")})
+
         print()
         print("=== 干跑结果（未写库）===")
         print(f"  与我们已有条目完全一致（同组件）: {len(same)}")
-        print(f"  **冲突**：取值已存在，但归属的是别的组件: {len(conflict)}")
+        print(f"  冲突：取值已存在、归属别的组件: {len(conflict)}")
+        print(f"     其中**经组件映射表判定为同一实体**（可安全并入）: {len(resolved)}")
+        print(f"     仍需处理: {len(unresolved)}")
         print(f"  新增指纹（我们库里没有这个取值）: {len(is_new)}")
         print(f"     其中涉及的**新组件名** {len(new_labels)} 个")
 
-        if conflict:
-            print("\n  冲突明细（前 15，按组件名）：")
-            for c in conflict[:15]:
-                print(f"    {c['value'][:52]:52} LibChecker={c['label'][:22]:22} "
-                      f"我们={c['existing_owners']}")
+        if unresolved:
+            print("\n  仍需处理的冲突（按组件名）：")
+            by_label = {}
+            for c in unresolved:
+                by_label.setdefault(c["label"], []).append(c)
+            for label, items in sorted(by_label.items()):
+                rel = items[0].get("relation") or "未映射"
+                print(f"    [{rel}] {label[:30]:30} 撞 {items[0]['existing_owners']}"
+                      f"（{len(items)} 条指纹）")
 
         report = {
             "source": "LibChecker/LibChecker-Rules v4 cloud/rules/v4/rules.db",
@@ -182,6 +220,8 @@ def main() -> None:
             "usable": len(usable), "unmapped": len(unmapped),
             "regex_rejected": [r["name"] for r in regex_rejected],
             "same": len(same), "conflict": conflict, "new": is_new,
+            "conflict_resolved_by_map": len(resolved),
+            "conflict_unresolved": unresolved,
             "new_component_labels": sorted(new_labels),
         }
         if args.report:
