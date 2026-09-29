@@ -30,6 +30,34 @@ frontmatter（`maswe` / `masvs-v2` / `cwe`），与 OWASP 上游一致。
 **「真实命中」列是本矩阵的证据列。** 覆盖度矩阵必须区分「枚举存在」与「引擎可产出」
 （设计 §4.3），而区分二者的唯一依据是真实样本上的命中记录，不是规则文件写了什么。
 
+> ### ⚠️ 读这一列之前：AppShark 的结果**不可复现**（2026-09-29 实测）
+>
+> 同一份规则、同一个样本（app_version 11）连跑两次，结果不同：
+>
+> | 规则 | 第一次 | 第二次 |
+> |---|---|---|
+> | `DeviceId_FileWrite` | 44 | 42 |
+> | `DeviceId_Log` | 41 | 40 |
+> | `Location_NetworkTransfer` | 30 | 35 |
+>
+> **差异不只在数量，报出的调用点集合也不同**——`DeviceId_NetworkTransfer` 两次同为
+> 18 条，但 position 不同。差异集中在百度 SDK 的类
+> （`com.baidu.lbsapi`、`com.baidu.sec.privacy`、`com.baidu.location.b.t`）。
+>
+> 已排除指针分析时间预算：`adapters/appshark.py` 默认 `maxPointerAnalyzeTime=300s`，
+> 实测整轮约 90s，没到预算。差异在 AppShark 自身输出里，不是归一化引入的——
+> `engine_artifacts` 里两次的 `results.json` 大小就差 79KB。
+>
+> **因此：**
+> - **「有没有命中」是稳的**（0 与几十的差别远超噪声），据此判「已验证 / 未命中」成立；
+> - **「命中几条」不稳**，下表括号里的数字是**某一次运行**的记录，不是该规则的性质，
+>   不得当作可复现的事实引用，更不得用来证明两次改动等价；
+> - 要证明「改动不降覆盖」，依据只能是**规则文件的划分关系**（可 diff 验证），
+>   不能是两次运行的数字对拍。
+>
+> 未查清成因。若要定位，下一步应在同一 APK 上直接跑 AppShark CLI（绕开平台管线）
+> 复现两次，再看是否与 JVM 并发或切片顺序有关。
+
 样本口径：`11` = 门户测试 3.4.24、`12` = 营口银行 4.5.1、`13` = 营行企业银行 1.4.2。
 `8`（360 加固）**不计入检测证据**——该样本 AppShark 只产出 16 个事件（12 号样本 139、
 11 号样本 1259），属分析退化，只能用于引擎失败诊断（实施计划 Task 9 Step 5）。
@@ -50,11 +78,50 @@ frontmatter（`maswe` / `masvs-v2` / `cwe`），与 OWASP 上游一致。
 | device_information | log | `serial_Log` | `dataflow.privacy` | `PRIVACY_DEVICE_INFORMATION_LOG` | — | 待验证 |
 | device_information | ipc | `IMEI_SendBroadcast` | `dataflow.privacy` | `PRIVACY_DEVICE_INFORMATION_IPC` | — | 待验证 |
 | clipboard | log | `Clipboard_Log` | `dataflow.privacy` | `PRIVACY_CLIPBOARD_LOG` | — | 待验证 |
+| device_information | **database** | `DeviceId_Database` | `dataflow.privacy` | `PRIVACY_DEVICE_INFORMATION_DATABASE` | 12(3) | 已验证 |
+| device_information | **webview** | `DeviceId_WebView` | `dataflow.privacy` | `PRIVACY_DEVICE_INFORMATION_WEBVIEW` | 11(10) | 已验证 |
+| device_information | **clipboard** | `DeviceId_Clipboard` | `dataflow.privacy` | `PRIVACY_DEVICE_INFORMATION_CLIPBOARD` | — | 未命中 |
+| advertising_identifier | file | `AdvertisingId_FileWrite` | `dataflow.privacy` | `PRIVACY_ADVERTISING_IDENTIFIER_FILE` | — | 未命中 |
+| advertising_identifier | log | `AdvertisingId_Log` | `dataflow.privacy` | `PRIVACY_ADVERTISING_IDENTIFIER_LOG` | — | 未命中 |
+| advertising_identifier | network | `AdvertisingId_NetworkTransfer` | `dataflow.privacy` | `PRIVACY_ADVERTISING_IDENTIFIER_NETWORK` | — | 未命中 |
+| advertising_identifier | database | `AdvertisingId_Database` | `dataflow.privacy` | `PRIVACY_ADVERTISING_IDENTIFIER_DATABASE` | — | 未命中 |
+| advertising_identifier | webview | `AdvertisingId_WebView` | `dataflow.privacy` | `PRIVACY_ADVERTISING_IDENTIFIER_WEBVIEW` | — | 未命中 |
+| advertising_identifier | clipboard | `AdvertisingId_Clipboard` | `dataflow.privacy` | `PRIVACY_ADVERTISING_IDENTIFIER_CLIPBOARD` | — | 未命中 |
+
+> 加粗的三个流向与六条 `AdvertisingId_*` 规则是 2026-09-29 加的，详见下方说明。
+> 表内括号数字是**某一次运行**的记录，不可复现，读法见文首的警示框。
 
 > `DeviceId_Log` 与 `serial_Log` 产出**同一个结论码** `PRIVACY_DEVICE_INFORMATION_LOG`：
 > 二者证明的是同一个结论（设备标识流向日志），与哪条规则命中无关——结论码由平台语义
 > 字段构成、不含 Provider 规则名（设计 §3.1）。同任务内两条规则都命中时，观察会按
 > 结论码合并进同一条 Finding，而不是产出两条同义结论。
+
+### 1.1 2026-09-29 新增
+
+**三个新流向（database / webview / clipboard）**——此前是零产出，不是待验证。
+`DeviceId_Database` 与 `DeviceId_WebView` 在真实样本上命中并产出了新结论；
+`DeviceId_Clipboard` 两个样本都没命中，标「未命中」而非「已验证」。
+
+**广告标识符与设备标识分家（六条 `AdvertisingId_*`）**。原先 `device_id_to_*` 六条
+规则的 source 里混着 `getAdvertisingIdInfo` / `getOAID`，于是 OAID 流向网络会被报成
+「设备标识外传」——按平台自己的枚举 OAID 属于 `advertising_identifier`，这是错误归因，
+与 `DeviceId_APICall` 那处同源（L2 侧已先修），只是更深一层：用户看到的是结论而非证据。
+
+修法是**等价替换，不是新增能力**：六条 device 规则各移除那两个 source，新增六条
+镜像规则（sink 集合逐字节复制自对应 device 规则，source 只有那两个广告标识符方法）。
+
+**这次无法用运行结果证明等价**——原因见文首警示框：AppShark 结果不可复现，拆分前后的
+数字差异（FileWrite 42/44、Log 40/41）落在同规则两次运行自身的噪声带里。等价性的依据
+只能是规则文件的划分关系（可 diff 验证），不依赖运行。六条镜像规则在两个样本上均
+0 命中，标「未命中」。
+
+**camile 规则包并入**：`bytedance/appshark` tag `v0.1.2` 的 `config/rules/camile.json`
+（8 条规则 52 个 sink，由 `zhengjim/camille` 的 `script.js` 生成；**`main` 分支上没有这个
+文件**，只有 tag 里有）。**没有按上游分组原样引入**：上游「获取电话相关信息」把设备标识
+与基站信息装在同一条规则里、「获取系统信息」把 WiFi MAC 与剪贴板装在一起，照搬会重演
+OAID 那种错误归类。只取 sink 签名，按平台类目重新分组，落成四条新规则
+（`Bluetooth_APICall`、`Cell_APICall`、`Carrier_APICall`、`PermissionRequest_APICall`）
+与四处既有规则的扩充。四条新规则在两个样本上均 0 命中，标「未命中」。
 
 ## 2. 无数据类目的安全结论
 
@@ -108,9 +175,22 @@ commit `487fa2175c4a`）。
 | clipboard | `Clipboard_APICall` | `security.sensitive_api` | —（增强） | 11(18)、12(18) | 已验证 |
 | camera | `Camera_APICall` | `security.sensitive_api` | —（增强） | 11(27)、12(4) | 已验证 |
 | media | `Media_APICall` | `security.sensitive_api` | —（增强） | 11(12) | 已验证 |
+| advertising_identifier | `AdvertisingId_APICall` | `security.sensitive_api` | —（增强） | — | 未命中 |
+| account | `Account_APICall` | `security.sensitive_api` | —（增强） | — | 未命中 |
+| bluetooth | `Bluetooth_APICall` | `security.sensitive_api` | —（增强） | — | 未命中 |
+| cell | `Cell_APICall` | `security.sensitive_api` | —（增强） | — | 未命中 |
+| network_information | `Carrier_APICall` | `security.sensitive_api` | —（增强） | — | 未命中 |
+| （无类目） | `PermissionRequest_APICall` | `security.sensitive_api` | —（增强） | — | 未命中 |
 
 > `MAC` 同为官方规则，其核实见 §2：它声称的只是「调用了取 MAC 地址的 API」，命中即
 > 成立——已核实 `WifiInfo.getMacAddress()` 与 `NetworkInterface.getHardwareAddress()` 两处。
+>
+> 2026-09-29 新增的六条（含从 `DeviceId_APICall` 拆出的 `AdvertisingId_APICall`）在两个
+> 样本上均 0 命中。**样本已用尽**：可分析的只有 11/12/13 三个（8 是 360 加固、分析退化），
+> 所以「未命中」不是「多跑几次就能消掉」的状态，要拿到命中证据必须新增 APK。
+>
+> `PermissionRequest_APICall` 的 `data_category` 有意留空——它记录的是「发起过运行时权限
+> 申请」这个事实，不是「采集了某类数据」。空类目意味着它不参与任何 join，只作证据。
 
 ## 4. 跨引擎：Androguard 敏感权限
 
@@ -134,21 +214,29 @@ commit `487fa2175c4a`）。
 
 ## 5. 枚举覆盖：枚举存在 ≠ 引擎可产出
 
-设计 §4.3 的 `data_category` 枚举共 20 个取值。**有映射不等于有产出**：
+`data_category` 枚举共 **22** 个取值（原 20 个，2026-09-29 增加 `bluetooth`、`cell`）。
+**有规则映射不等于有产出**：
 
 | 来源 | 取值 |
 |---|---|
-| AppShark 可产出（8） | device_information、location、camera、media、clipboard、network_information、installed_apps、sensor |
-| Androguard 可产出（7） | location、phone、files、contacts、camera、microphone、sms |
-| 有真实命中（12） | 上列并集去掉 sms |
-| 仅映射、无真实样本（1） | sms |
-| **无任何引擎产出（7）** | advertising_identifier、account、calendar、photos、biometric、personal_information、unknown |
+| AppShark 有规则（12） | device_information、location、camera、media、clipboard、network_information、installed_apps、sensor、advertising_identifier、account、bluetooth、cell |
+| Androguard 有映射（7） | location、phone、files、contacts、camera、microphone、sms |
+| 有规则映射（17） | 上列并集，去重后 17 个 |
+| **无任何引擎规则（5）** | biometric、calendar、personal_information、photos、unknown |
 
-`sink_type` 枚举共 9 个取值，当前有产出的只有 4 个：`file`、`ipc`、`log`、`network`。
-其余（`database`、`webview`、`clipboard`、`third_party_sdk`、`unknown`）无任何规则产出。
+`sink_type` 枚举共 9 个取值，当前有规则产出的 **7** 个：`file`、`ipc`、`log`、`network`、
+`database`、`webview`、`clipboard`（后三个是 2026-09-29 补的）。
+其余（`third_party_sdk`、`unknown`）无任何规则产出。
 
-**状态：未覆盖。** 这 7 个类目与 5 个流向不是「待验证」，是当前引擎能力下根本没有规则
+**状态：未覆盖。** 这 5 个类目与 2 个流向不是「待验证」，是当前引擎能力下根本没有规则
 覆盖——两者混为一谈会让覆盖度看起来比实际高。
+
+> **2026-09-29 更正一处枚举错误**：本节原写「无任何引擎产出（7）」并把 `calllog` 列为
+> 枚举取值。**枚举里没有 `calllog`**——`compliance_profile.py::DATA_CATEGORY_CN` 与前端
+> `complianceDict.ts` 的实际取值是 **`phone`**（电话状态），全仓库 grep `calllog` 在代码里
+> 零命中，只有本文档写过它。上一版据此算出「7 个无产出」，多算了 `calllog`（它不在枚举里）、
+> 漏了 `advertising_identifier` 与 `account`（当时确实无产出）。数量看着对是巧合，不是抵消。
+> 通话记录（calllog）**在枚举里根本没有对应取值**，这是另一处独立缺口，见 §6。
 
 ## 6. 能力边界：静态不可表达
 
@@ -156,7 +244,7 @@ commit `487fa2175c4a`）。
 |---|---|---|---|
 | contacts | network | 静态不可表达 | Task 1 实验：URL 常量作 sink 零命中（APIMode 只匹配方法签名）；`ContentResolver.query` 作 source 在 LibraryOnly + InstantDefault 模型下不传播到网络 sink |
 | sms | network | 静态不可表达 | 同 Task 1 结论（与 contacts 同类，共用 `ContentResolver` 调用点） |
-| calllog | network | 静态不可表达 | 同上 |
+| 通话记录 | network | 静态不可表达 | 同上。注意这行的类目名**不是枚举取值**——枚举里没有 `calllog`（见 §5 的更正），也就是说通话记录既不可静态表达、也没有类目落点 |
 
 **这不是覆盖缺口，是能力边界**，不能靠为每个类目写规则来解决（设计 §1.3）。
 G3 记录了试图用字面值匹配绕过它所带来的后果。
@@ -234,3 +322,5 @@ location 流」组成。
 | `CameraMic_APICall` 有 239 条历史观察，规则已拆分 | 见 G2。注册表用 `RETIRED_REGISTRY` 保留其语义（media），使历史产物重新归一化时语义不变 |
 | v1 关联规则 `PRIVACY_CONTACTS_NETWORK` 曾写 `MASWE-0001` | **2026-09-29 已改**：`MASWE-0001` 讲的是落盘加密（MASVS-STORAGE），与本规则无关，已改为 `MASWE-0067`；同时删去不存在的 `MASTG-TEST-PRIVACY-1`。库中以新版本 `1.2` 承载，`1.0`/`1.1` 原样保留（历史 Finding 的 `rule_version_id` 指着它们） |
 | 十条判定规则（`PRIV-*`）原先没有 `standards` 块 | 2026-09-29 补齐。但要注意：这十条**不参与任何求值**——关联器只加载 `category == "correlation"`，而这十条的 category 是 consent/sdk/...，且 `when` 那套 DSL 不在 `validate_rule_content` 支持范围内。它们是规则库的目录条目，不是会命中的规则 |
+| 官方 7 条规则的 `detail` / `complianceCategoryDetail` 已中文化 | 2026-09-29。原文逐条用新增的 `detail_en` 保留在同一个 `desc` 里。**副作用要知情**：AppShark 会把规则的 `detail` 原样带进 `results.json` 的 `details`（实测产物里已经是中文），所以这不只是界面文案，引擎输出也变了 |
+| 本矩阵的「真实命中」数字不可复现 | 已于 2026-09-29 实测确认（同规则同样本连跑两次结果不同，含调用点集合），详见文首警示框。该列应读作「某一次运行的记录」，不是该规则的性质 |
