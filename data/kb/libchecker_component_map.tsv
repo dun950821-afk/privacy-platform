@@ -4,13 +4,22 @@
 # 生成依据：scripts/import_libchecker_rules.py 的干跑报告（docs/libchecker-import-eval.md）。
 # 只列**会撞上现有组件**的 45 个 label；LibChecker 那 288 个纯新增组件不需要映射。
 #
-# relation 取值：
-#   SAME          同一个实体，只是叫法不同 → 映射到 our_component，不新建
-#   UMBRELLA      LibChecker 的是伞形，我们的是它下面的模块 → 建父子关系，别合并
-#   MODULE        反过来：LibChecker 的是模块，我们的是伞形
-#   AGGREGATED_BY LibChecker 显式标了「经由某聚合方接入」（名字里的 GeTui Proxy），
-#                 与聚合方是**并存**关系，不是二选一
-#   GENERIC       取值过于通用，指认不出唯一组件 → 不参与归属（见 kb-dedup-report §4）
+# relation 取值（2026-09-29 定：**取更细的身份，用关系表达包含/聚合**。
+# 粗的那个身份会掩盖信息，与仓库既有的「命名不得扩大」一致）：
+#
+#   SAME              同一个实体，只是叫法不同 → 映射到 our_component，不新建
+#   UMBRELLA_BUNDLES  LibChecker 的是伞形、我们的是伞下模块 →
+#                     **保留我们的细粒度**，另建 LibChecker 那个伞形组件，
+#                     关系 `BUNDLES`：伞形 → 我们的模块
+#   PROXY_DEPENDS_ON  名字里带 (GeTui Proxy) 的代理通道 →
+#                     **采用 LibChecker 更细的身份**，另建该组件，
+#                     关系 `DEPENDS_ON`：代理通道 → 个推消息推送 SDK
+#                     （「装了 OPPO 推送且经个推接入」与「只装了 OPPO 推送」是不同结论，
+#                      两者并存，不是二选一）
+#   GENERIC           取值过于通用，指认不出唯一组件 → 不参与归属（kb-dedup-report §4）
+#
+# 关系落在 `privacy_kb.component_relation`（该表的 relation_type 约束已含
+# BUNDLES / DEPENDS_ON / PART_OF / PUSH_CHANNEL 等，**不需要改 schema**）。
 #
 # 这个文件是人工维护的：LibChecker 升版或本平台增删组件后要回来核对。
 # 它不是「自动生成物」——中英对照（MiPush=小米推送、旷视=Face++）这类知识推不出来。
@@ -39,7 +48,7 @@ Material Design Components	Material Components	SAME	全称 vs 简称
 Support Library	Android Support Library (legacy)	SAME	全称 vs 简称
 File Provider	AndroidX Core FileProvider	SAME	全称 vs 简称
 HMS Analytics Kit	HMS Analytics Kit（华为分析服务）	SAME	我们补了中文注释
-HMS Core	华为 HMS Core 基础 Activity	UMBRELLA	HMS Core 是伞形，我们只收了它下面的基础 Activity
+HMS Core	华为 HMS Core 基础 Activity	UMBRELLA_BUNDLES	HMS Core 是伞形，我们只收了它下面的基础 Activity
 HMS Core AAID	华为 AAID 设备标识	SAME	AAID 是 HMS Core 下的设备标识服务
 AppGallery Connect	华为 AppGallery Connect Core	SAME	我们收的是它的 Core 模块
 App Center	Microsoft App Center Crashes	SAME	我们收的是它的崩溃模块
@@ -53,11 +62,11 @@ UTDID	Alibaba UTDID	SAME	我们补了厂商前缀
 个推	个推消息推送 SDK	SAME	我们多带后缀
 网易云通信 SDK	网易云信 IM SDK	SAME	同一产品的两种叫法
 旷视 SDK	Face++ 活体检测 SDK	SAME	旷视 = Megvii = Face++ 的厂商名
-ML Kit	Google ML Kit Common	UMBRELLA	ML Kit 是伞形，我们收的是 Common 模块
-Firebase	Google Data Transport	UMBRELLA	Firebase 是伞形，Data Transport 是其中一块
-百度地图 SDK	百度定位 SDK	UMBRELLA	地图 SDK 含定位模块，我们只收了定位
-高德地图 SDK	高德定位 SDK	UMBRELLA	同上
-HUAWEI Push(GeTui Proxy)	个推消息推送 SDK	AGGREGATED_BY	LibChecker 显式标注「经由个推接入」；两者并存，不可二选一
-MiPush(GeTui Proxy)	个推消息推送 SDK	AGGREGATED_BY	同上
-OPPO Push(GeTui Proxy)	个推消息推送 SDK	AGGREGATED_BY	同上
-vivo Push(GeTui Proxy)	个推消息推送 SDK	AGGREGATED_BY	同上
+ML Kit	Google ML Kit Common	UMBRELLA_BUNDLES	ML Kit 是伞形，我们收的是 Common 模块
+Firebase	Google Data Transport	UMBRELLA_BUNDLES	Firebase 是伞形，Data Transport 是其中一块
+百度地图 SDK	百度定位 SDK	UMBRELLA_BUNDLES	地图 SDK 含定位模块，我们只收了定位
+高德地图 SDK	高德定位 SDK	UMBRELLA_BUNDLES	同上
+HUAWEI Push(GeTui Proxy)	个推消息推送 SDK	PROXY_DEPENDS_ON	LibChecker 显式标注「经由个推接入」；两者并存，不可二选一
+MiPush(GeTui Proxy)	个推消息推送 SDK	PROXY_DEPENDS_ON	同上
+OPPO Push(GeTui Proxy)	个推消息推送 SDK	PROXY_DEPENDS_ON	同上
+vivo Push(GeTui Proxy)	个推消息推送 SDK	PROXY_DEPENDS_ON	同上

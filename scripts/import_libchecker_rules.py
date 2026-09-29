@@ -184,24 +184,46 @@ def main() -> None:
 
         new_labels = {u["label"] for u in is_new} - known_names
 
-        # 过一遍组件映射表：映射到「该取值的现有归属」的冲突，就不再是冲突
+        # 过一遍组件映射表。三类都能落地，只是落地方式不同：
+        #   SAME              → 并入现有组件，不新建
+        #   UMBRELLA_BUNDLES  → 新建 LibChecker 那个伞形，关系 BUNDLES → 我们的模块
+        #   PROXY_DEPENDS_ON  → 新建代理通道组件，关系 DEPENDS_ON → 聚合方
+        # 映射表里查不到的才算「仍需处理」。
         cmap = load_component_map()
-        resolved, unresolved = [], []
+        RELATION_OF = {"UMBRELLA_BUNDLES": "BUNDLES", "PROXY_DEPENDS_ON": "DEPENDS_ON"}
+        merged, related, unresolved = [], [], []
         for c in conflict:
             m = cmap.get(c["label"])
-            if m and m["relation"] == "SAME" and m["our_component"] in c["existing_owners"]:
-                resolved.append({**c, "mapped_to": m["our_component"]})
+            if not m:
+                unresolved.append({**c, "relation": None})
+                continue
+            rel = m["relation"]
+            if rel == "SAME" and m["our_component"] in c["existing_owners"]:
+                merged.append({**c, "mapped_to": m["our_component"]})
+            elif rel in RELATION_OF:
+                related.append({**c, "relation": RELATION_OF[rel],
+                                "target": m["our_component"]})
             else:
-                unresolved.append({**c, "relation": (m or {}).get("relation")})
+                unresolved.append({**c, "relation": rel})
 
         print()
         print("=== 干跑结果（未写库）===")
         print(f"  与我们已有条目完全一致（同组件）: {len(same)}")
         print(f"  冲突：取值已存在、归属别的组件: {len(conflict)}")
-        print(f"     其中**经组件映射表判定为同一实体**（可安全并入）: {len(resolved)}")
+        print(f"     经映射表判定为同一实体，并入现有组件: {len(merged)}")
+        print(f"     经映射表判定为**另建组件 + 建关系**:   {len(related)}")
         print(f"     仍需处理: {len(unresolved)}")
         print(f"  新增指纹（我们库里没有这个取值）: {len(is_new)}")
         print(f"     其中涉及的**新组件名** {len(new_labels)} 个")
+
+        if related:
+            by_rel = {}
+            for c in related:
+                by_rel.setdefault(c["relation"], set()).add((c["label"], c["target"]))
+            print("\n  要新建的组件与关系：")
+            for rel, pairs in sorted(by_rel.items()):
+                for label, target in sorted(pairs):
+                    print(f"    {label[:30]:30} --{rel}--> {target}")
 
         if unresolved:
             print("\n  仍需处理的冲突（按组件名）：")
@@ -209,8 +231,7 @@ def main() -> None:
             for c in unresolved:
                 by_label.setdefault(c["label"], []).append(c)
             for label, items in sorted(by_label.items()):
-                rel = items[0].get("relation") or "未映射"
-                print(f"    [{rel}] {label[:30]:30} 撞 {items[0]['existing_owners']}"
+                print(f"    [未映射] {label[:30]:30} 撞 {items[0]['existing_owners']}"
                       f"（{len(items)} 条指纹）")
 
         report = {
@@ -220,7 +241,8 @@ def main() -> None:
             "usable": len(usable), "unmapped": len(unmapped),
             "regex_rejected": [r["name"] for r in regex_rejected],
             "same": len(same), "conflict": conflict, "new": is_new,
-            "conflict_resolved_by_map": len(resolved),
+            "conflict_merged": len(merged),
+            "conflict_new_component_with_relation": related,
             "conflict_unresolved": unresolved,
             "new_component_labels": sorted(new_labels),
         }
