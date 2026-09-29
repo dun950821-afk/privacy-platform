@@ -29,3 +29,4 @@ libSDL	SDL	同一库的两种写法。**drop 独有 libsdl.so**（keep 是 libsd
 欢太账号 OAuth 授权 SDK	欢太账号授权 SDK	名字同一实体。**drop 独有 oauthwebactivity**，需迁移
 AndroidX CameraX	Jetpack Camera	Jetpack 是 AndroidX 的品牌名。**drop 独有 2 个 .so**（libimage_processing_util_jni / libsurface_util_jni），需迁移
 穿山甲广告 SDK	Pangle SDK	同一 SDK：Pangle 是字节穿山甲的海外品牌名，包前缀重合（com.bytedance.sdk.openadsdk / com.ss.android.socialbase 等）。keep 用中文名与库内「快手广告 SDK」「腾讯广告 SDK」一致；drop 独有 19 条指纹需迁移
+OPPO/HeyTap 推送 SDK	OPPO Push	同一 SDK（OPPO/欢太推送）被拆成两条：keep 是 2026-08-03 原始精编条目（9 指纹 + 3 权限 + 数据声明 + 来源 + 别名），drop 是 2026-09-29 LibChecker 导入进来的新条目（5 指纹，无任何元数据）。drop 的 5 条 MANIFEST EXACT 取值（com.heytap.mcssdk.* / com.coloros.mcssdk.pushservice / com.heytap.msp.push.service.*）全部被 keep 的前缀 com.heytap.mcs / com.coloros.mcs / com.heytap.msp.push 覆盖，故无需迁移指纹
