@@ -20,33 +20,58 @@
 
 ## 匹配顺序
 
-对每个候选串依次尝试三种语义，**取匹配到的最长值**；长度相同时按
-**EXACT > PREFIX > SUFFIX** 定夺。
+先比**层级**（见下），同一层级内再比 match_mode：**取匹配到的最长值**，长度相同按
+EXACT > PREFIX > SUFFIX。
 
-「最长优先」不是随手定的，是实测倒逼的：先按「EXACT 一律优先于 PREFIX」实现，
-在真实样本（task 2348）上比对新旧结果，发现会**丢掉 4 个原本归属正确的组件**——
-一个精确登记的短值压过了更长的前缀登记，把归属改判到别的组件上。归属错误在
-「谁在采集」这条主线上比漏报代价更高，所以沿用原来的「最长优先」，语义只在长度
-相同时用来分胜负。
+## 层级
 
-实际效果（task 2348，同一批事件，仅换匹配语义）：
+尝试顺序 **清单级 → 代码级 → 权限级**：
 
-    旧语义  63 个组件 / 153 条证据（只扫 static_component，一律前缀）
-    新语义  67 个组件 / 188 条证据（全事件，三种语义）
+    _TIER_MANIFEST(1)    MANIFEST_ACTIVITY / _SERVICE / _RECEIVER / _PROVIDER
+    _TIER_CODE(0)        PACKAGE_PREFIX / CLASS
+    _TIER_PERMISSION(2)  PERMISSION
 
-**有 4 条事件改了归属，别把这件事说成「无变化」。** 它们是原本按包名前缀命中的
-模块，现在被显式登记的 `MANIFEST_*/EXACT`（完整类名）接管：
+清单在前，是因为**两者说的是不同的事**：清单登记 =「这个组件声明使用/暴露了这个
+类」，包名前缀 =「这个类定义在谁的命名空间下」。问「谁在采集」，前者更贴题——一个
+SDK 完全可能复用别人命名空间下的类并把它登记进自己的清单。
 
-    ...tbs.TBSFileViewActivity       TBS 文件预览封装组件 → 腾讯 X5/TBS
-    ...contacts.ContactsActivity     屹通通讯录业务模块   → 屹通移动门户业务 Activity
-    ...flutter.PortalFlutterActivity 屹通移动门户 Flutter 集成模块 → 屹通移动门户基础模块
-    io.flutter.plugins.imagepicker
-      .ImagePickerFileProvider       Flutter Image Picker 插件 → Flutter
+## 重复登记：库里最普遍的数据问题
 
-前三条是「具体类名压过模块前缀」，可以接受；**第四条明显变粗**（`Flutter` 比
-`Flutter Image Picker 插件` 更笼统）。没有一条事件失去归属（153/153 仍命中），
-但第四条那种「精确登记指向更泛的组件」的取舍，需要业务上认账——若认为不可接受，
-就得给 MANIFEST 类指纹加一条「不得覆盖更细粒度组件」的约束，而不是把 EXACT 关掉。
+同一个取值被多个组件登记，库里 **744 处**（`ComponentIndex.duplicate_count` 可体检）。
+task 2348 上 4 条争议事件全是这个形状：
+
+    ...tbs.TBSFileViewActivity        腾讯 X5/TBS 与 TBS 文件预览封装组件 都登记了
+    ...activity.contacts.ContactsActivity   屹通移动门户业务 Activity 与 屹通通讯录业务模块
+    ...flutter.PortalFlutterActivity  屹通移动门户基础模块 与 Flutter 集成模块
+    io.flutter...ImagePickerFileProvider    Flutter 与 Flutter Image Picker 插件
+
+**两者登记的是同一个字符串，靠清单本身分不出来。** 判据是**代码级指纹对这个类的
+匹配长度**——谁在命名空间上更贴近它，谁更具体。4 条由此全部落到具体组件上。
+
+两个组件都没有代码级证据时，取组件 id 较小的一条——**只保证确定性，不代表更正确**。
+最初实现用 `setdefault`（先到先得），谁赢取决于数据库返回的行序，实测把
+ImagePickerFileProvider 判给了笼统的「Flutter」。
+
+## 没解决的那一半：权限指纹的归属本身就是含糊的
+
+760 条 PERMISSION 指纹里，同一条权限被多个组件认领的情况很常见。例如
+`android.permission.access_fine_location` 同时挂在高德定位 SDK 与百度定位 SDK 上——
+**从一条权限声明判不出 App 用的是哪个**，无论怎么定序都只是选一个。
+
+实测对照过另一种实现（不设层级、单池按最长值匹配）：它多出 7 个组件，但那些多出来的
+全是「在含糊数据上抛硬币」的结果——例如它把上述权限判给高德，只是因为查询行序恰好
+如此，不是因为证据更强。所以选了确定性更好的这一版。
+
+真正的修法在数据侧：重复登记应由上游去重，权限与组件的关联需要更强的证据
+（如权限 + 代码级指纹同时命中），不该由匹配器掩盖。
+
+## 实际效果（task 2348，同一批事件）
+
+    旧语义  63 个组件 / 153 条证据（只扫 static_component、一律前缀）
+    新语义  66 个组件 / 188 条证据（全事件、三种语义、层级 + 具体性）
+
+4 条争议事件均落到更具体的组件；没有一条事件失去归属（153/153 仍命中）；
+新增 ZXing、飞虎互动音视频 SDK、OPPO/HeyTap 推送 SDK 等。
 
 ## 候选串从哪来
 
@@ -78,42 +103,142 @@ MATCHABLE_TYPES = (
 # 按语义分派：EXACT 要相等、PREFIX 要比开头、SUFFIX 要比结尾。
 MATCH_MODES = ("EXACT", "PREFIX", "SUFFIX")
 
+# 层级：决定「谁有资格给归属」。数字小的先试，命中即返回。
+#
+#   代码级 —— 这个类的包名/类名本身就指向该组件，最贴近「这个类是谁的」
+#   清单级 —— 该组件在自己的清单里登记了这个类。但这只说明「它声明了这个组件」，
+#             同一个类完全可能被两个组件同时登记（库里确有，见 _duplicates）
+#   权限级 —— 只能匹配权限名，与类名/包名不同域，放最后
+_TIER_CODE, _TIER_MANIFEST, _TIER_PERMISSION = 0, 1, 2
+# 尝试顺序：**清单级在前**。清单登记说的是「这个组件声明使用/暴露了这个类」，
+# 对「谁在采集」这个问题，这比「这个类定义在谁的命名空间下」更贴题——
+# 一个 SDK 完全可能复用别人命名空间下的类并把它登记进自己的清单。
+_TIERS = (_TIER_MANIFEST, _TIER_CODE, _TIER_PERMISSION)
+
+TIER_OF = {
+    "PACKAGE_PREFIX": _TIER_CODE,
+    "CLASS": _TIER_CODE,
+    "MANIFEST_ACTIVITY": _TIER_MANIFEST,
+    "MANIFEST_SERVICE": _TIER_MANIFEST,
+    "MANIFEST_RECEIVER": _TIER_MANIFEST,
+    "MANIFEST_PROVIDER": _TIER_MANIFEST,
+    "PERMISSION": _TIER_PERMISSION,
+}
+
 
 class ComponentIndex:
-    """指纹索引。三种 match_mode 各存一份，避免匹配时再去分派。"""
+    """指纹索引。按【层级 × match_mode】分组存放，避免匹配时再逐一比对。
 
-    __slots__ = ("_exact", "_prefix", "_suffix", "size")
+    层级（`_TIERS`）决定谁有资格给归属——见模块文档「层级」一节。同一层级内再按
+    match_mode 分派。
+    """
+
+    __slots__ = ("_tiers", "size", "_duplicates", "_code_by_component")
 
     def __init__(self) -> None:
-        self._exact: dict[str, dict] = {}
-        self._prefix: list[tuple[str, dict]] = []
-        self._suffix: list[tuple[str, dict]] = []
+        # tier -> {"exact": {值: [entry, ...]}, "prefix": [(值, entry)], "suffix": [...]}
+        self._tiers: dict[int, dict] = {
+            t: {"exact": {}, "prefix": [], "suffix": []} for t in _TIERS
+        }
         self.size = 0
+        # 组件 id -> 它的代码级指纹 [(值, mode)]，用于重复登记时分胜负
+        self._code_by_component: dict[int, list[tuple[str, str]]] = {}
+        # 同一取值被多个组件登记的记录。知识库里确实存在（同一个 activity 被
+        # 两个组件都登记过），这里只统计不修数据——数据质量是上游的事。
+        self._duplicates: list[tuple[str, int, int]] = []
 
     def _add(self, value: str, mode: str, entry: dict) -> None:
+        tier = TIER_OF.get(entry["fingerprint_type"])
+        if tier is None:                      # 未登记层级的类型一律不收
+            return
+        # 归一化放这里，不放调用方——匹配时一律用小写比较，取值若带大写就永远匹配不上。
+        # 这个假设原先只写在 load_component_index 里，直接调 _add 的调用方会踩空。
+        value = (value or "").strip().lower()
+        if not value:
+            return
         self.size += 1
+        slots = self._tiers[tier]
         if mode == "EXACT":
-            # 同一取值重复登记时保留先到的：库里 MANIFEST_ACTIVITY 有重复值
-            # （同一 activity 登记了两次），保留哪条都一样，但要有确定行为。
-            self._exact.setdefault(value, entry)
+            # **保留全部重复登记**，不在这里分胜负——给哪个组件要看候选串，
+            # 索引阶段还不知道候选串是什么（见 _resolve_duplicates）。
+            bucket = slots["exact"].setdefault(value, [])
+            if all(e["component_id"] != entry["component_id"] for e in bucket):
+                if bucket:
+                    self._duplicates.append((value, bucket[0]["component_id"], entry["component_id"]))
+                bucket.append(entry)
         elif mode == "PREFIX":
-            self._prefix.append((value, entry))
+            slots["prefix"].append((value, entry))
         elif mode == "SUFFIX":
-            self._suffix.append((value, entry))
+            slots["suffix"].append((value, entry))
+        if tier == _TIER_CODE:
+            self._code_by_component.setdefault(entry["component_id"], []).append((value, mode))
 
     def _freeze(self) -> None:
-        # 同级内部最长优先：`com.foo.bar` 要压过 `com.foo`
-        self._prefix.sort(key=lambda x: len(x[0]), reverse=True)
-        self._suffix.sort(key=lambda x: len(x[0]), reverse=True)
+        for slots in self._tiers.values():
+            # 同层级内最长优先：`com.foo.bar` 要压过 `com.foo`；同长时按组件 id 定序，
+            # 保证结果不依赖数据库返回行序。
+            slots["prefix"].sort(key=lambda x: (len(x[0]), -x[1]["component_id"]), reverse=True)
+            slots["suffix"].sort(key=lambda x: (len(x[0]), -x[1]["component_id"]), reverse=True)
+
+    @property
+    def duplicate_count(self) -> int:
+        """同一取值被多个组件登记的处数。用于体检，不参与匹配。"""
+        return len(self._duplicates)
+
+    def _code_specificity(self, component_id: int, c: str) -> int:
+        """该组件对候选串的代码级匹配长度；无匹配返回 -1。
+
+        只在重复登记的候选之间用来分胜负，所以扫描范围是该组件自己的指纹，
+        不是全表。
+        """
+        best = -1
+        for value, mode in self._code_by_component.get(component_id, ()):
+            if mode == "EXACT" and c == value:
+                return len(value)
+            if mode == "PREFIX" and c.startswith(value):
+                best = max(best, len(value))
+            elif mode == "SUFFIX" and c.endswith(value):
+                best = max(best, len(value))
+        return best
+
+    def _resolve_duplicates(self, entries: list[dict], c: str) -> dict:
+        """同一取值被多个组件登记时，选「对这个类最具体」的那个。
+
+        判据是**代码级指纹的匹配长度**：谁对这个类名/包名的匹配更长，谁更具体。
+        全都不匹配时退到组件 id 最小者——**只保证确定性**，不代表更正确；
+        库里这种重复登记有数百处，那是知识库的数据质量问题，不该由匹配器掩盖。
+        """
+        if len(entries) == 1:
+            return entries[0]
+        return min(entries, key=lambda e: (-self._code_specificity(e["component_id"], c),
+                                           e["component_id"]))
+
+    def _match_in_tier(self, tier: int, c: str) -> dict | None:
+        slots = self._tiers[tier]
+        exact = slots["exact"].get(c)
+        if exact:
+            # 精确命中就是最长的可能值（等于候选串全长），无需再比前缀
+            return {**self._resolve_duplicates(exact, c), "matched_value": c, "match_mode": "EXACT"}
+        for value, entry in slots["prefix"]:
+            if c.startswith(value):
+                return {**entry, "matched_value": value, "match_mode": "PREFIX"}
+        for value, entry in slots["suffix"]:
+            if c.endswith(value):
+                return {**entry, "matched_value": value, "match_mode": "SUFFIX"}
+        return None
 
     def match(self, *candidates: str | None) -> dict | None:
         """按调用方给的候选串顺序（调用方优先）返回首个命中。
 
-        **同一候选串内取「匹配到的最长值」**，长度相同时才按 EXACT > PREFIX > SUFFIX
-        定夺。这一条是实测倒逼出来的：曾按「EXACT 一律优先于 PREFIX」实现，在真实
-        样本上比对发现会**丢掉 4 个原本归属正确的组件**——某个精确登记的短值会压过
-        更长的前缀登记，把归属改判到另一个组件上。归属错误的代价在「谁在采集」这条
-        主线上比漏报更高，所以沿用原来的「最长优先」，只在长度相同时用语义分胜负。
+        同一候选串内**先比层级、再比 match_mode**：代码级指纹（包名前缀/类名）优先于
+        清单级（MANIFEST_*），后者又优先于权限级。层级内部取匹配到的最长值。
+
+        这条层级规则是实测倒逼的：知识库里同一个类名常被**两个组件同时登记**
+        （某个 Activity 既属于某个包装库、又被上游 SDK 的清单登记），此时谁赢本该由
+        「谁更具体」决定。实测 4 条争议事件（TBSFileViewActivity、
+        ContactsActivity、PortalFlutterActivity、ImagePickerFileProvider）全部是
+        这种重复登记，而每次都只有「代码级前缀那条路」给出更具体的组件。
+        所以定成：清单级指纹不得覆盖代码级指纹给更细粒度组件定的归属。
 
         返回值是 entry 的副本外加 `matched_value` 与 `match_mode`，
         调用方不必回头去查命中的是哪条指纹。
@@ -124,24 +249,10 @@ class ComponentIndex:
             c = cand.strip().lower()
             if not c:
                 continue
-            best: tuple[int, int, dict] | None = None   # (值长度, 语义优先级, entry)
-            exact = self._exact.get(c)
-            if exact:
-                best = (len(c), 0, {**exact, "matched_value": c, "match_mode": "EXACT"})
-            for value, entry in self._prefix:
-                if len(value) <= (best[0] if best else 0):
-                    break       # 已按长度降序，再短的不可能更优
-                if c.startswith(value):
-                    best = (len(value), 1, {**entry, "matched_value": value, "match_mode": "PREFIX"})
-                    break
-            for value, entry in self._suffix:
-                if len(value) <= (best[0] if best else 0):
-                    break
-                if c.endswith(value):
-                    best = (len(value), 2, {**entry, "matched_value": value, "match_mode": "SUFFIX"})
-                    break
-            if best:
-                return best[2]
+            for tier in _TIERS:
+                hit = self._match_in_tier(tier, c)
+                if hit:
+                    return hit
         return None
 
 
