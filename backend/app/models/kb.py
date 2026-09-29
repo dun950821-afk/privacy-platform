@@ -550,7 +550,20 @@ class ScanHitEvidence(Base):
 
 
 class ScanDataFinding(Base):
-    """个人信息访问/隐私政策差异结果"""
+    """个人信息访问/隐私政策差异结果。
+
+    **当前没有任何代码写入这张表（0 行），也没有接口或界面读它。** 2026-09-29 核查过：
+    全仓库对 `ScanDataFinding` 只有定义、没有构造。
+
+    这张表要表达的是「识别到的 SDK × 它处理的个人信息 × **政策是否披露**」。前两维
+    已经产出并展示——`sdk_analysis.get_hits()` 把组件的 `component_data_claim` 拼成
+    `involved_info`，`SdkPanel.vue` 直接渲染。缺的是第三维：`privacy_policies` 表
+    0 行、全仓库没有任何政策解析或披露比对的服务，所以 `policy_disclosure_status`
+    无从填起。
+
+    因此**不要**为了让这张表非空而补一个写入器——写进去没人读，只会再多一件
+    「声明了但没产出」的摆设（本仓库已有多处同类）。要用它，先做政策解析那一步。
+    """
     __tablename__ = "data_finding"
     __table_args__ = {"schema": "privacy_scan"}
 
