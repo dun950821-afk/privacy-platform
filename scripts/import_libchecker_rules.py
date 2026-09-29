@@ -83,6 +83,121 @@ def convert_regex(pattern: str) -> tuple[str, str] | None:
     return value, "PREFIX"
 
 
+# 各指纹类型的分值，沿用知识库既有约定（见 component_fingerprint 的 weight 分布）
+WEIGHT_BY_TYPE = {
+    "PACKAGE_PREFIX": 40,
+    "MANIFEST_ACTIVITY": 35, "MANIFEST_SERVICE": 35,
+    "MANIFEST_RECEIVER": 35, "MANIFEST_PROVIDER": 35,
+}
+
+# 知识库里已有这一行来源登记（source:577e149c…，类型「开源规则库」，信任度「中高」），
+# 不是本轮新建的。用它当指纹的 source_id，来源可追。
+SOURCE_NAME = "LibChecker Rules"
+
+
+def _component_key(name: str) -> str:
+    """确定性组件 key：同名同 key，重复导入不会建出第二个组件。
+
+    既有 506 个组件的 key 是 `component:<hex>`，但那套派生方式已不可考
+    （原始导入脚本与权限 xlsx 一样已丢），复现不出来。所以新组件用
+    归一化名的 sha1，**确定性**比沿用一套猜不出的规则更重要。
+    """
+    import hashlib
+    return "component:" + hashlib.sha1(name.strip().lower().encode()).hexdigest()[:32]
+
+
+def apply_import(db, usable_rules, cmap, source_sha: str) -> dict:
+    """写库。幂等：组件按名查、指纹按 (组件, 类型, 值, 模式) 查，已存在则跳过。
+
+    **跳过 PROXY_DEPENDS_ON**：定这条口径时还不知道那些指纹长什么样。实际查下来
+    它们全在 `com.igexin.sdk.*` 命名空间下——**那是个推自己的代码**（igexin = 个推），
+    LibChecker 的 `OPPO Push(GeTui Proxy)` 描述的是「这个类干什么」（OPPO 通道的
+    个推实现），不是「它属于谁」。所以归给个推本来就对，不该搬走、也不该另建组件
+    （那些组件会没有指纹、永远匹配不到）。
+
+    这条与先前的口径决定冲突，**留给人重新拍板**，不在这里替它决定。
+    """
+    from app.models.kb import (KBComponent as C, KBComponentFingerprint as F,
+                               KBComponentRelation as R, KBImportBatch as B,
+                               KBSource as S)
+
+    batch = B(source_file="libchecker-rules:v4", source_sha256=source_sha,
+              import_mode="UPSERT", status="RUNNING", created_by="import_libchecker_rules")
+    db.add(batch)
+    db.flush()
+
+    source = db.query(S).filter(S.name == SOURCE_NAME).first()
+    by_name = {c.normalized_name: c for c in db.query(C).all()}
+    stats = {"components_created": 0, "fingerprints_created": 0,
+             "fingerprints_skipped": 0, "relations_created": 0}
+
+    def ensure_component(name: str):
+        key = name.strip().lower()
+        comp = by_name.get(key)
+        if comp:
+            return comp, False
+        comp = C(component_key=_component_key(name), name=name, normalized_name=key,
+                 component_kind="UNKNOWN", verification_status="PENDING",
+                 source_type="开源规则库")
+        db.add(comp)
+        db.flush()
+        by_name[key] = comp
+        stats["components_created"] += 1
+        return comp, True
+
+    stats["deferred_proxy"] = 0
+    for u in usable_rules:
+        m = cmap.get(u["label"])
+        if m and m["relation"] == "PROXY_DEPENDS_ON":
+            stats["deferred_proxy"] += 1
+            continue
+        # SAME：并入库里已有组件，不新建；其余：以 LibChecker 的 label 建组件
+        target_name = m["our_component"] if (m and m["relation"] == "SAME") else u["label"]
+        comp, _ = ensure_component(target_name)
+
+        exists = db.query(F).filter(
+            F.component_id == comp.id, F.fingerprint_type == u["fingerprint_type"],
+            F.normalized_value == u["value"], F.match_mode == u["match_mode"]).first()
+        if exists:
+            stats["fingerprints_skipped"] += 1
+            continue
+
+        db.add(F(component_id=comp.id, fingerprint_type=u["fingerprint_type"],
+                 value=u["value"], normalized_value=u["value"],
+                 match_mode=u["match_mode"],
+                 weight=WEIGHT_BY_TYPE.get(u["fingerprint_type"], 30),
+                 evidence_role="PRIMARY", source_id=source.id if source else None,
+                 source_batch_id=batch.id,
+                 raw_data={"import": "libchecker-rules", "rule_type": u["type"],
+                           "libchecker_label": u["label"]}))
+        stats["fingerprints_created"] += 1
+
+    # 关系：伞形 --BUNDLES--> 我们的模块（PROXY 类已在上面的循环里跳过）
+    for label, m in cmap.items():
+        if m["relation"] != "UMBRELLA_BUNDLES":
+            continue
+        rtype = "BUNDLES"
+        parent, _ = ensure_component(label)
+        child = by_name.get(m["our_component"].strip().lower())
+        if not child:
+            continue
+        dup = db.query(R).filter(R.parent_component_id == parent.id,
+                                 R.child_component_id == child.id,
+                                 R.relation_type == rtype).first()
+        if dup:
+            continue
+        db.add(R(parent_component_id=parent.id, child_component_id=child.id,
+                 relation_type=rtype, source_batch_id=batch.id,
+                 description=f"LibChecker 规则导入：{label} {rtype} {m['our_component']}"))
+        stats["relations_created"] += 1
+
+    batch.status = "SUCCESS"
+    batch.statistics = stats
+    batch.finished_at = db.execute(__import__("sqlalchemy").text("select now()")).scalar()
+    db.commit()
+    return stats
+
+
 def load_rules(db_path: pathlib.Path) -> list[dict]:
     conn = sqlite3.connect(str(db_path))
     rows = conn.execute(
@@ -122,11 +237,11 @@ def main() -> None:
                    help="真正写库。**本期没有实现写入**，加了只会报错")
     args = p.parse_args()
 
-    if args.apply:
-        raise SystemExit(
-            "写入尚未实现。导入前必须先解决 docs/kb-dedup-report.md 第六节的第 1 条：\n"
-            "  新指纹能否指认唯一组件。LibChecker 的分组与我们的组件粒度不一致，\n"
-            "  直接写库会把 15 处冲突面放大，且无法回滚到「谁该拥有这条指纹」。")
+    import hashlib
+    rules_db = pathlib.Path(args.rules_db)
+    if not rules_db.exists():
+        raise SystemExit(f"找不到规则库: {rules_db}")
+    rules_sha = hashlib.sha256(rules_db.read_bytes()).hexdigest()
 
     rules = load_rules(pathlib.Path(args.rules_db))
     print(f"LibChecker 规则 {len(rules)} 条（来源 rules.db）")
@@ -255,6 +370,14 @@ def main() -> None:
             print(f"\n  regex 拒收样例（前 8，全部见报告）：")
             for r in regex_rejected[:8]:
                 print(f"    {r['name'][:62]}")
+
+        if args.apply:
+            print("\n=== 写库（--apply）===")
+            stats = apply_import(db, usable, cmap, rules_sha)
+            for k, v in stats.items():
+                print(f"  {k}: {v}")
+        else:
+            print("\n这是干跑，未写库。确认无误后加 --apply 重跑。")
     finally:
         db.close()
 

@@ -148,9 +148,51 @@ LibChecker 规则                      2832
 4. 导入时**沿用 `upstream-provenance.json` 那套来源登记**
    （repo / commit / rulesVersion / license），与 AppShark 规则一致
 
+## 六之二、导入已执行（2026-09-29）
+
+```
+组件  506 → 773   (+267)
+指纹 2867 → 4012  (+1145)
+关系    0 → 5     (BUNDLES ×5)
+```
+
+来源登记挂在知识库里**原有的** `LibChecker Rules` source 行上（`source:577e149c…`，
+类型「开源规则库」、信任度「中高」——不是本轮新建的），批次 `libchecker-rules:v4`
+记了 `source_sha256`。跑第二遍是 0 新增 / 1216 跳过，**幂等**。
+
+### 但**在现有样本上看不出成效**，只有 1 条正命中
+
+索引从 948 条涨到 **2093 条**，新指纹确实生效；可是 task 2348 的命中数
+**64 → 64 不变**。把全部样本都过一遍：
+
+```
+本次导入的 267 个组件里，在任何样本上命中过的: 1  —— Weex
+```
+
+那一条是真阳性：app_version 12 的 `static_component` 事件
+`com.alibaba.android.bindingx.plugin.weex.WXBindingXModuleService`，命中的是
+`MANIFEST_SERVICE/EXACT`，确实是阿里 Weex 框架的 BindingX 模块服务。
+
+**其余 266 个没命中，不是导入有问题，是样本里没有那些 SDK**——LibChecker 补的是
+Stripe、Pangle、智齿客服、Intune、Nebula、Intercom、mPaaS、MSAL、阿里移动推送
+这类，三家银行 App 都不用。要看到这批规则的价值，需要**用得上它们的样本**
+（与 `rule-coverage.md` 里「样本已用尽」是同一件事）。
+
+### deferred_proxy（6 条指纹）没有导入
+
+定「采用更细的身份」这条口径时还不知道那些指纹长什么样。实际查下来，它们全在
+`com.igexin.sdk.*` 命名空间下——**那是个推自己的代码**（igexin = 个推）。
+LibChecker 的 `OPPO Push(GeTui Proxy)` 描述的是「这个类干什么」（OPPO 通道的个推
+实现），不是「它属于谁」。**所以归给个推本来就对**，不该搬走、也不该另建组件
+（那些组件会没有任何指纹、永远匹配不到）。
+
+这条与先前拍板的口径冲突，**留待重新决定**，脚本里显式跳过并计数（`deferred_proxy`），
+不替人做这个决定。
+
 ## 七、这次的导入**没有**做的事
 
 - **没有写库**：`--apply` 目前直接报错退出，不是忘了实现，是刻意的
 - 没有把 LibChecker 的 PERMISSION/能力类信息接进归属（它没有这类规则，但这条原则
   同样适用，见 `docs/kb-dedup-report.md` §3）
 - 没有因为「导入方便」而放宽 `MATCHABLE_TYPES`
+- 没有导入 `deferred_proxy` 那 6 条（理由见 §6.2）
