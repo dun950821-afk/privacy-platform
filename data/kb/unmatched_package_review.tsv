@@ -17,17 +17,17 @@
 package	count	判定	归属组件	依据
 com.netease.nrtc	388	**不加**		官方文档明确：依赖坐标 com.netease.yunxin:nertc、代码包名 com.netease.lava.nertc.sdk，**不存在 com.netease.nrtc 这一写法**。既然不是写法差异，就不该并进网易云信
 com.tencent.turingcam	334	**不加**		腾讯图灵盾（端侧安全产品）。查证只能确认 turingcam 是它的标签，**无法确认完整包名**；且库里没有图灵盾组件——属 ③ 不属 ②，不该并进腾讯 Bugly（同根只是都姓腾讯）
-com.baidu.lbsapi	229	**另议**		百度 LBS API。库里百度系组件没有前缀，无法判定该归百度地图 SDK 还是百度定位 SDK；归错比不归更糟
-com.baidu.mapsdkplatform	224	**另议**		同上，百度地图
-com.baidu.mshield	186	**另议**		百度安全，库里无对应组件
-com.baidu.vi	102	**另议**
-com.baidu.mapapi	100	**另议**
-com.baidu.sec	94	**另议**
-com.baidu.b	76	**另议**
-com.baidu.platform	71	**另议**
-com.baidu.c	66	**另议**
-com.baidu.mapauto	28	**另议**
-com.baidu.xclient	18	**另议**
+com.baidu.lbsapi	229	**已补**	百度地图 SDK	查证：百度地图 AK 配置（AndroidManifest 中 meta-data name 为 com.baidu.lbsapi.API_KEY）
+com.baidu.mapsdkplatform	224	**已补**	百度地图 SDK	查证：百度地图/定位的底层服务包，多家隐私政策包名清单中列为百度地图服务
+com.baidu.mshield	186	**不加**		查不到
+com.baidu.vi	102	**不加**		查不到
+com.baidu.mapapi	100	**已补**	百度地图 SDK	查证：官方 SDK 概览文档确认是主包（含 SDKInitializer）
+com.baidu.sec	94	**不加**		查不到
+com.baidu.b	76	**不加**		查不到
+com.baidu.platform	71	**不加**		查不到
+com.baidu.c	66	**不加**		查不到
+com.baidu.mapauto	28	**不加**		查不到依据（疑似车机版），不猜
+com.baidu.xclient	18	**不加**		查不到
 cn.com.cfca	71	**另立**		CFCA = 中国金融认证中心，是独立厂商。库里「科蓝 CFCA 数字证书模块」是科蓝的封装，不是 CFCA 本体
 com.mm.android	59	**另议**		大华系（乐橙）。与现有 com.dahuatech 前缀不同根，需先确认归属
 com.huawei.secure	48	**另议**		华为安全，库里无对应组件
