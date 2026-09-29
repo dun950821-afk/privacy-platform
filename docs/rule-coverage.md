@@ -1,8 +1,22 @@
 # 规则覆盖度矩阵
 
-**MASWE 版本固定 `1.0.0`。所有 MASWE / MASTG 编号一律标 `待核实`**——本环境无法访问
-MASWE 官方站点与相关仓库（网络策略拦截，已实测），任何具体编号在核对之前都不得以
-确定语气引用（设计文档 §9.2）。此处包括此前已有的 `MASWE-0001`。
+**标准编号已于 2026-09-29 逐条核实，本文件不再把编号标 `待核实`。**
+
+原先这里写的是「本环境无法访问 MASWE 官方站点与相关仓库（网络策略拦截，已实测），
+任何具体编号在核对之前都不得以确定语气引用」。**这个前提是错的**：`OWASP/maswe` 与
+`OWASP/owasp-mastg` 两个仓库都能直接拉到，匿名 GitHub API 即可，不需要任何凭证。
+（当年大概是在稳、beta 两个目录结构上找偏了——MASWE 的弱点在 `weaknesses/<MASVS 分类>/`，
+MASTG 的隐私测试只在 `tests-beta/` 下，稳定版 `tests/` 里一条都没有。）
+
+核实纠正了两处编号，都是这一版之前就写在库里的：
+
+| 原值 | 问题 | 现取值 |
+|---|---|---|
+| `MASWE-0001` | 实为「Sensitive Data Stored Unencrypted in Private Storage」，归 **MASVS-STORAGE**，讲落盘加密；挂在通讯录外传规则上属张冠李戴 | `MASWE-0067`「Lack of Anonymization or Pseudonymisation Measures」（MASVS-PRIVACY-2） |
+| `MASTG-TEST-PRIVACY-1` | **MASTG 中不存在这个编号**。MASTG 稳定版没有任何隐私测试；beta 版隐私测试编号形如 `MASTG-TEST-0206`，没有 `PRIVACY` 段的编号形式 | 删去（留空），不做替换性发明 |
+
+十条判定规则原先**没有 `standards` 块**，本次一并补上，取值取自各条 MASWE 自己的
+frontmatter（`maswe` / `masvs-v2` / `cwe`），与 OWASP 上游一致。
 
 状态只取四个取值（设计文档 §1.6）：
 
@@ -218,4 +232,5 @@ location 流」组成。
 |---|---|
 | `EXP_ContentResolverQuery` 有 76 条观察记录，但规则目录与注册表中都不存在 | Task 1 能力实验的残留：实验规则跑过任务 565（app_version 12），按计划「结论产出后删除」已从规则目录移除。库中观察按「不得删除开发库既有真实数据」保留，其 `data_category` 为空、不参与关联。**不是漏登记**，是退役的实验数据 |
 | `CameraMic_APICall` 有 239 条历史观察，规则已拆分 | 见 G2。注册表用 `RETIRED_REGISTRY` 保留其语义（media），使历史产物重新归一化时语义不变 |
-| v1 关联规则 `PRIVACY_CONTACTS_NETWORK` 的 `MASWE-0001` 仍为 `待核实` | 设计 §9.2：本地无法核对官方站点，此前写入的编号同样未经核实 |
+| v1 关联规则 `PRIVACY_CONTACTS_NETWORK` 曾写 `MASWE-0001` | **2026-09-29 已改**：`MASWE-0001` 讲的是落盘加密（MASVS-STORAGE），与本规则无关，已改为 `MASWE-0067`；同时删去不存在的 `MASTG-TEST-PRIVACY-1`。库中以新版本 `1.2` 承载，`1.0`/`1.1` 原样保留（历史 Finding 的 `rule_version_id` 指着它们） |
+| 十条判定规则（`PRIV-*`）原先没有 `standards` 块 | 2026-09-29 补齐。但要注意：这十条**不参与任何求值**——关联器只加载 `category == "correlation"`，而这十条的 category 是 consent/sdk/...，且 `when` 那套 DSL 不在 `validate_rule_content` 支持范围内。它们是规则库的目录条目，不是会命中的规则 |

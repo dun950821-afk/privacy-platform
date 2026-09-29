@@ -377,8 +377,10 @@ const LOGIC_OPTIONS = [
 ]
 const STANDARD_FIELDS = [
   { key: 'masvs', label: 'MASVS', placeholder: '如 MASVS-PRIVACY-1，回车添加' },
-  { key: 'maswe', label: 'MASWE', placeholder: '如 MASWE-0001，回车添加' },
-  { key: 'mastg', label: 'MASTG', placeholder: '如 MASTG-TEST-PRIVACY-1，回车添加' },
+  // 示例编号取真实存在的：原来的 `MASWE-0001` 是落盘加密那条、`MASTG-TEST-PRIVACY-1`
+  // 在 MASTG 里根本不存在，拿它们当范本会把错的传下去（2026-09-29 核实）。
+  { key: 'maswe', label: 'MASWE', placeholder: '如 MASWE-0067，回车添加' },
+  { key: 'mastg', label: 'MASTG', placeholder: '如 MASTG-TEST-0206，回车添加' },
   { key: 'cwe', label: 'CWE', placeholder: '如 CWE-359，回车添加' },
 ] as const
 const SEVERITY_KEYS = Object.keys(SEVERITY)

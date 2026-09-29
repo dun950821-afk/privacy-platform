@@ -18,8 +18,10 @@ VALID = {
     "produce": {"finding_code": "PRIVACY_CONTACTS_NETWORK", "title": "通讯录外传",
                 "category": "privacy", "severity": "high", "confidence": "possible",
                 "recommendation": "确认授权与披露。"},
-    "standards": {"masvs": ["MASVS-PRIVACY-1"], "maswe": ["MASWE-0001"],
-                  "mastg": ["MASTG-TEST-PRIVACY-1"], "cwe": []},
+    # 与 rule_seed.py 里 PRIVACY_CONTACTS_NETWORK 的真实 standards 保持一致：
+    # 用真实存在的编号，免得这个 fixture 反过来把编造的编号固化下来。
+    "standards": {"masvs": ["MASVS-PRIVACY-2"], "maswe": ["MASWE-0067"],
+                  "mastg": [], "cwe": ["CWE-359"]},
 }
 
 CONTACTS_PERMISSION = {"id": 1, "observation_type": "fact.sensitive_permission",
@@ -86,14 +88,14 @@ def test_rejects_non_string_standard_id():
 
 
 def test_rejects_non_sequence_standard_ids():
-    for value in (1, "MASWE-0001", {"MASWE-0001": 1}):
+    for value in (1, "MASWE-0067", {"MASWE-0067": 1}):
         bad = {**VALID, "standards": {**VALID["standards"], "maswe": value}}
         with pytest.raises(RuleValidationError):
             validate_rule_content(bad)
 
 
 def test_accepts_tuple_standard_ids():
-    validate_rule_content({**VALID, "standards": {**VALID["standards"], "maswe": ("MASWE-0001",)}})
+    validate_rule_content({**VALID, "standards": {**VALID["standards"], "maswe": ("MASWE-0067",)}})
 
 
 def test_rejects_non_string_operator_and_field():

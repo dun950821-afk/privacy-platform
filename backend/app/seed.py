@@ -8,6 +8,20 @@ from app.services.rule_seed import seed_correlation_rules
 import json
 
 
+# 判定规则集。每条规则带一个 `standards` 块，把规则挂到 OWASP MASVS / MASWE 上，
+# 编号于 2026-09-29 对 OWASP/maswe 与 OWASP/owasp-mastg 仓库原文逐条核实，不是
+# 照标题猜的。三条约定：
+#   - `maswe` 只填能引到原文、语义确为本规则所指的那一条；MASWE 与 MASVS 的对应
+#     关系（如 MASWE-0078 → MASVS-PRIVACY-4）取自各条 MASWE 自己的 frontmatter。
+#   - `mastg` 宁可留空。MASTG 稳定版没有隐私测试，beta 版的隐私测试在
+#     `tests-beta/android/MASVS-PRIVACY/` 下，编号是 `MASTG-TEST-0xxx`。
+#   - `cwe` 用 `CWE-NNN` 字符串（前端表单的取值口径），取自 MASWE frontmatter 的
+#     `cwe` 列表。
+#
+# 注意这 10 条规则目前**不参与任何求值**：关联器只加载 `category == "correlation"`
+# 的规则（services/correlation.py），而这些规则的 category 是 consent/sdk/...，
+# 且用的是 `when` 那套 DSL——`validate_rule_content` 只认 schema `1.0`/`2.0`，
+# 直接拒收。它们是规则库的目录条目，不是会命中的规则。补规则时别往这套 DSL 里加。
 SEED_RULES = [
     {
         "rule_key": "PRIV-CONSENT-001",
@@ -27,7 +41,9 @@ SEED_RULES = [
             "exclude": {"approved_exception": True},
             "evidence_required": ["api_call_stack", "network_request", "consent_state_snapshot"],
             "severity": "HIGH",
-            "remediation_template": "延迟SDK初始化至用户同意后；同意前禁止调用设备标识API"
+            "remediation_template": "延迟SDK初始化至用户同意后；同意前禁止调用设备标识API",
+            "standards": {"masvs": ["MASVS-PRIVACY-4"], "maswe": ["MASWE-0078"],
+                          "mastg": [], "cwe": ["CWE-200", "CWE-285", "CWE-358", "CWE-359"]}
         }
     },
     {
@@ -46,7 +62,9 @@ SEED_RULES = [
             "exclude": {},
             "evidence_required": ["api_call_stack", "rejection_screenshot"],
             "severity": "HIGH",
-            "remediation_template": "用户拒绝后立即停止所有个人信息收集行为"
+            "remediation_template": "用户拒绝后立即停止所有个人信息收集行为",
+            "standards": {"masvs": ["MASVS-PRIVACY-4"], "maswe": ["MASWE-0078"],
+                          "mastg": [], "cwe": ["CWE-200", "CWE-285", "CWE-358", "CWE-359"]}
         }
     },
     {
@@ -65,7 +83,9 @@ SEED_RULES = [
             "exclude": {"sdk_category": "crash"},
             "evidence_required": ["sdk_fingerprint", "call_stack", "policy_excerpt"],
             "severity": "MEDIUM",
-            "remediation_template": "在隐私政策第三方SDK清单中补充披露该SDK"
+            "remediation_template": "在隐私政策第三方SDK清单中补充披露该SDK",
+            "standards": {"masvs": ["MASVS-PRIVACY-3", "MASVS-PRIVACY-1"], "maswe": ["MASWE-0073"],
+                          "mastg": [], "cwe": ["CWE-359"]}
         }
     },
     {
@@ -85,7 +105,9 @@ SEED_RULES = [
             "exclude": {},
             "evidence_required": ["init_call_stack", "sensitive_api_event", "timeline"],
             "severity": "HIGH",
-            "remediation_template": "配置SDK延迟初始化，在用户同意后再调用SDK初始化接口"
+            "remediation_template": "配置SDK延迟初始化，在用户同意后再调用SDK初始化接口",
+            "standards": {"masvs": ["MASVS-PRIVACY-4"], "maswe": ["MASWE-0078"],
+                          "mastg": [], "cwe": ["CWE-200", "CWE-285", "CWE-358", "CWE-359"]}
         }
     },
     {
@@ -104,7 +126,9 @@ SEED_RULES = [
             "exclude": {"page_context": "business_function"},
             "evidence_required": ["page_screenshot", "permission_dialog"],
             "severity": "MEDIUM",
-            "remediation_template": "在用户实际使用对应功能时再申请权限"
+            "remediation_template": "在用户实际使用对应功能时再申请权限",
+            "standards": {"masvs": ["MASVS-PRIVACY-1"], "maswe": ["MASWE-0066"],
+                          "mastg": ["MASTG-TEST-0255"], "cwe": ["CWE-250"]}
         }
     },
     {
@@ -123,7 +147,9 @@ SEED_RULES = [
             "exclude": {},
             "evidence_required": ["network_request", "domain_attribution", "policy_excerpt"],
             "severity": "HIGH",
-            "remediation_template": "在隐私政策中补充披露该接收方"
+            "remediation_template": "在隐私政策中补充披露该接收方",
+            "standards": {"masvs": ["MASVS-PRIVACY-3", "MASVS-PRIVACY-1"], "maswe": ["MASWE-0073"],
+                          "mastg": ["MASTG-TEST-0206"], "cwe": ["CWE-359"]}
         }
     },
     {
@@ -142,7 +168,9 @@ SEED_RULES = [
             "exclude": {},
             "evidence_required": ["api_call_stack", "policy_excerpt"],
             "severity": "HIGH",
-            "remediation_template": "在隐私政策中补充声明该信息类型的收集目的和方式"
+            "remediation_template": "在隐私政策中补充声明该信息类型的收集目的和方式",
+            "standards": {"masvs": ["MASVS-PRIVACY-3", "MASVS-PRIVACY-1"], "maswe": ["MASWE-0073"],
+                          "mastg": [], "cwe": ["CWE-359"]}
         }
     },
     {
@@ -161,7 +189,9 @@ SEED_RULES = [
             "exclude": {},
             "evidence_required": ["revocation_screenshot", "api_call_stack", "timeline"],
             "severity": "HIGH",
-            "remediation_template": "撤回同意后立即停止个人信息收集和处理"
+            "remediation_template": "撤回同意后立即停止个人信息收集和处理",
+            "standards": {"masvs": ["MASVS-PRIVACY-4"], "maswe": ["MASWE-0078"],
+                          "mastg": [], "cwe": ["CWE-200", "CWE-285", "CWE-358", "CWE-359"]}
         }
     },
     {
@@ -180,7 +210,9 @@ SEED_RULES = [
             "exclude": {},
             "evidence_required": ["network_request"],
             "severity": "CRITICAL",
-            "remediation_template": "使用HTTPS加密传输，敏感信息放入请求体而非URL参数"
+            "remediation_template": "使用HTTPS加密传输，敏感信息放入请求体而非URL参数",
+            "standards": {"masvs": ["MASVS-NETWORK-1"], "maswe": ["MASWE-0026"],
+                          "mastg": [], "cwe": ["CWE-319"]}
         }
     },
     {
@@ -198,7 +230,9 @@ SEED_RULES = [
             "exclude": {},
             "evidence_required": ["operation_path", "screenshot", "result"],
             "severity": "MEDIUM",
-            "remediation_template": "提供便捷可达的账号注销入口，确保注销流程正常可用"
+            "remediation_template": "提供便捷可达的账号注销入口，确保注销流程正常可用",
+            "standards": {"masvs": ["MASVS-PRIVACY-4"], "maswe": ["MASWE-0076"],
+                          "mastg": [], "cwe": ["CWE-359"]}
         }
     }
 ]

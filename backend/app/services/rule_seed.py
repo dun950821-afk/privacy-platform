@@ -45,8 +45,16 @@ BUILTIN_CORRELATION_RULES = [
                 "category": "privacy", "severity": "high", "confidence": "possible",
                 "recommendation": "确认用户授权与隐私政策披露，并对传输数据做最小化与保护。",
             },
-            "standards": {"masvs": ["MASVS-PRIVACY-1"], "maswe": ["MASWE-0001"],
-                          "mastg": ["MASTG-TEST-PRIVACY-1"], "cwe": []},
+            # 编号已于 2026-09-29 对着 OWASP/maswe 与 OWASP/owasp-mastg 的仓库原文
+            # 逐条核实。原值两处都不成立，在此记下来免得又被改回去：
+            #   - `MASWE-0001` 是「Sensitive Data Stored Unencrypted in Private
+            #     Storage」，归 MASVS-STORAGE，讲的是落盘加密；本规则讲的是通讯录
+            #     数据外传，不是一回事。
+            #   - `MASTG-TEST-PRIVACY-1` 在 MASTG 里不存在。MASTG 稳定版根本没有
+            #     隐私测试；beta 版的隐私测试编号是 `MASTG-TEST-0xxx`（如 0206），
+            #     没有 `PRIVACY` 这一段的编号形式。查不到就不填，不拿形状像的发明。
+            "standards": {"masvs": ["MASVS-PRIVACY-2"], "maswe": ["MASWE-0067"],
+                          "mastg": [], "cwe": ["CWE-359"]},
         },
     },
     {
