@@ -28,3 +28,4 @@ libSDL	SDL	同一库的两种写法。**drop 独有 libsdl.so**（keep 是 libsd
 火山引擎增长分析 SDK	DataFinder	DataFinder 是该产品的英文名。**drop 独有 com.bytedance.mapplog.***，需迁移
 欢太账号 OAuth 授权 SDK	欢太账号授权 SDK	名字同一实体。**drop 独有 oauthwebactivity**，需迁移
 AndroidX CameraX	Jetpack Camera	Jetpack 是 AndroidX 的品牌名。**drop 独有 2 个 .so**（libimage_processing_util_jni / libsurface_util_jni），需迁移
+穿山甲广告 SDK	Pangle SDK	同一 SDK：Pangle 是字节穿山甲的海外品牌名，包前缀重合（com.bytedance.sdk.openadsdk / com.ss.android.socialbase 等）。keep 用中文名与库内「快手广告 SDK」「腾讯广告 SDK」一致；drop 独有 19 条指纹需迁移
