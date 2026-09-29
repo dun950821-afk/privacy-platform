@@ -88,6 +88,7 @@ import { taskApi } from '@/api/tasks'
 import { CONFIDENCE, SEVERITY } from '@/utils/dict'
 
 const props = defineProps<{ taskId: number }>()
+const emit = defineEmits<{ (e: 'count', n: number): void }>()
 
 const SINK_LABELS: Record<string, string> = {
   file: '路径穿越（文件）', ipc: 'IPC / Intent', network: '网络', log: '日志',
@@ -162,6 +163,7 @@ async function load() {
     if (leadsRes.status === 'fulfilled') {
       leads.value = (leadsRes.value as any).data?.items || []
     }
+    emit('count', findings.value.length + leads.value.length)
   } finally {
     loading.value = false
   }
@@ -172,17 +174,18 @@ watch(() => props.taskId, load)
 </script>
 
 <style scoped>
-.block { margin-bottom: 14px; }
-.head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.title { font-size: 15px; font-weight: 600; }
+.block { margin-bottom: var(--space-4); }
+.head { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.title { font-size: var(--text-section); font-weight: 600; }
 .count {
   display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 10px;
-  background: #EEF1F6; color: #2B5AED; font-size: 12px; text-align: center; font-weight: 600;
+  background: var(--surface-line-soft); color: var(--el-color-primary);
+  font-size: var(--text-label); text-align: center; font-weight: 600;
 }
-.sub { color: #6B7A99; font-size: 12px; }
+.sub { color: var(--ink-3); font-size: var(--text-label); }
 .code { font-weight: 600; }
-.sub-line { color: #6B7A99; font-size: 12px; }
-.loc-list { padding: 4px 12px; }
+.sub-line { color: var(--ink-3); font-size: var(--text-label); }
+.loc-list { padding: var(--space-1) var(--space-3); }
 .loc-row { display: flex; align-items: center; justify-content: space-between; gap: 12px;
            padding: 3px 0; border-bottom: 1px dashed #EEF1F6; }
 .loc-row:last-child { border-bottom: none; }

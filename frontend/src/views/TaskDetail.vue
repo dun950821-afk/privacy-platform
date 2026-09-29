@@ -1,73 +1,108 @@
 <template>
   <div class="page-container" v-loading="loading">
-    <!-- 顶部：任务标题 + 操作 -->
-    <PageHeader :title="task.task_code || '任务详情'" :subtitle="headerSubtitle">
-      <StatusTag v-if="task.status" :value="task.status" :map="TASK_STATUS" size="default" />
-      <StatusTag v-if="task.analysis_coverage" :value="task.analysis_coverage"
-                 :map="ANALYSIS_COVERAGE" size="default" />
-      <el-button v-if="canRetry" type="warning" plain :icon="RefreshRight" @click="handleRetry">
-        重试
-      </el-button>
-      <el-button v-if="canCancel" type="danger" plain :icon="CircleClose" @click="handleCancel">
-        取消任务
-      </el-button>
-      <el-button v-if="task.status === 'completed'" type="primary" :icon="Document"
-                 :loading="generating" @click="handleGenerateReport">
-        生成报告
-      </el-button>
-      <el-button :icon="DataAnalysis" @click="router.push(`/tasks/${taskId}/report`)">
-        检测报告
-      </el-button>
-      <el-button :icon="ArrowLeft" @click="router.push('/workspace')">返回</el-button>
-    </PageHeader>
-
-    <!-- 任务元信息：收进折叠区，首屏留给合规画像（它才是这一页的主线） -->
-    <el-collapse v-model="metaOpen" class="meta-collapse">
-      <el-collapse-item name="meta">
-        <template #title>
-          <span class="meta-title">任务信息</span>
-          <span class="meta-summary">
-            {{ task.app?.name || '-' }} {{ task.version?.version_name || '' }} ·
-            {{ dictLabel(DETECTION_TYPE, task.detection_type) }} ·
-            {{ task.completed_at ? fmtDateTime(task.completed_at) + ' 完成' : task.status }}
+    <!-- 首屏主语是「哪个 App」，不是任务号。任务号降到副行，仍可复制 -->
+    <div class="task-head">
+      <div class="task-head-main">
+        <div class="task-title-row">
+          <h1 class="t-h1">{{ task.app?.name || '任务详情' }}</h1>
+          <span v-if="task.version?.version_name" class="task-version t-num">
+            {{ task.version.version_name }}
           </span>
-        </template>
-      <!-- 进度步骤条 -->
-      <el-card shadow="never" class="mb16">
-        <el-steps :active="stepActive" align-center
-                  :process-status="processStatus" :finish-status="finishStatus">
-          <el-step v-for="s in steps" :key="s" :title="s" />
-        </el-steps>
-      </el-card>
+        </div>
+        <div class="task-meta">
+          <button v-if="task.task_code" class="task-code t-mono"
+                  :title="`复制任务号 ${task.task_code}`" @click="copyTaskCode">
+            {{ task.task_code }}
+            <el-icon><CopyDocument /></el-icon>
+          </button>
+          <span v-if="task.task_code" class="sep">·</span>
+          <span>{{ dictLabel(DETECTION_TYPE, task.detection_type) }}</span>
+          <span class="sep">·</span>
+          <span>{{ task.completed_at ? fmtDateTime(task.completed_at) + ' 完成'
+                                     : dictLabel(TASK_STATUS, task.status) }}</span>
+        </div>
+      </div>
 
-      <!-- 信息行：检测对象 + 任务信息 -->
-      <el-row :gutter="16" class="mb16">
-        <el-col :span="12">
-          <el-card shadow="never" class="info-card">
-            <template #header><span class="card-title">检测对象</span></template>
-            <el-descriptions :column="1" size="small">
-              <el-descriptions-item label="App">{{ task.app?.name || '-' }}</el-descriptions-item>
+      <div class="task-head-actions">
+        <StatusTag v-if="task.status" :value="task.status" :map="TASK_STATUS" size="default" />
+        <StatusTag v-if="task.analysis_coverage" :value="task.analysis_coverage"
+                   :map="ANALYSIS_COVERAGE" size="default" />
+        <!-- 主位只有一个动作；查看报告、重试、取消、返回都是次级，收进溢出菜单 -->
+        <el-button v-if="task.status === 'completed'" type="primary" :icon="Document"
+                   :loading="generating" @click="handleGenerateReport">
+          生成检测报告
+        </el-button>
+        <el-dropdown trigger="click" @command="onHeadCommand">
+          <el-button :icon="MoreFilled" title="更多操作" aria-label="更多操作" />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="report" :icon="DataAnalysis">查看检测报告</el-dropdown-item>
+              <el-dropdown-item command="retry" :icon="RefreshRight" :disabled="!canRetry">
+                重试任务
+              </el-dropdown-item>
+              <el-dropdown-item command="cancel" :icon="CircleClose" :disabled="!canCancel" divided>
+                取消任务
+              </el-dropdown-item>
+              <el-dropdown-item command="back" :icon="ArrowLeft" divided>返回工作台</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
+    </div>
+
+    <!-- 进度条只在「正在跑 / 跑挂了」时出场：任务已完成时它是纯冗余 -->
+    <el-card v-if="showSteps" shadow="never" class="steps-card">
+      <el-steps :active="stepActive" align-center
+                :process-status="processStatus" :finish-status="finishStatus">
+        <el-step v-for="s in steps" :key="s" :title="s" />
+      </el-steps>
+    </el-card>
+
+    <el-card shadow="never">
+      <el-tabs v-model="activeTab">
+        <!-- 结论在前：合规画像回答「采集了什么、谁在采集」 -->
+        <el-tab-pane name="workspace">
+          <template #label>
+            <span class="tab-label">合规画像
+              <span v-if="profileCount" class="tab-badge">{{ profileCount }}</span>
+            </span>
+          </template>
+          <ComplianceProfile :task-id="taskId" @count="profileCount = $event" />
+        </el-tab-pane>
+
+        <el-tab-pane name="risk">
+          <template #label>
+            <span class="tab-label">风险结论
+              <span v-if="riskCount" class="tab-badge">{{ riskCount }}</span>
+            </span>
+          </template>
+          <RiskFindings :task-id="taskId" @count="riskCount = $event" />
+        </el-tab-pane>
+
+        <!-- 运维排查用：任务明细 + 阶段 + 场景 + 引擎队列，合并成一个 tab -->
+        <el-tab-pane name="execution">
+          <template #label>
+            <span class="tab-label">执行信息
+              <span v-if="execFailed" class="tab-badge is-danger">{{ execFailed }}</span>
+              <span v-else-if="subTasks.length" class="tab-badge">{{ subTasks.length }}</span>
+            </span>
+          </template>
+
+          <!-- 原本在首屏折叠条里的字段挪到这里：它对排查有用，但不该占首屏 -->
+          <div class="sub-group mb16">
+            <div class="t-section mb12">任务信息</div>
+            <el-descriptions :column="3" size="small">
               <el-descriptions-item label="包名">
-                <span class="mono">{{ task.app?.package_name || '-' }}</span>
+                <span class="t-mono">{{ task.app?.package_name || '-' }}</span>
               </el-descriptions-item>
               <el-descriptions-item label="版本">
                 {{ task.version?.version_name || '-' }}（code {{ task.version?.version_code ?? '-' }}）
               </el-descriptions-item>
-              <el-descriptions-item label="SHA256">
-                <span class="mono">{{ task.version?.sha256 || '-' }}</span>
-              </el-descriptions-item>
               <el-descriptions-item label="文件大小">
                 {{ fmtSize(task.version?.file_size) }}
               </el-descriptions-item>
-            </el-descriptions>
-          </el-card>
-        </el-col>
-        <el-col :span="12">
-          <el-card shadow="never" class="info-card">
-            <template #header><span class="card-title">任务信息</span></template>
-            <el-descriptions :column="2" size="small">
-              <el-descriptions-item label="检测类型">
-                <StatusTag :value="task.detection_type" :map="DETECTION_TYPE" />
+              <el-descriptions-item label="SHA256" :span="2">
+                <span class="t-mono">{{ task.version?.sha256 || '-' }}</span>
               </el-descriptions-item>
               <el-descriptions-item label="规则包版本">{{ task.rule_pack_version || '-' }}</el-descriptions-item>
               <el-descriptions-item label="优先级">{{ task.priority ?? '-' }}</el-descriptions-item>
@@ -79,123 +114,103 @@
             <div v-if="task.failed_reason" class="failed-reason">
               <span class="failed-label">失败原因：</span>{{ task.failed_reason }}
             </div>
-          </el-card>
-        </el-col>
-      </el-row>
+          </div>
 
-      </el-collapse-item>
-    </el-collapse>
+          <div class="t-section mb12">检测阶段</div>
+          <el-table :data="subTasks" size="small" class="data-table">
+            <el-table-column prop="sub_task_code" label="子任务编号" width="180">
+              <template #default="{ row }"><span class="t-mono">{{ row.sub_task_code }}</span></template>
+            </el-table-column>
+            <el-table-column label="引擎" width="140">
+              <template #default="{ row }">{{ engineNames(row) }}</template>
+            </el-table-column>
+            <el-table-column prop="stage" label="阶段" width="110" />
+            <el-table-column label="状态" width="100">
+              <template #default="{ row }">
+                <StatusTag :value="row.status" :map="EXEC_STATUS" />
+              </template>
+            </el-table-column>
+            <el-table-column label="开始时间" width="150">
+              <template #default="{ row }">{{ fmtDateTime(row.started_at) }}</template>
+            </el-table-column>
+            <el-table-column label="完成时间" width="150">
+              <template #default="{ row }">{{ fmtDateTime(row.completed_at) }}</template>
+            </el-table-column>
+            <el-table-column label="结果摘要" min-width="140" show-overflow-tooltip>
+              <template #default="{ row }">{{ summaryText(row.result_summary) }}</template>
+            </el-table-column>
+            <el-table-column prop="error_message" label="错误信息" min-width="140"
+                             show-overflow-tooltip>
+              <template #default="{ row }">
+                <span v-if="row.error_message" class="error-text">{{ row.error_message }}</span>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <template #empty><EmptyBox description="暂无检测阶段" /></template>
+          </el-table>
 
+          <div class="t-section mb12 mt20">检测场景</div>
+          <el-table :data="scenarios" size="small" class="data-table">
+            <el-table-column label="场景类型" width="150">
+              <template #default="{ row }">{{ dictLabel(SCENARIO_TYPE, row.scenario_type) }}</template>
+            </el-table-column>
+            <el-table-column label="同意状态" width="110">
+              <template #default="{ row }">
+                <StatusTag :value="row.consent_status" :map="CONSENT_STATUS" />
+              </template>
+            </el-table-column>
+            <el-table-column label="执行状态" width="100">
+              <template #default="{ row }">
+                <StatusTag :value="row.status" :map="EXEC_STATUS" />
+              </template>
+            </el-table-column>
+            <el-table-column label="设备" width="140">
+              <template #default="{ row }">{{ row.device || row.device_id || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="开始时间" width="150">
+              <template #default="{ row }">{{ fmtDateTime(row.started_at) }}</template>
+            </el-table-column>
+            <el-table-column label="完成时间" width="150">
+              <template #default="{ row }">{{ fmtDateTime(row.completed_at) }}</template>
+            </el-table-column>
+            <el-table-column prop="notes" label="备注" min-width="120" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.notes || '-' }}</template>
+            </el-table-column>
+            <template #empty><EmptyBox description="暂无检测场景" /></template>
+          </el-table>
 
-    <!-- 数据区 Tabs -->
-    <el-card shadow="never">
-      <el-tabs v-model="activeTab">
-        <!-- 检测结果：结论在前，原始结果按引擎各自的特点分区 -->
-        <el-tab-pane label="合规画像" name="workspace">
-          <ComplianceProfile :task-id="taskId" />
+          <div class="t-section mb12 mt20">引擎队列</div>
+          <el-timeline v-if="engineQueue.items?.length">
+            <el-timeline-item v-for="item in engineQueue.items" :key="item.id"
+                              :type="engineStatusType(item.status)"
+                              :timestamp="fmtDateTime(item.started_at || item.completed_at)">
+              <strong>{{ item.engine_name }}</strong>
+              <span class="t-sub"> · {{ engineStatusLabel(item.status) }} · {{ item.stage_message || item.stage || '-' }}</span>
+              <el-progress v-if="item.progress != null" :percentage="item.progress" :stroke-width="6" />
+              <div v-if="item.error_message" class="error-text">{{ item.error_message }}</div>
+              <div v-if="item.error_code" class="t-sub">
+                错误码：{{ item.error_code }} · 可重试：{{ item.retryable ? '是' : '否' }}
+              </div>
+              <el-button v-if="canRetryEngine(item)" size="small" type="warning" plain
+                         :loading="retryingId === item.id" @click="handleEngineRetry(item)">
+                重新执行本引擎
+              </el-button>
+            </el-timeline-item>
+          </el-timeline>
+          <EmptyBox v-else description="暂无引擎执行记录" />
         </el-tab-pane>
 
-        <!-- 风险结论：平台结论 + 引擎判定但未核实的线索 -->
-        <el-tab-pane label="风险结论" name="risk">
-          <RiskFindings :task-id="taskId" />
-        </el-tab-pane>
-
-        <!-- 执行信息：检测阶段 / 场景 / 引擎队列 —— 运维排查用，合并成一个 tab -->
-        <el-tab-pane label="执行信息" name="execution">
-          <el-divider content-position="left">检测阶段</el-divider>
-            <el-table :data="subTasks" size="small" stripe>
-              <el-table-column prop="sub_task_code" label="子任务编号" width="180">
-                <template #default="{ row }"><span class="mono">{{ row.sub_task_code }}</span></template>
-              </el-table-column>
-              <el-table-column label="引擎" width="140">
-                <template #default="{ row }">{{ engineNames(row) }}</template>
-              </el-table-column>
-              <el-table-column prop="stage" label="阶段" width="110" />
-              <el-table-column label="状态" width="100">
-                <template #default="{ row }">
-                  <StatusTag :value="row.status" :map="EXEC_STATUS" />
-                </template>
-              </el-table-column>
-              <el-table-column label="开始时间" width="150">
-                <template #default="{ row }">{{ fmtDateTime(row.started_at) }}</template>
-              </el-table-column>
-              <el-table-column label="完成时间" width="150">
-                <template #default="{ row }">{{ fmtDateTime(row.completed_at) }}</template>
-              </el-table-column>
-              <el-table-column label="结果摘要" min-width="140" show-overflow-tooltip>
-                <template #default="{ row }">{{ summaryText(row.result_summary) }}</template>
-              </el-table-column>
-              <el-table-column prop="error_message" label="错误信息" min-width="140"
-                               show-overflow-tooltip>
-                <template #default="{ row }">
-                  <span v-if="row.error_message" class="error-text">{{ row.error_message }}</span>
-                  <span v-else>-</span>
-                </template>
-              </el-table-column>
-              <template #empty><EmptyBox description="暂无检测阶段" /></template>
-            </el-table>
-          <el-divider content-position="left">检测场景</el-divider>
-            <el-table :data="scenarios" size="small" stripe>
-              <el-table-column label="场景类型" width="150">
-                <template #default="{ row }">
-                  {{ dictLabel(SCENARIO_TYPE, row.scenario_type) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="同意状态" width="110">
-                <template #default="{ row }">
-                  <StatusTag :value="row.consent_status" :map="CONSENT_STATUS" />
-                </template>
-              </el-table-column>
-              <el-table-column label="执行状态" width="100">
-                <template #default="{ row }">
-                  <StatusTag :value="row.status" :map="EXEC_STATUS" />
-                </template>
-              </el-table-column>
-              <el-table-column label="设备" width="140">
-                <template #default="{ row }">{{ row.device || row.device_id || '-' }}</template>
-              </el-table-column>
-              <el-table-column label="开始时间" width="150">
-                <template #default="{ row }">{{ fmtDateTime(row.started_at) }}</template>
-              </el-table-column>
-              <el-table-column label="完成时间" width="150">
-                <template #default="{ row }">{{ fmtDateTime(row.completed_at) }}</template>
-              </el-table-column>
-              <el-table-column prop="notes" label="备注" min-width="120" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.notes || '-' }}</template>
-              </el-table-column>
-              <template #empty><EmptyBox description="暂无检测场景" /></template>
-            </el-table>
-          <el-divider content-position="left">引擎队列</el-divider>
-            <el-timeline v-if="engineQueue.items?.length">
-              <el-timeline-item v-for="item in engineQueue.items" :key="item.id" :type="engineStatusType(item.status)" :timestamp="fmtDateTime(item.started_at || item.completed_at)">
-                <strong>{{ item.engine_name }}</strong>
-                <span class="sub-text"> · {{ engineStatusLabel(item.status) }} · {{ item.stage_message || item.stage || '-' }}</span>
-                <el-progress v-if="item.progress != null" :percentage="item.progress" :stroke-width="6" />
-                <div v-if="item.error_message" class="error-text">{{ item.error_message }}</div>
-                <div v-if="item.error_code" class="sub-text">错误码：{{ item.error_code }} · 可重试：{{ item.retryable ? '是' : '否' }}</div>
-                <el-button v-if="canRetryEngine(item)" size="small" type="warning" plain
-                           :loading="retryingId === item.id" @click="handleEngineRetry(item)">重新执行本引擎</el-button>
-              </el-timeline-item>
-            </el-timeline>
-            <EmptyBox v-else description="暂无引擎执行记录" />
-        </el-tab-pane>
-
-        <!-- ① 检测阶段 -->
-        <!-- ② 检测场景 -->
-        <!-- ②.5 引擎队列 -->
-        <!-- ③ 事件流 -->
-        <!-- ④ SDK识别 -->
-        <!-- ⑤ 未识别包簇 -->
-        <!-- ⑥ 问题 -->
-        <!-- ⑤ 证据 -->
-        <el-tab-pane :label="`证据 (${evidenceList.length})`" name="evidence">
-          <el-table :data="evidenceList" size="small" stripe>
+        <el-tab-pane name="evidence">
+          <template #label>
+            <span class="tab-label">证据
+              <span v-if="evidenceList.length" class="tab-badge">{{ evidenceList.length }}</span>
+            </span>
+          </template>
+          <el-table :data="evidenceList" size="small" class="data-table">
             <el-table-column label="类型" width="180">
               <template #default="{ row }">
                 {{ evidenceTypeLabel(row.evidence_type) }}
-                <span v-if="row.metadata_json?.engine" class="perm-sub">
-                  · {{ row.metadata_json.engine }}
-                </span>
+                <span v-if="row.metadata_json?.engine" class="t-sub"> · {{ row.metadata_json.engine }}</span>
               </template>
             </el-table-column>
             <el-table-column label="大小" width="100">
@@ -203,7 +218,7 @@
             </el-table-column>
             <el-table-column label="哈希" width="140">
               <template #default="{ row }">
-                <span class="mono">{{ row.artifact_hash ? row.artifact_hash.slice(0, 12) : '-' }}</span>
+                <span class="t-mono">{{ row.artifact_hash ? row.artifact_hash.slice(0, 12) : '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column label="创建时间" width="150">
@@ -222,116 +237,6 @@
         </el-tab-pane>
       </el-tabs>
     </el-card>
-
-    <!-- 事件详情抽屉 -->
-
-    <!-- SDK识别详情抽屉 -->
-    <el-drawer v-model="sdkDrawerVisible" size="640px" :title="sdkDetail?.sdk_name || 'SDK详情'">
-      <template v-if="sdkDetail">
-        <el-descriptions :column="2" border size="small">
-          <el-descriptions-item label="厂商" :span="2">
-            {{ sdkDetail.vendor || '未知' }}
-            <el-link v-if="sdkDetail.vendor_website" :href="sdkDetail.vendor_website"
-                     target="_blank" type="primary" style="margin-left: 8px">官网</el-link>
-          </el-descriptions-item>
-          <el-descriptions-item label="分类">{{ sdkDetail.category || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="识别状态">
-            <StatusTag :value="sdkDetail.hit_status" :map="HIT_STATUS" />
-          </el-descriptions-item>
-          <el-descriptions-item label="置信度">
-            <StatusTag :value="sdkDetail.confidence_level" :map="SENSITIVITY" />
-          </el-descriptions-item>
-          <el-descriptions-item label="综合得分">
-            <span class="score-num">{{ sdkDetail.total_score }}</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="检测规则版本">{{ sdkDetail.rule_version || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="SDK版本">{{ sdkDetail.detected_version || '-' }}</el-descriptions-item>
-        </el-descriptions>
-
-        <div class="json-title">证据汇总（{{ sdkDetail.evidence_total }} 条）</div>
-        <div class="ev-stat-cards">
-          <div v-for="(count, type) in sdkDetail.evidence_type_stat" :key="type" class="ev-stat-card">
-            <div class="ev-stat-num">{{ count }}</div>
-            <div class="ev-stat-type">{{ evidenceKindLabel(String(type)) }}</div>
-          </div>
-        </div>
-
-        <div class="json-title">证据明细</div>
-        <el-table :data="sdkDetail.evidences" size="small" stripe max-height="380">
-          <el-table-column label="类型" width="100">
-            <template #default="{ row }">{{ evidenceKindLabel(row.evidence_type) }}</template>
-          </el-table-column>
-          <el-table-column label="命中特征" min-width="200" show-overflow-tooltip>
-            <template #default="{ row }">
-              <el-link type="primary" :underline="false" class="mono"
-                       @click="jumpToEvent(sdkDetail.component_id, row.evidence_value)">
-                {{ row.evidence_value }}
-              </el-link>
-            </template>
-          </el-table-column>
-          <el-table-column prop="score" label="分值" width="70" align="center" />
-          <el-table-column prop="source" label="来源" width="90" />
-        </el-table>
-        <div class="ev-jump-tip">点击命中特征可跳回事件流并定位高亮该事件</div>
-      </template>
-    </el-drawer>
-
-    <!-- 包簇类列表抽屉 -->
-    <el-drawer v-model="clusterDrawerVisible" size="560px"
-               :title="`包簇类列表 · ${currentCluster?.package_prefix || ''}`">
-      <el-table :data="clusterClasses" size="small" stripe v-loading="loadingClusterClasses">
-        <el-table-column label="类名" min-width="260" show-overflow-tooltip>
-          <template #default="{ row }">
-            <el-link type="primary" :underline="false" class="mono"
-                     @click="jumpToEvent(null, row.class_name)">{{ row.class_name }}</el-link>
-          </template>
-        </el-table-column>
-        <el-table-column label="组件类型" width="100">
-          <template #default="{ row }">{{ evidenceKindLabel(row.component_type) }}</template>
-        </el-table-column>
-        <template #empty><EmptyBox description="该包簇下无类" /></template>
-      </el-table>
-    </el-drawer>
-
-    <!-- 关联已有SDK对话框 -->
-    <el-dialog v-model="linkDialogVisible" title="关联已有SDK" width="480px">
-      <el-select v-model="linkComponentId" filterable remote clearable
-                 :remote-method="searchComponents" :loading="searchingComponents"
-                 placeholder="输入SDK名称搜索" style="width: 100%">
-        <el-option v-for="c in componentOptions" :key="c.id"
-                   :label="`${c.name}（${c.vendor || '未知厂商'}）`" :value="c.id" />
-      </el-select>
-      <template #footer>
-        <el-button @click="linkDialogVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!linkComponentId" @click="confirmLink">关联</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 创建新SDK知识对话框 -->
-    <el-dialog v-model="createSdkDialogVisible" title="创建新SDK知识" width="480px">
-      <el-form label-width="90px">
-        <el-form-item label="包名前缀">
-          <el-input :model-value="currentCluster?.package_prefix" disabled />
-        </el-form-item>
-        <el-form-item label="SDK名称" required>
-          <el-input v-model="createSdkName" placeholder="如：某某统计SDK" maxlength="100" />
-        </el-form-item>
-        <el-form-item label="类型">
-          <el-select v-model="createSdkKind" style="width: 100%">
-            <el-option v-for="(item, value) in COMPONENT_KIND" :key="value"
-                       :label="item.label" :value="value" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <el-alert type="success" :closable="false"
-                title="将创建组件并自动添加包名前缀指纹（PREFIX匹配，权重30），后续扫描即可自动识别" />
-      <template #footer>
-        <el-button @click="createSdkDialogVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!createSdkName.trim()" @click="confirmCreateSdk">
-          创建并关联
-        </el-button>
-      </template>
-    </el-dialog>
 
     <!-- 证据预览对话框（可拖拽调整大小） -->
     <el-dialog v-model="previewVisible" :title="previewTitle" :width="previewSize.w + 'px'" top="4vh">
@@ -362,8 +267,10 @@
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, RefreshRight, CircleClose, Document, Download, View, ArrowRight, Rank, ArrowDown, Setting, DataAnalysis } from '@element-plus/icons-vue'
-import PageHeader from '@/components/PageHeader.vue'
+import {
+  ArrowLeft, RefreshRight, CircleClose, Document, Download, View, Rank,
+  DataAnalysis, CopyDocument, MoreFilled,
+} from '@element-plus/icons-vue'
 import StatusTag from '@/components/StatusTag.vue'
 import EmptyBox from '@/components/EmptyBox.vue'
 import ComplianceProfile from '@/components/ComplianceProfile.vue'
@@ -371,13 +278,11 @@ import RiskFindings from '@/components/RiskFindings.vue'
 import api from '@/api'
 import { taskApi } from '@/api/tasks'
 import { reportApi } from '@/api/reports'
-import { sdkApi } from '@/api/sdks'
 import { engineApi } from '@/api/engines'
-import { fmtDateTime, fmtDateTimeFull, fmtSize } from '@/utils/format'
+import { fmtDateTime, fmtSize } from '@/utils/format'
 import {
-  dictLabel, TASK_STATUS, EXEC_STATUS, SEVERITY, FINDING_STATUS,
-  SCENARIO_TYPE, CONSENT_STATUS, EVENT_TYPE, DETECTION_TYPE,
-  COMPONENT_KIND, SENSITIVITY, HIT_STATUS, ANALYSIS_COVERAGE,
+  dictLabel, TASK_STATUS, EXEC_STATUS, SCENARIO_TYPE, CONSENT_STATUS,
+  DETECTION_TYPE, ANALYSIS_COVERAGE,
 } from '@/utils/dict'
 
 const route = useRoute()
@@ -386,10 +291,12 @@ const taskId = computed(() => Number(route.params.id))
 
 const loading = ref(true)
 const generating = ref(false)
-// 落地即看检测结果：默认停在「检测阶段」时，重构后的内容在第二个 tab 里，
-// 用户第一眼看到的还是旧页面（这正是「看不出变化」的成因）
+// 落地即看检测结果：合规画像才是这一页的主线
 const activeTab = ref('workspace')
-const metaOpen = ref<string[]>([])
+
+// 子组件把各自的条数抛上来，供 tab 徽标使用（避免在父组件重复请求同样的数据）
+const profileCount = ref(0)
+const riskCount = ref(0)
 
 const task = ref<any>({})
 const subTasks = computed<any[]>(() => task.value.sub_tasks || [])
@@ -412,100 +319,41 @@ async function handleEngineRetry(item: any) {
 const engineStatusLabel = (status: string) => ({ pending: '等待执行', running: '执行中', completed: '已完成', failed: '失败', canceled: '已取消' }[status] || status)
 const engineStatusType = (status: string) => ({ pending: 'info', running: 'primary', completed: 'success', failed: 'danger', canceled: 'warning' }[status] || 'info') as any
 
+/** 引擎队列里失败/超时的条数——比阶段数更值得在 tab 上提示 */
+const execFailed = computed(() =>
+  (engineQueue.value.items || []).filter((i: any) => ['failed', 'timed_out'].includes(i.status)).length)
+
 const scenarios = ref<any[]>([])
-const events = ref<any[]>([])
-const eventPage = ref(1)
-const workspaceFocus = ref<any>(null)
-const eventTotal = ref(0)
-const loadingEvents = ref(false)
-const eventTypeFilter = ref('')
-const eventDataTypeFilter = ref('')
-const eventSdkFilter = ref<number | ''>('')
-const matchedSdks = ref<any[]>([])
-const highlightValue = ref('')
-
-// ============ 事件流自定义列 ============
-const EVENT_COLUMN_DEFS = [
-  { key: 'time', label: '时间' },
-  { key: 'type', label: '类型' },
-  { key: 'consent', label: '同意状态' },
-  { key: 'dataType', label: '数据类型' },
-  { key: 'api', label: 'API / 路径' },
-  { key: 'caller', label: '调用方' },
-  { key: 'permission', label: '权限' },
-  { key: 'permissionCategory', label: '权限类别' },
-  { key: 'permissionCapability', label: '能力说明' },
-  { key: 'permissionRisk', label: '权限风险' },
-  { key: 'sdk', label: '关联SDK' },
-  { key: 'engine', label: '引擎' },
-  { key: 'engineVersion', label: '引擎版本' },
-  { key: 'traceId', label: 'Trace ID' },
-  { key: 'eventUid', label: '事件ID' },
-]
-const DEFAULT_EVENT_COLS = ['time', 'type', 'consent', 'dataType', 'api', 'caller', 'permission', 'permissionCategory', 'permissionCapability', 'permissionRisk', 'sdk', 'engine']
-const EVENT_COLS_STORAGE_KEY = 'task-detail-event-columns'
-
-function loadEventCols(): string[] {
-  try {
-    const raw = localStorage.getItem(EVENT_COLS_STORAGE_KEY)
-    const keys: unknown = raw ? JSON.parse(raw) : null
-    if (!Array.isArray(keys)) return [...DEFAULT_EVENT_COLS]
-    const validKeys = EVENT_COLUMN_DEFS.map(c => c.key)
-    const filtered = keys.filter((k): k is string => validKeys.includes(k))
-    return filtered.length ? filtered : [...DEFAULT_EVENT_COLS]
-  } catch {
-    return [...DEFAULT_EVENT_COLS]
-  }
-}
-
-const visibleEventCols = ref<string[]>(loadEventCols())
-
-watch(visibleEventCols, (v) => {
-  if (!v.length) { // 至少保留一列，避免空表格
-    visibleEventCols.value = ['time']
-    return
-  }
-  localStorage.setItem(EVENT_COLS_STORAGE_KEY, JSON.stringify(v))
-})
-
-function eventColVisible(key: string): boolean {
-  return visibleEventCols.value.includes(key)
-}
-
-function resetEventCols() {
-  visibleEventCols.value = [...DEFAULT_EVENT_COLS]
-}
-
-// ============ SDK识别 / 未识别包簇 ============
-const sdkHits = ref<any[]>([])
-const loadingSdkHits = ref(false)
-const clusters = ref<any[]>([])
-const loadingClusters = ref(false)
-const sdkDrawerVisible = ref(false)
-const sdkDetail = ref<any>(null)
-
-const REVIEW_STATUS: Record<string, { label: string; type: 'primary' | 'success' | 'warning' | 'danger' | 'info' }> = {
-  pending: { label: '待识别', type: 'warning' },
-  self_code: { label: '自研代码', type: 'info' },
-  linked: { label: '已关联', type: 'success' },
-  whitelisted: { label: '白名单', type: 'info' },
-  packer: { label: '加固组件', type: 'danger' },
-}
-const findings = ref<any[]>([])
 const evidenceList = ref<any[]>([])
 
 /** 运行中状态（触发轮询 / 允许取消） */
 const RUNNING_STATUSES = ['queued', 'running_static', 'running_dynamic', 'waiting_dynamic', 'analyzing']
 
-const headerSubtitle = computed(() => {
-  const app = task.value.app?.name
-  const version = task.value.version?.version_name
-  if (!app && !version) return undefined
-  return [app, version].filter(Boolean).join(' · ')
-})
-
 const canRetry = computed(() => ['failed', 'canceled'].includes(task.value.status))
 const canCancel = computed(() => RUNNING_STATUSES.includes(task.value.status))
+
+/** 进度条只在运行中或异常结束时才有信息量 */
+const showSteps = computed(() =>
+  RUNNING_STATUSES.includes(task.value.status) || ['failed', 'canceled'].includes(task.value.status))
+
+function onHeadCommand(cmd: string) {
+  if (cmd === 'report') router.push(`/tasks/${taskId.value}/report`)
+  else if (cmd === 'retry') handleRetry()
+  else if (cmd === 'cancel') handleCancel()
+  else if (cmd === 'back') router.push('/workspace')
+}
+
+async function copyTaskCode() {
+  const code = task.value.task_code
+  if (!code) return
+  try {
+    await navigator.clipboard.writeText(code)
+    ElMessage.success('任务号已复制')
+  } catch {
+    // 非安全上下文（http 访问）下 clipboard 可能不可用，退回到选中提示
+    ElMessage.info(code)
+  }
+}
 
 // ============ 进度步骤条 ============
 const DYNAMIC_TYPES = ['full', 'consent_pre', 'sdk_audit']
@@ -557,203 +405,6 @@ async function loadScenarios() {
   scenarios.value = res.data || []
 }
 
-async function loadEvents() {
-  loadingEvents.value = true
-  try {
-    const res: any = await taskApi.events(taskId.value, {
-      event_type: eventTypeFilter.value || undefined,
-      data_type: eventDataTypeFilter.value.trim() || undefined,
-      sdk_id: eventSdkFilter.value || undefined,
-      page: eventPage.value,
-      page_size: 50,
-    })
-    events.value = res.data?.items || []
-    eventTotal.value = res.data?.total || 0
-    matchedSdks.value = res.data?.matched_sdks || []
-  } finally {
-    loadingEvents.value = false
-  }
-}
-
-/** 得分进度条颜色 */
-function scoreColor(score: number): string {
-  if (score >= 70) return '#18A058'
-  if (score >= 40) return '#F0A020'
-  return '#8F959E'
-}
-
-// ============ SDK识别 ============
-async function loadSdkHits() {
-  loadingSdkHits.value = true
-  try {
-    const res: any = await api.get(`/tasks/${taskId.value}/sdk-hits`)
-    sdkHits.value = res.data || []
-  } finally {
-    loadingSdkHits.value = false
-  }
-}
-
-async function openSdkDetail(row: any) {
-  const res: any = await api.get(`/tasks/${taskId.value}/sdk-hits/${row.hit_id}`)
-  sdkDetail.value = res.data
-  sdkDrawerVisible.value = true
-}
-
-/** 事件流"已关联"图标 → 跳到SDK识别并打开详情 */
-async function openSdkByComponent(componentId: number) {
-  if (!sdkHits.value.length) await loadSdkHits()
-  const hit = sdkHits.value.find((h: any) => h.component_id === componentId)
-  activeTab.value = 'sdks'
-  if (hit) openSdkDetail(hit)
-}
-
-async function reviewHit(row: any, action: string) {
-  if (action === 'reject') {
-    try {
-      await ElMessageBox.confirm(
-        `确认将「${row.sdk_name}」标记为误报？标记后不再计入识别结果（可恢复）。`,
-        '标记误报', { type: 'warning', confirmButtonText: '确认标记', cancelButtonText: '取消' }
-      )
-    } catch { return }
-  }
-  await api.post(`/tasks/${taskId.value}/sdk-hits/${row.hit_id}/review`, { action })
-  ElMessage.success(action === 'reject' ? '已标记为误报' : '已恢复')
-  loadSdkHits()
-}
-
-// ============ 未识别包簇 ============
-const clusterDrawerVisible = ref(false)
-const currentCluster = ref<any>(null)
-const clusterClasses = ref<any[]>([])
-const loadingClusterClasses = ref(false)
-
-async function loadClusters() {
-  loadingClusters.value = true
-  try {
-    const res: any = await api.get(`/tasks/${taskId.value}/package-clusters`)
-    clusters.value = res.data || []
-  } finally {
-    loadingClusters.value = false
-  }
-}
-
-async function openClusterClasses(row: any) {
-  currentCluster.value = row
-  clusterDrawerVisible.value = true
-  loadingClusterClasses.value = true
-  try {
-    const res: any = await api.get(`/tasks/${taskId.value}/package-clusters/${row.id}/classes`)
-    clusterClasses.value = res.data?.classes || []
-  } finally {
-    loadingClusterClasses.value = false
-  }
-}
-
-const linkDialogVisible = ref(false)
-const linkComponentId = ref<number | null>(null)
-const componentOptions = ref<any[]>([])
-const searchingComponents = ref(false)
-
-async function searchComponents(keyword: string) {
-  searchingComponents.value = true
-  try {
-    const res: any = await sdkApi.list({ keyword: keyword || undefined, page: 1, page_size: 20 })
-    componentOptions.value = res.data?.items || []
-  } finally {
-    searchingComponents.value = false
-  }
-}
-
-const createSdkDialogVisible = ref(false)
-const createSdkName = ref('')
-const createSdkKind = ref('SDK')
-
-function handleClusterAction(cmd: string, row: any) {
-  currentCluster.value = row
-  if (cmd === 'classes') {
-    openClusterClasses(row)
-  } else if (cmd === 'link') {
-    linkComponentId.value = null
-    componentOptions.value = []
-    searchComponents('')
-    linkDialogVisible.value = true
-  } else if (cmd === 'create') {
-    createSdkName.value = ''
-    createSdkKind.value = 'SDK'
-    createSdkDialogVisible.value = true
-  } else {
-    const labels: Record<string, string> = {
-      self_code: '标记为自研代码', whitelist: '加入白名单', packer: '标记为加固组件',
-    }
-    ElMessageBox.confirm(`确认将包簇「${row.package_prefix}」${labels[cmd]}？`, '包簇处理',
-      { type: 'warning', confirmButtonText: '确认', cancelButtonText: '取消' })
-      .then(async () => {
-        await api.post(`/tasks/${taskId.value}/package-clusters/${row.id}/review`, { action: cmd })
-        ElMessage.success('处理完成')
-        loadClusters()
-      })
-      .catch(() => {})
-  }
-}
-
-async function confirmLink() {
-  await api.post(`/tasks/${taskId.value}/package-clusters/${currentCluster.value.id}/review`,
-    { action: 'link', component_id: linkComponentId.value })
-  ElMessage.success('已关联')
-  linkDialogVisible.value = false
-  loadClusters()
-}
-
-async function confirmCreateSdk() {
-  await api.post(`/tasks/${taskId.value}/package-clusters/${currentCluster.value.id}/review`,
-    { action: 'create', name: createSdkName.value.trim(), kind: createSdkKind.value })
-  ElMessage.success('已创建SDK知识并关联')
-  createSdkDialogVisible.value = false
-  loadClusters()
-  loadSdkHits()
-}
-
-// ============ 证据 → 事件流 跳转定位 ============
-function jumpToEvent(componentId: number | null, value: string) {
-  sdkDrawerVisible.value = false
-  clusterDrawerVisible.value = false
-  // 原始事件流由工作台承载（已不再是独立 tab），定位条件传给它
-  activeTab.value = 'workspace'
-  workspaceFocus.value = { sdkId: componentId, keyword: value, at: Date.now() }
-}
-
-function eventRowClass({ row }: { row: any }): string {
-  return highlightValue.value && row.api === highlightValue.value ? 'evidence-highlight' : ''
-}
-
-// ============ 展示辅助 ============
-function evidenceKindLabel(t: string): string {
-  const m: Record<string, string> = {
-    ACTIVITY: 'Activity', SERVICE: 'Service', RECEIVER: 'Receiver',
-    PROVIDER: 'Provider', PACKAGE_PREFIX: '包名前缀', CLASS: '类名',
-    RESOURCE: '资源文件', PERMISSION: '权限',
-  }
-  return m[t] || t || '-'
-}
-
-function typeStatText(stat: any): string {
-  if (!stat || typeof stat !== 'object') return '-'
-  const parts = Object.entries(stat)
-    .map(([k, v]) => `${evidenceKindLabel(k)} ${v}`)
-  return parts.length ? parts.join(' · ') : '-'
-}
-
-function handleEventFilterChange() {
-  eventPage.value = 1
-  highlightValue.value = ''
-  loadEvents()
-}
-
-async function loadFindings() {
-  const res: any = await taskApi.findings(taskId.value)
-  findings.value = res.data || []
-}
-
 async function loadEvidence() {
   const res: any = await taskApi.evidence(taskId.value)
   evidenceList.value = res.data || []
@@ -763,15 +414,15 @@ async function loadAll() {
   loading.value = true
   try {
     await loadTask()
-    await Promise.all([loadScenarios(), loadEvents(), loadFindings(), loadEvidence(),
-                       loadSdkHits(), loadClusters()])
+    // 合规画像/风险结论由各自组件取数（它们才是数据的消费方），这里不重复请求
+    await Promise.all([loadScenarios(), loadEvidence()])
   } finally {
     loading.value = false
   }
   syncPolling()
 }
 
-// ============ 运行中 5s 轮询（任务详情 + 子任务/场景） ============
+// ============ 运行中 5s 轮询（任务详情 + 场景） ============
 let pollTimer: ReturnType<typeof setInterval> | undefined
 
 function syncPolling() {
@@ -829,29 +480,6 @@ async function handleGenerateReport() {
   }
 }
 
-// ============ 事件详情抽屉 ============
-const eventDrawerVisible = ref(false)
-const currentEvent = ref<any>(null)
-
-const eventTypeOptions = Object.entries(EVENT_TYPE).map(([value, item]) => ({
-  value,
-  label: item.label,
-}))
-
-const eventDataJson = computed(() => {
-  if (!currentEvent.value?.event_data) return ''
-  try {
-    return JSON.stringify(currentEvent.value.event_data, null, 2)
-  } catch {
-    return String(currentEvent.value.event_data)
-  }
-})
-
-function openEventDrawer(row: any) {
-  currentEvent.value = row
-  eventDrawerVisible.value = true
-}
-
 // ============ 证据下载 ============
 function evidenceTypeLabel(t: string): string {
   const m: Record<string, string> = {
@@ -868,8 +496,7 @@ async function downloadEvidence(row: any) {
     const url = window.URL.createObjectURL(new Blob([blob]))
     const link = document.createElement('a')
     link.href = url
-    link.download =
-      row.metadata_json?.filename || row.evidence_uid || `evidence-${row.id}`
+    link.download = row.metadata_json?.filename || row.evidence_uid || `evidence-${row.id}`
     link.click()
     window.URL.revokeObjectURL(url)
     ElMessage.success('下载成功')
@@ -977,127 +604,101 @@ function engineNames(subTask: any): string {
 
 // 同组件内切换任务 id 时重新加载
 watch(taskId, (id, old) => {
-  if (id && id !== old) loadAll()
+  if (id && id !== old) {
+    profileCount.value = 0
+    riskCount.value = 0
+    loadAll()
+  }
 })
 
 onMounted(loadAll)
 </script>
 
 <style scoped>
-.mb16 { margin-bottom: 16px; }
-.meta-collapse { margin-bottom: 12px; }
-.meta-collapse :deep(.el-collapse-item__header) { gap: 10px; height: 42px; border-bottom: none; }
-.meta-collapse :deep(.el-collapse-item__wrap) { border-bottom: none; background: transparent; }
-.meta-title { font-weight: 600; font-size: 14px; }
-.meta-summary { color: #6B7A99; font-size: 12px; }
-.card-title { font-size: 14px; font-weight: 600; color: var(--el-text-color-primary); }
-.info-card { height: 100%; }
-.mono { font-family: monospace; font-size: 12px; }
-.break-all { word-break: break-all; }
+.task-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.task-head-main { min-width: 0; }
+.task-title-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+/* 版本做成一枚蓝调胶囊：比灰字更容易被扫到，也给标题行一点视觉重量 */
+.task-version {
+  font-size: var(--text-label);
+  font-weight: 600;
+  color: var(--brand-700);
+  background: var(--brand-50);
+  border: 1px solid var(--brand-100);
+  border-radius: 999px;
+  padding: 2px 10px;
+  line-height: 18px;
+}
+.task-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  font-size: var(--text-label);
+  color: var(--ink-3);
+  flex-wrap: wrap;
+}
+.sep { color: var(--ink-4); }
+.task-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: var(--text-label);
+  color: var(--ink-3);
+  cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  transition: color 0.15s;
+}
+.task-code:hover { color: var(--el-color-primary); }
+.task-head-actions { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
+
+.steps-card { margin-bottom: var(--space-4); }
+
+/* tab 徽标：让「哪个 tab 有东西」不用点开就知道 */
+.tab-label { display: inline-flex; align-items: center; gap: 6px; }
+.tab-badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--brand-50);
+  color: var(--brand-700);
+  border: 1px solid var(--brand-100);
+  font-size: var(--text-micro);
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+.tab-badge.is-danger {
+  background: #FEF2F2;
+  color: #DC2626;
+  border-color: #FECACA;
+}
+
+.mb12 { margin-bottom: var(--space-3); }
+.mb16 { margin-bottom: var(--space-4); }
+.mt20 { margin-top: var(--space-5); }
 .error-text { color: var(--el-color-danger); }
 .failed-reason {
-  margin-top: 8px;
-  padding: 8px 12px;
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   background: #FEF0F0;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--text-body);
   color: var(--el-color-danger);
 }
 .failed-label { font-weight: 600; }
-.clickable-table :deep(.el-table__row) { cursor: pointer; }
-/* 事件流 SDK 关联 */
-.sdk-option-count { float: right; font-size: 12px; color: var(--el-text-color-secondary); }
-.sdk-summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  flex-wrap: wrap;
-}
-.sdk-summary-tag { cursor: pointer; }
-.sdk-summary-tag:hover { opacity: 0.8; }
-.sdk-summary-more { font-size: 12px; }
-.sdk-link-tag { cursor: pointer; max-width: 100%; }
-.sdk-link-tag:hover { opacity: 0.8; }
-.no-sdk { color: var(--el-text-color-placeholder); }
-.perm-sub { font-size: 12px; color: var(--el-text-color-secondary); }
-/* 事件流列设置 */
-.col-setting-btn { margin-left: auto; }
-.col-setting-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 4px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-.col-setting :deep(.el-checkbox-group) { display: flex; flex-direction: column; }
-.col-setting :deep(.el-checkbox) { height: 28px; }
-/* 事件高亮（证据跳转定位） */
-:deep(.el-table .evidence-highlight td) {
-  background: #FFF7E6 !important;
-}
-/* SDK识别 */
-.score-cell { display: flex; align-items: center; gap: 8px; }
-.score-cell .el-progress { flex: 1; }
-.score-num { font-weight: 600; font-variant-numeric: tabular-nums; }
-.cluster-tip { margin-bottom: 12px; }
-.linked-name { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 2px; }
-/* SDK详情证据汇总卡片 */
-.ev-stat-cards {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.ev-stat-card {
-  min-width: 90px;
-  padding: 10px 16px;
-  background: #F7F8FA;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  text-align: center;
-}
-.ev-stat-num {
-  font-size: 20px;
-  font-weight: 600;
-  color: #2B5AED;
-  font-variant-numeric: tabular-nums;
-}
-.ev-stat-type { margin-top: 2px; font-size: 12px; color: var(--el-text-color-secondary); }
-.ev-jump-tip { margin-top: 8px; font-size: 12px; color: var(--el-text-color-secondary); }
-/* 抽屉 SDK 卡片 */
-.sdk-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
-  background: #FAFBFC;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.sdk-card:hover { border-color: #2B5AED; background: #F5F8FF; }
-.sdk-card-main { flex: 1; min-width: 0; }
-.sdk-card-name {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.sdk-card-vendor {
-  display: block;
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.sdk-card-tags { display: flex; gap: 6px; flex-shrink: 0; }
-.sdk-card-arrow { color: var(--el-text-color-placeholder); }
+/* 表格密度/表头/悬停由全局 .data-table 提供 */
+
 /* 证据预览 */
 .preview-body { position: relative; min-height: 200px; }
 .preview-image {
@@ -1108,16 +709,12 @@ onMounted(loadAll)
   border-radius: 6px;
   object-fit: contain;
 }
-.preview-body .preview-text {
-  height: 100%;
-  max-height: none;
-  box-sizing: border-box;
-}
+.preview-body .preview-text { height: 100%; max-height: none; box-sizing: border-box; }
 .preview-truncated {
   position: absolute;
   bottom: 8px;
   left: 12px;
-  font-size: 12px;
+  font-size: var(--text-label);
   color: var(--el-color-warning);
   background: #FFFBEB;
   padding: 2px 8px;
@@ -1133,22 +730,16 @@ onMounted(loadAll)
   align-items: center;
   justify-content: center;
   cursor: nwse-resize;
-  color: var(--el-text-color-placeholder);
+  color: var(--ink-4);
   border-radius: 4px;
 }
 .resize-grip:hover { color: #2B5AED; background: #EEF3FE; }
-.json-title {
-  margin: 16px 0 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
 .json-pre {
-  background: #F7F8FA;
+  background: var(--surface-subtle);
   border: 1px solid var(--el-border-color-light);
   border-radius: 6px;
-  padding: 12px;
-  font-size: 12px;
+  padding: var(--space-3);
+  font-size: var(--text-label);
   line-height: 1.6;
   max-height: 360px;
   overflow: auto;

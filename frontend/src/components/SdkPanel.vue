@@ -10,7 +10,7 @@
         </div>
       </template>
 
-      <el-table :data="hits" size="small" row-key="hit_id">
+      <el-table :data="hits" size="small" row-key="hit_id" class="data-table">
         <el-table-column label="组件名称" min-width="230">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">{{ row.sdk_name }}</el-button>
@@ -61,46 +61,55 @@
         </div>
       </template>
 
-      <div class="group-head">
-        <span class="group-name">采集调用点里认不出归属的包</span>
-        <span class="group-count">{{ unattributedSum }} 处 · {{ unattributed.length }} 个包</span>
-        <span class="group-hint">按调用点的包前缀聚合</span>
+      <!-- 0 值折叠成一行：此前一个 0 要占「标题行 + 无数据行」两行 -->
+      <div v-if="!unattributed.length" class="zero-line">
+        采集调用点里认不出归属的包：0 处
       </div>
-      <el-table v-if="unattributed.length" :data="unattributed" size="small" max-height="320">
-        <el-table-column label="包前缀" min-width="280">
-          <template #default="{ row }"><span class="mono">{{ row.package_prefix }}</span></template>
-        </el-table-column>
-        <el-table-column label="采集点" width="90" align="center">
-          <template #default="{ row }"><b>{{ row.call_site_count }}</b></template>
-        </el-table-column>
-        <el-table-column label="涉及个人信息" min-width="240">
-          <template #default="{ row }">
-            <span class="dim">{{ row.categories.map(cn).join('、') }}</span>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div v-else class="dim">无</div>
+      <template v-else>
+        <div class="group-head">
+          <span class="group-name">采集调用点里认不出归属的包</span>
+          <span class="group-count">{{ unattributedSum }} 处 · {{ unattributed.length }} 个包</span>
+          <span class="group-hint">按调用点的包前缀聚合</span>
+        </div>
+        <el-table :data="unattributed" size="small" max-height="320" class="data-table">
+          <el-table-column label="包前缀" min-width="280">
+            <template #default="{ row }"><span class="mono">{{ row.package_prefix }}</span></template>
+          </el-table-column>
+          <el-table-column label="采集点" width="90" align="center">
+            <template #default="{ row }"><b class="t-num">{{ row.call_site_count }}</b></template>
+          </el-table-column>
+          <el-table-column label="涉及个人信息" min-width="240">
+            <template #default="{ row }">
+              <span class="dim">{{ row.categories.map(cn).join('、') }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </template>
 
-      <div class="group-head">
-        <span class="group-name">清单里没匹配上知识库的三方包</span>
-        <span class="group-count">{{ clusters.length }} 个</span>
-        <span class="group-hint">来自 manifest 组件匹配</span>
+      <div v-if="!clusters.length" class="zero-line">
+        清单里没匹配上知识库的三方包：0 个 —— 本次的调用点都已归属到具体组件
       </div>
-      <el-table v-if="clusters.length" :data="clusters" size="small" max-height="320">
-        <el-table-column label="包名前缀" min-width="260">
-          <template #default="{ row }"><span class="mono">{{ row.package_prefix }}</span></template>
-        </el-table-column>
-        <el-table-column prop="class_count" label="类数量" width="90" align="center" />
-        <el-table-column label="组件分布" min-width="200">
-          <template #default="{ row }">
-            <span class="dim">{{ typeStatText(row.component_type_stat) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="推测属性" width="140">
-          <template #default="{ row }">{{ row.identified_name || '待分析' }}</template>
-        </el-table-column>
-      </el-table>
-      <div v-else class="dim">无（本次清单中的三方包都匹配上了知识库）</div>
+      <template v-else>
+        <div class="group-head">
+          <span class="group-name">识别不出归属的包</span>
+          <span class="group-count">{{ clusters.length }} 个</span>
+          <span class="group-hint">来自调用点与清单里的类名，按包前缀聚类</span>
+        </div>
+        <el-table :data="clusters" size="small" max-height="320" class="data-table">
+          <el-table-column label="包名前缀" min-width="260">
+            <template #default="{ row }"><span class="mono">{{ row.package_prefix }}</span></template>
+          </el-table-column>
+          <el-table-column prop="class_count" label="类数量" width="90" align="center" />
+          <el-table-column label="组件分布" min-width="200">
+            <template #default="{ row }">
+              <span class="dim">{{ typeStatText(row.component_type_stat) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="推测属性" width="140">
+            <template #default="{ row }">{{ row.identified_name || '待分析' }}</template>
+          </el-table-column>
+        </el-table>
+      </template>
     </el-card>
 
     <el-drawer v-model="detailVisible" :title="detail?.sdk_name || '组件详情'" size="720px">
@@ -150,14 +159,18 @@ const unattributedSum = computed(() =>
 
 const cn = (key: string) => DATA_CATEGORY_CN[key] || key
 
+/** 阈值与后端 _confidence() 一致：>=70 CONFIRMED、>=40 PROBABLE、其余 CANDIDATE。
+ *  此前前端是 80/50，会出现进度条显示「高」而状态标签显示「大概率」的自相矛盾。
+ *  配色也一并纠正：匹配度高是**确定**，不是危险，此前用红色（danger）读起来像报警，
+ *  8 个组件全红等于没有红色。 */
 function scoreColor(score: number) {
-  if (score >= 80) return '#F56C6C'
-  if (score >= 50) return '#E6A23C'
-  return '#909399'
+  if (score >= 70) return '#18A058'
+  if (score >= 40) return '#F0A020'
+  return '#B4BDCC'
 }
 
 const STATUS_CN: Record<string, [string, string]> = {
-  CONFIRMED: ['已确认', 'danger'],
+  CONFIRMED: ['已确认', 'success'],
   PROBABLE: ['大概率', 'warning'],
   CANDIDATE: ['候选', 'info'],
   REJECTED: ['已驳回', 'info'],
@@ -200,24 +213,31 @@ watch(() => props.taskId, load)
 </script>
 
 <style scoped>
-.sdk-panel { font-size: 13px; }
-.block { margin-bottom: 14px; }
-.head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.title { font-size: 15px; font-weight: 600; }
+.sdk-panel { font-size: var(--text-body); }
+.block { margin-bottom: var(--space-4); }
+.head { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; }
+.title { font-size: var(--text-section); font-weight: 600; }
 .count {
   display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 10px;
-  background: #EEF1F6; color: #2B5AED; font-size: 12px; text-align: center; font-weight: 600;
+  background: var(--surface-line-soft); color: var(--el-color-primary);
+  font-size: var(--text-label); text-align: center; font-weight: 600;
 }
-.sub { color: #6B7A99; font-size: 12px; }
-.group-head { display: flex; align-items: baseline; gap: 10px; margin: 14px 0 6px; flex-wrap: wrap; }
+.sub { color: var(--ink-3); font-size: var(--text-label); }
+.group-head {
+  display: flex; align-items: baseline; gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-1); flex-wrap: wrap;
+}
 .group-head:first-child { margin-top: 0; }
 .group-name { font-weight: 600; }
-.group-count { color: #6B7A99; font-size: 12px; }
-.group-hint { color: #2B5AED; font-size: 12px; }
-.sub-line { color: #6B7A99; font-size: 11px; }
-.note { margin-top: 12px; }
-.note-title { color: #6B7A99; font-size: 12px; margin-bottom: 4px; }
-.ev-row { padding: 2px 0; border-bottom: 1px dashed #EEF1F6; word-break: break-all; }
-.dim { color: #6B7A99; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.group-count { color: var(--ink-3); font-size: var(--text-label); }
+.group-hint { color: var(--el-color-primary); font-size: var(--text-label); }
+.sub-line { color: var(--ink-3); font-size: var(--text-micro); }
+.note { margin-top: var(--space-3); }
+.note-title { color: var(--ink-3); font-size: var(--text-label); margin-bottom: var(--space-1); }
+.ev-row { padding: 2px 0; border-bottom: 1px dashed var(--surface-line-soft); word-break: break-all; }
+.dim { color: var(--ink-3); }
+.mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono",
+    Menlo, Consolas, "Liberation Mono", monospace;
+}
 </style>
