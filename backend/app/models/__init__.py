@@ -615,6 +615,39 @@ class FindingObservation(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 
+class EngineRawSection(Base):
+    """引擎原始结果的**逐段存档**，原样保留，不裁剪。
+
+    动机：原始产物本来就落盘归档了（`EngineArtifact`），但提取是**一次性**的——
+    适配器取完事件就把 raw dict 丢掉，于是没被提取的段落等于不存在。
+    实测 task 2216：Androguard 的 `endpoints`（含**隐私政策 URL**）、MobSF 的
+    `appsec` / `secrets` / `sbom` / `manifest_findings` 全都没进库。
+
+    本表不参与任何业务判定，只负责「以后才想到要问的问题也能查」。
+    拆分规则见 `app/services/raw_section_service.py`。
+    """
+    __tablename__ = "engine_raw_sections"
+    id = Column(BigInteger, primary_key=True)
+    task_id = Column(BigInteger, ForeignKey("detection_tasks.id", ondelete="CASCADE"), nullable=False)
+    execution_id = Column(BigInteger, ForeignKey("engine_executions.id", ondelete="CASCADE"), nullable=False)
+    engine_type = Column(String(50), nullable=False)
+    # 如 ComplianceInfo.PersonalDeviceInformation_APICall.DeviceId_APICall.vulners
+    # 注意：引擎的键本身可能含点号（MobSF 的 android.permission.XXX），
+    # 所以路径只供人读与 like 匹配，不做反解析。
+    section_path = Column(String(500), nullable=False)
+    section_kind = Column(String(20), nullable=False)   # object / array / scalar
+    item_count = Column(Integer)                         # 数组元素数；非数组为 NULL
+    payload = Column(JSONB, nullable=False)
+    payload_hash = Column(String(64), nullable=False)    # 键序不敏感，供跨次扫描比对
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    __table_args__ = (
+        UniqueConstraint("execution_id", "section_path", name="uq_raw_section_execution_path"),
+        Index("idx_raw_section_task", "task_id"),
+        Index("idx_raw_section_execution", "execution_id"),
+        Index("idx_raw_section_path", "section_path"),
+    )
+
+
 class EngineConfig(Base):
     """全局检测引擎配置，敏感字段独立加密保存。"""
     __tablename__ = "engine_configs"

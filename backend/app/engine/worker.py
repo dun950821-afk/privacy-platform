@@ -23,7 +23,8 @@ from app.core.storage import storage
 from app.core.security import generate_uid
 from app.models import (
     DetectionTask, SubTask, DetectionEvent, Evidence,
-    AgentNode, EngineExecution, AppVersion, DetectionScenario
+    AgentNode, EngineExecution, AppVersion, DetectionScenario,
+    EngineRawSection,
 )
 from app.engine.adapters import AndroguardAdapter, AppSharkAdapter, MobSFAdapter
 from app.engine.errors import AdapterError
@@ -355,6 +356,21 @@ class EngineWorker:
                         db.add(observation_row(observation_data))
                         all_events.append(evt_data)
 
+                    # 原始结果逐段存档。不参与任何业务判定，只为「以后才想到要问的问题」留数据：
+                    # 提取是一次性的，没被提取的段落原本等于不存在（实测 Androguard 的 endpoints
+                    # 里有隐私政策 URL，整段丢弃）。与上面的 events 同一个事务提交。
+                    for sec in result.raw_sections:
+                        db.add(EngineRawSection(
+                            task_id=task_id,
+                            execution_id=execution.id,
+                            engine_type=engine_type,
+                            section_path=sec["path"],
+                            section_kind=sec["kind"],
+                            item_count=sec["item_count"],
+                            payload=sec["payload"],
+                            payload_hash=sec["payload_hash"],
+                        ))
+
                     # 保存产出物为证据
                     for artifact in result.artifacts:
                         if artifact.get("path") and os.path.exists(artifact["path"]):
@@ -363,17 +379,29 @@ class EngineWorker:
                             artifact_ref = ARTIFACT_STORE.put(artifact["path"], task_id=task_id, execution_id=execution.id, artifact_type=artifact.get("type", "engine_output"), content_type="application/json")
                             from app.models import EngineArtifact
                             db.add(EngineArtifact(execution_id=execution.id, artifact_type=artifact.get("type", "engine_output"), artifact_uri=artifact_ref.uri, sha256=artifact_ref.sha256, size=artifact_ref.size, content_type=artifact_ref.content_type, storage_backend=artifact_ref.storage_backend, metadata_json=artifact_ref.metadata))
+                            # 证据路径用**归档后**的位置。引擎把产物写在 /tmp（Androguard / MobSF），
+                            # 重启或 tmp 清理后就没了；而 app/api/v1/evidence.py 是按 artifact_path
+                            # 判存在并读文件的——指针一失效，下载与预览直接 404。
+                            #
+                            # 例外是 AppShark：它的证据目录里有 vulnerability/*.html，
+                            # app/services/appshark_report.py 的 candidate_paths() 是**相对
+                            # artifact_path 所在目录**去找这些 HTML 的。改成归档目录会让
+                            # 「查看代码」断掉，所以它保持原路径（本来就落在持久目录里）。
+                            evidence_path = (artifact["path"] if engine_type == "appshark"
+                                             else str(Path(artifact_ref.uri.removeprefix("file://"))))
                             evidence = Evidence(
                                 evidence_uid=generate_uid("evi"),
                                 task_id=task_id,
                                 evidence_type="engine_output",
-                                artifact_path=artifact["path"],
+                                artifact_path=evidence_path,
                                 artifact_hash=file_hash,
                                 artifact_size=file_size,
                                 metadata_json={
                                     "engine": display_name(db, engine_type),
                                     "engine_type": engine_type,
                                     "type": artifact.get("type", "engine_output"),
+                                    # 原始产出位置也留一份，便于回溯引擎当时写到哪
+                                    "source_path": artifact["path"],
                                 }
                             )
                             db.add(evidence)

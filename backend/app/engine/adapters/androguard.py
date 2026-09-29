@@ -6,6 +6,7 @@ import logging
 from typing import Any
 from app.engine.base import EngineAdapter, TaskContext, AdapterResult
 from app.engine.runners.androguard_runner import run_in_process
+from app.services.raw_section_service import split_sections
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ class AndroguardAdapter(EngineAdapter):
             raw_path = f"/tmp/androguard_result_{ctx.task_id}.json"
             facts = run_in_process(ctx.apk_path, raw_path, timeout=self.parse_timeout, config=self.config)
             events = self.normalize_events(facts)
-            return AdapterResult(success=True, events=events, artifacts=[{"path": raw_path, "type": "engine_output"}], raw_output_path=raw_path, summary=facts.get("stats", {}), normalized_event_count=len(events))
+            return AdapterResult(success=True, events=events, artifacts=[{"path": raw_path, "type": "engine_output"}], raw_output_path=raw_path, summary=facts.get("stats", {}), normalized_event_count=len(events), raw_sections=split_sections(facts))
         except TimeoutError as exc:
             return AdapterResult(success=False, error=str(exc))
         except Exception as exc:
@@ -58,7 +59,13 @@ class AndroguardAdapter(EngineAdapter):
         })
 
         # 权限事件
-        for perm in raw_result.get("permissions", {}).get("dangerous", []):
+        #
+        # 键名曾长期写作 "dangerous"，而 runner 写的是 "declared"
+        # （见 runners/androguard_runner.py 的 `"permissions": {"declared": …}`）——
+        # 这个键**从来不存在**，于是声明权限被静默丢弃，不报错也不记日志。
+        # 消费侧 compliance_profile._permission_rows 按权限名聚合并累计来源引擎，
+        # 所以修好之后不会产生重复行，只是 declared_by 多出 androguard，归因更准确。
+        for perm in raw_result.get("permissions", {}).get("declared", []):
             events.append({
                 "event_type": "static_permission",
                 "timestamp": ts,

@@ -64,6 +64,10 @@ class AdapterResult:
     stage_events: list[str] = field(default_factory=list)
     normalized_event_count: int = 0
     raw_result_hash: str | None = None
+    # 原始结果的逐段存档（见 app/services/raw_section_service.py）。
+    # 适配器自己填：它才拿得到 raw dict——提取完事件后那份原始数据本来就被丢掉了，
+    # 于是没提取的段落等于不存在（实测 Androguard 的 endpoints 含隐私政策 URL，整段丢）。
+    raw_sections: list[dict] = field(default_factory=list)
 
 
 class EngineAdapter:

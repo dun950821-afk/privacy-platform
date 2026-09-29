@@ -22,6 +22,7 @@ from app.core.config import settings
 from app.engine.base import EngineAdapter, TaskContext, AdapterResult
 from app.engine.runners.appshark_executor import AppSharkExecutor
 from app.engine.runners.appshark_rules import resolve_rule_groups
+from app.services.raw_section_service import split_sections
 
 logger = logging.getLogger(__name__)
 
@@ -225,6 +226,7 @@ class AppSharkAdapter(EngineAdapter):
                 },
                 stage_events=stages,
                 normalized_event_count=len(events),
+                raw_sections=split_sections(raw_result),
             )
 
         except TimeoutError:

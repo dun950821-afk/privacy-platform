@@ -8,6 +8,7 @@ import hashlib
 import time
 from app.engine.errors import AdapterError
 from app.engine.base import EngineAdapter, TaskContext, AdapterResult
+from app.services.raw_section_service import split_sections
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -130,7 +131,7 @@ class MobSFAdapter(EngineAdapter):
             raw_hash = hashlib.sha256(open(raw_path, "rb").read()).hexdigest()
             stages.append("mobsf_normalizing")
             events = self.normalize_events(raw_result)
-            return AdapterResult(success=True, events=events, artifacts=[{"path": raw_path, "type": "engine_output"}], raw_output_path=raw_path, summary={"tracker_count": len(raw_result.get("trackers", {}).get("trackers", []))}, provider_scan_hash=scan_hash, stage_events=stages, normalized_event_count=len(events), raw_result_hash=raw_hash)
+            return AdapterResult(success=True, events=events, artifacts=[{"path": raw_path, "type": "engine_output"}], raw_output_path=raw_path, summary={"tracker_count": len(raw_result.get("trackers", {}).get("trackers", []))}, provider_scan_hash=scan_hash, stage_events=stages, normalized_event_count=len(events), raw_result_hash=raw_hash, raw_sections=split_sections(raw_result))
         except AdapterError as exc:
             logger.warning("MobSF execution failed: %s", exc.error_code)
             return AdapterResult(success=False, error=exc, stage_events=stages)
