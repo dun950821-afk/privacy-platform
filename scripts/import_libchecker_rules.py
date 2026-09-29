@@ -24,8 +24,26 @@ LibChecker 靠 `type` 区分规则对象（v5 契约文档）：
     3 receiver         137  → MANIFEST_RECEIVER
     4 provider         167  → MANIFEST_PROVIDER
     5 DEX               82  → PACKAGE_PREFIX
-    9 intent action     99  ← 我们也没有对应类型 → 本期不收
-    6 未知              14  ← 类型未在契约文档中列明，保守起见不收
+    9 intent action     99  ← **不缺类型（INTENT_ACTION 在约束词表里就有），缺候选来源** → 不收
+    6 未知              14  ← 与 type 9 同类（也是 action 串，另 1 条是包名）→ 同 type 9
+
+## intent action 为什么不收（2026-09-29 实测，改正了原先的理由）
+
+原先这里写的是「我们也没有对应类型」——**不准确**。实测后理由换了方向，而且要
+与 PERMISSION 的教训分清楚：
+
+它们**并不通用**（与权限相反）。绝大多数是带厂商命名空间的专有串
+（`cn.jpush.android.intent.REGISTER`、`com.huawei.android.push.intent.RECEIVE`），
+一旦能匹配是很强的证据。
+
+但它们**一条也匹配不上**：99 条里只有 1 条能命中真实事件，而那条本身是类名、
+已由小米推送的 MANIFEST_ACTIVITY/EXACT 覆盖。根因是管线**没有 intent action
+这个候选来源**——`detection_events` 的 caller/api/event_data 里 action 串为 0 条，
+`privacy_scan.manifest_component` 也没有 intent-filter 字段。
+
+所以要用起来，先得做生产者侧（解析 AndroidManifest 的
+`<intent-filter><action android:name>`）。在那之前导入只会得到死数据，还会诱使人
+为了「让它生效」去放宽 `MATCHABLE_TYPES`。详见 `docs/libchecker-import-eval.md` §3.1。
 
 ## regex 只收「可证明等价」的
 

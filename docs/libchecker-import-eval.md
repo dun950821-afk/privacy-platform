@@ -68,11 +68,46 @@ LibChecker 靠 `type` 区分规则对象（v5 契约文档）：
 | 3 receiver | 137 | `MANIFEST_RECEIVER` |
 | 4 provider | 167 | `MANIFEST_PROVIDER` |
 | 5 DEX | 82 | `PACKAGE_PREFIX`（存的是包名，语义为前缀） |
-| 9 intent action | 99 | 无对应类型 → 本期不收 |
-| 6 未知 | 14 | 契约文档未列明 → 保守不收 |
+| 9 intent action | 99 | `INTENT_ACTION`——**类型在约束词表里本来就有；缺的不是类型，是候选来源**（见 §3.1）|
+| 6 未知 | 14 | 2026-09-29 查明：与 type 9 **是同一类东西**，也是 action 串（`com.meizu.flyme.push.intent.MESSAGE`、`com.xiaomi.mipush.RECEIVE_MESSAGE`、`com.hihonor.push.action.MESSAGING_EVENT`…），另有 1 条是包名（`com.google.android.trichromelibrary` → Trichrome）→ 同 type 9 处理 |
 
 **native 占 1491/2832（53%）**，是我们没有的一整块：需要新增指纹类型 + 从 APK 的
 `lib/` 取候选来源，属于功能开发，单列一期。
+
+### 3.1 intent action（type 9 + 6，共 113 条）：**不导入，卡在生产者侧**
+
+原先写的理由是「无对应类型」——**不准确**，`INTENT_ACTION` 在
+`component_fingerprint` 的 `ck_fingerprint_type` 约束里本来就有。2026-09-29 实测后，
+理由换了方向，而且**与 PERMISSION 的教训不是一回事**：
+
+**它们并不通用。** 绝大多数是带厂商命名空间的专有串：
+`cn.jpush.android.intent.REGISTER`、`com.huawei.android.push.intent.RECEIVE`、
+`androidx.profileinstaller.action.INSTALL_PROFILE`——这类一旦能匹配，是很强的证据。
+
+**但它们一条也匹配不上。** 实测（27620 条事件 / 37 个任务）：
+
+    能 EXACT 命中的         : 1/99
+    能 PREFIX 命中的(净新增) : 0
+    完全匹配不上的           : 98
+
+唯一命中的那条 `com.xiaomi.mipush.sdk.NotificationClickedActivity` **本身是类名不是
+action**，且已由小米推送的 `MANIFEST_ACTIVITY/EXACT` 覆盖（命中 16 个任务靠的是类名
+匹配，与这条 action 无关）。
+
+根因在候选来源，三处都查过：
+
+    detection_events  caller/api 里 action 形态串   0 条
+    detection_events  event_data 内部               0 条
+    privacy_scan.manifest_component                 没有 intent-filter 字段
+                                                    （只有 component_type / class_name /
+                                                      exported / enabled / declared_permission）
+
+管线的候选串只有**类名 / 权限名 / URL / .so 文件名**四种，**没有 intent action**。
+
+**要用起来，先得做生产者侧**：解析 AndroidManifest 的
+`<intent-filter><action android:name>`，把它作为候选串发出来。在那之前导入这 113 条
+只会得到 113 行死数据，而且会诱使人为了「让它生效」去放宽 `MATCHABLE_TYPES`
+——那正是 §7 里明确没做的事。**这里卡的不是判断，是功能缺失。**
 
 ## 四、regex 只收可证明等价的，其余拒收
 
@@ -192,7 +227,8 @@ LibChecker 的 `OPPO Push(GeTui Proxy)` 描述的是「这个类干什么」（O
 ## 七、这次**没有**做的事
 
 - 没有导入 native（1491 条）、intent action（99 条）、未知 type6（14 条）——
-  前两者我们没有对应的指纹类型与候选来源
+  native 缺指纹类型与候选来源；intent action 与 type6 缺的是**候选来源**
+  （真实理由见 §3.1，原先写的「无对应类型」不准确，已改正）
 - 没有导入 `deferred_proxy` 那 6 条（理由见 §6.2，与已定口径冲突，留待重决）
 - 没有把 LibChecker 的能力类信息接进归属（它是描述性标签，同
   `docs/kb-dedup-report.md` §3 的 PERMISSION 教训）
