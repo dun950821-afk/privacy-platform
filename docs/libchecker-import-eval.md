@@ -1,4 +1,4 @@
-# LibChecker 规则导入评估（干跑，未写库）
+# LibChecker 规则导入评估与执行
 
 2026-09-29。工具：`scripts/import_libchecker_rules.py`（默认干跑）。
 来源：`LibChecker/LibChecker-Rules` 分支 `v4` 的编译产物 `cloud/rules/v4/rules.db`
@@ -124,7 +124,7 @@ LibChecker 把「经由个推接入的厂商推送」单列成一个身份。**�
 `BUNDLES` / `DEPENDS_ON` / `PART_OF` / `PUSH_CHANNEL`，**不需要改 schema**
 （该表此前 0 行，和 `data_finding` 一样是「有结构没用过」，但这次有明确用途了）。
 
-### 导入计划（干跑，仍未写库）
+### 干跑出的导入计划（执行结果见 §6.2）
 
 ```
 LibChecker 规则                      2832
@@ -189,10 +189,12 @@ LibChecker 的 `OPPO Push(GeTui Proxy)` 描述的是「这个类干什么」（O
 这条与先前拍板的口径冲突，**留待重新决定**，脚本里显式跳过并计数（`deferred_proxy`），
 不替人做这个决定。
 
-## 七、这次的导入**没有**做的事
+## 七、这次**没有**做的事
 
-- **没有写库**：`--apply` 目前直接报错退出，不是忘了实现，是刻意的
-- 没有把 LibChecker 的 PERMISSION/能力类信息接进归属（它没有这类规则，但这条原则
-  同样适用，见 `docs/kb-dedup-report.md` §3）
+- 没有导入 native（1491 条）、intent action（99 条）、未知 type6（14 条）——
+  前两者我们没有对应的指纹类型与候选来源
+- 没有导入 `deferred_proxy` 那 6 条（理由见 §6.2，与已定口径冲突，留待重决）
+- 没有把 LibChecker 的能力类信息接进归属（它是描述性标签，同
+  `docs/kb-dedup-report.md` §3 的 PERMISSION 教训）
 - 没有因为「导入方便」而放宽 `MATCHABLE_TYPES`
-- 没有导入 `deferred_proxy` 那 6 条（理由见 §6.2）
+- 没有为看成效而挑样本——现有样本只有 1 条正命中，就如实写 1 条
