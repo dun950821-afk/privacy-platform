@@ -1,0 +1,30 @@
+# 组件合并清单（人工资产，入仓即为准）：同一实体被建成两个条目的，合并掉。
+#
+# 怎么来的：先按指纹「覆盖判定」（B 的每条指纹能否被 A 命中）筛出 123 对，
+# 其中 118 对是**伞形覆盖模块**（Huawei HMS Core ⊇ HUAWEI Health Kit、
+# Google Play services ⊇ Google Analytics），**那些不合并**——设计上早定了
+# 「取更细的身份，用关系表达包含」。这里只留**名字即同一实体**的。
+#
+# 每对都验过「被弃方的指纹能否被保留方完全覆盖」：
+#   - 能完全覆盖的 → 直接停用，无需迁移
+#   - 有独有指纹的 → 脚本会把它们迁到保留方（这批正是靠这一步才没有丢覆盖面）
+#
+# 动作只做三件且都可逆：迁指纹、停用（不删行）、记 REPLACES 关系。
+# 行不删是因为历史 Finding 的证据可能指向它。
+#
+keep	drop	basis
+Stripe Android SDK	Stripe SDK	名字同一实体（多一个 Android 限定词）；drop 的 38 条指纹已被 keep 完全覆盖
+Firebase Cloud Messaging	FCM	FCM 是缩写；drop 的全部指纹已被 keep 覆盖
+Meta Audience Network	Audience Network	同一 SDK 的简称；keep 的 com.facebook.ads 前缀已覆盖 drop 的类名
+Meta Audience Network	Audience Network SDK	同上
+AndroidX WebKit	Jetpack WebKit	Jetpack 是 AndroidX 的品牌名；keep 的 androidx.webkit 前缀已覆盖
+Firebase Performance Monitoring	Firebase Performance	简称；keep 的 com.google.firebase.perf 前缀已覆盖
+百度云推送 SDK	百度云推送	名字同一实体
+ButterKnife	Butter Knife	仅空格差异
+zxing-android-embedded	ZXing Android Embedded	仅大小写与连字符差异
+神策分析 Android SDK	神策分析 SDK	名字同一实体
+libSDL	SDL	同一库的两种写法。**drop 独有 libsdl.so**（keep 是 libsdl2.so），迁移后才不丢覆盖面
+快手广告 SDK	Kwai Ad SDK	Kwai 是快手的海外品牌名。**drop 独有 com.kwad.sdk.api.proxy**，需迁移
+火山引擎增长分析 SDK	DataFinder	DataFinder 是该产品的英文名。**drop 独有 com.bytedance.mapplog.***，需迁移
+欢太账号 OAuth 授权 SDK	欢太账号授权 SDK	名字同一实体。**drop 独有 oauthwebactivity**，需迁移
+AndroidX CameraX	Jetpack Camera	Jetpack 是 AndroidX 的品牌名。**drop 独有 2 个 .so**（libimage_processing_util_jni / libsurface_util_jni），需迁移
