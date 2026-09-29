@@ -5,7 +5,7 @@
     "PrimTypeAsTaint": true,
     "desc": {
       "name": "DeviceId_FileWrite",
-      "detail": "设备标识符(IMEI/IMSI/OAID等)写入文件或SharedPreferences持久化",
+      "detail": "设备标识符(IMEI/IMSI/序列号/MAC/AndroidId)写入文件或SharedPreferences持久化",
       "category": "ComplianceInfo",
       "complianceCategory": "PersonalDeviceInformation_Persist",
       "complianceCategoryDetail": "个人设备信息_持久化存储",
@@ -21,9 +21,7 @@
         "<android.telephony.TelephonyManager: * getSimSerialNumber(*)>",
         "<android.os.Build: * getSerial(*)>",
         "<android.net.wifi.WifiInfo: * getMacAddress(*)>",
-        "<android.provider.Settings$Secure: * getString(*)>",
-        "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>",
-        "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>"
+        "<android.provider.Settings$Secure: * getString(*)>"
       ],
       "Field": [
         "<android.os.Build: * SERIAL>"

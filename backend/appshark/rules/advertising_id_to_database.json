@@ -1,0 +1,29 @@
+{
+  "AdvertisingId_Database": {
+    "SliceMode": true,
+    "traceDepth": 10,
+    "PrimTypeAsTaint": true,
+    "desc": {
+      "name": "AdvertisingId_Database",
+      "detail": "广告标识符(OAID/GAID)写入本地数据库",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalAdvertisingIdentifier_Database",
+      "complianceCategoryDetail": "广告标识符_写入数据库",
+      "level": "L3"
+    },
+    "source": {
+      "Return": [
+        "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>",
+        "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>"
+      ]
+    },
+    "sink": {
+      "<android.database.sqlite.SQLiteDatabase: * insert(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.database.sqlite.SQLiteDatabase: * insertOrThrow(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.database.sqlite.SQLiteDatabase: * insertWithOnConflict(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.database.sqlite.SQLiteDatabase: * replace(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.database.sqlite.SQLiteDatabase: * update(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.database.sqlite.SQLiteDatabase: * execSQL(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] }
+    }
+  }
+}

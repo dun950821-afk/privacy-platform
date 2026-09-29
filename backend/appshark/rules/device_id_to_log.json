@@ -24,9 +24,7 @@
         "<android.net.wifi.WifiInfo: * getSSID(*)>",
         "<android.net.wifi.WifiInfo: * getBSSID(*)>",
         "<android.provider.Settings$Secure: * getString(*)>",
-        "<android.provider.Settings$System: * getString(*)>",
-        "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>",
-        "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>"
+        "<android.provider.Settings$System: * getString(*)>"
       ],
       "Field": [
         "<android.os.Build: * SERIAL>"

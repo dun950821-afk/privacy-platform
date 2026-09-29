@@ -1,0 +1,28 @@
+{
+  "AdvertisingId_Log": {
+    "SliceMode": true,
+    "traceDepth": 10,
+    "PrimTypeAsTaint": true,
+    "desc": {
+      "name": "AdvertisingId_Log",
+      "detail": "广告标识符(OAID/GAID)写入日志",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalAdvertisingIdentifier_Log",
+      "complianceCategoryDetail": "广告标识符_写入日志",
+      "level": "L3"
+    },
+    "source": {
+      "Return": [
+        "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>",
+        "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>"
+      ]
+    },
+    "sink": {
+      "<android.util.Log: * d(*)>": { "TaintCheck": ["p*"] },
+      "<android.util.Log: * e(*)>": { "TaintCheck": ["p*"] },
+      "<android.util.Log: * i(*)>": { "TaintCheck": ["p*"] },
+      "<android.util.Log: * w(*)>": { "TaintCheck": ["p*"] },
+      "<android.util.Log: * v(*)>": { "TaintCheck": ["p*"] }
+    }
+  }
+}

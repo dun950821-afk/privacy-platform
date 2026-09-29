@@ -1,0 +1,25 @@
+{
+  "AdvertisingId_Clipboard": {
+    "SliceMode": true,
+    "traceDepth": 10,
+    "PrimTypeAsTaint": true,
+    "desc": {
+      "name": "AdvertisingId_Clipboard",
+      "detail": "广告标识符(OAID/GAID)写入系统剪贴板",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalAdvertisingIdentifier_Clipboard",
+      "complianceCategoryDetail": "广告标识符_写入剪贴板",
+      "level": "L3"
+    },
+    "source": {
+      "Return": [
+        "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>",
+        "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>"
+      ]
+    },
+    "sink": {
+      "<android.content.ClipboardManager: * setPrimaryClip(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.text.ClipboardManager: * setText(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] }
+    }
+  }
+}

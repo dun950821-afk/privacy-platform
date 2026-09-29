@@ -1,0 +1,26 @@
+{
+  "AdvertisingId_FileWrite": {
+    "SliceMode": true,
+    "traceDepth": 10,
+    "PrimTypeAsTaint": true,
+    "desc": {
+      "name": "AdvertisingId_FileWrite",
+      "detail": "广告标识符(OAID/GAID)写入文件或SharedPreferences持久化",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalAdvertisingIdentifier_Persist",
+      "complianceCategoryDetail": "广告标识符_持久化存储",
+      "level": "L3"
+    },
+    "source": {
+      "Return": [
+        "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>",
+        "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>"
+      ]
+    },
+    "sink": {
+      "<java.io.FileOutputStream: * write(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<java.io.FileWriter: * write(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.content.SharedPreferences$Editor: * putString(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] }
+    }
+  }
+}

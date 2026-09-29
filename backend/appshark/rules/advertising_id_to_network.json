@@ -1,0 +1,29 @@
+{
+  "AdvertisingId_NetworkTransfer": {
+    "SliceMode": true,
+    "traceDepth": 12,
+    "PrimTypeAsTaint": true,
+    "desc": {
+      "name": "AdvertisingId_NetworkTransfer",
+      "detail": "广告标识符(OAID/GAID)通过网络发送",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalAdvertisingIdentifier_NetworkTransfer",
+      "complianceCategoryDetail": "广告标识符_网络传输",
+      "level": "L3"
+    },
+    "source": {
+      "Return": [
+        "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>",
+        "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>"
+      ]
+    },
+    "sink": {
+      "<okhttp3.Request$Builder: * url(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<okhttp3.RequestBody: * create(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<okhttp3.FormBody$Builder: * add(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<java.net.URL: * openConnection(*)>": { "LibraryOnly": true, "TaintCheck": ["@this"] },
+      "<java.net.HttpURLConnection: * getOutputStream(*)>": { "LibraryOnly": true, "TaintCheck": ["@this"] },
+      "<org.apache.http.client.methods.HttpPost: * setEntity(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] }
+    }
+  }
+}

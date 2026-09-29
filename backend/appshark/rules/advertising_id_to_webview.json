@@ -1,0 +1,28 @@
+{
+  "AdvertisingId_WebView": {
+    "SliceMode": true,
+    "traceDepth": 10,
+    "PrimTypeAsTaint": true,
+    "desc": {
+      "name": "AdvertisingId_WebView",
+      "detail": "广告标识符(OAID/GAID)传入WebView(URL/Javascript桥)",
+      "category": "ComplianceInfo",
+      "complianceCategory": "PersonalAdvertisingIdentifier_WebView",
+      "complianceCategoryDetail": "广告标识符_传入WebView",
+      "level": "L3"
+    },
+    "source": {
+      "Return": [
+        "<com.google.android.gms.ads.identifier.AdvertisingIdClient: * getAdvertisingIdInfo(*)>",
+        "<com.bun.miitmdid.supplier.IdSupplier: * getOAID(*)>"
+      ]
+    },
+    "sink": {
+      "<android.webkit.WebView: * loadUrl(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.webkit.WebView: * loadData(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.webkit.WebView: * loadDataWithBaseURL(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.webkit.WebView: * evaluateJavascript(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] },
+      "<android.webkit.WebView: * addJavascriptInterface(*)>": { "LibraryOnly": true, "TaintCheck": ["p*"] }
+    }
+  }
+}

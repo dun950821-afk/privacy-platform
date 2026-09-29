@@ -69,6 +69,20 @@ REGISTRY = {
     "DeviceId_WebView":         dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="device_information", sink_type="webview"),
     "DeviceId_Clipboard":       dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="device_information", sink_type="clipboard"),
     "DeviceId_NetworkTransfer": dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="device_information", sink_type="network"),
+
+    # ---- 自有规则：L3 数据流，广告标识符 ----
+    # 与上面 device_id_to_* 六条一一镜像，source 换成广告标识符、类目换成
+    # advertising_identifier。原先 OAID/GAID 是混在 device_id_to_* 的 source 里的，
+    # 于是 OAID 流向网络会被报成「设备标识外传」——按平台自己的枚举，OAID 属于
+    # advertising_identifier，这是错误归因（与 L2 那处同源，只是更深一层：
+    # 用户看到的是结论而不是证据）。拆分是**等价替换**：只挪走那两个 source，
+    # 不加新 sink，六条 device 规则的检出集合减去广告标识符后与原来完全一致。
+    "AdvertisingId_FileWrite":       dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="advertising_identifier", sink_type="file"),
+    "AdvertisingId_Log":             dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="advertising_identifier", sink_type="log"),
+    "AdvertisingId_Database":        dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="advertising_identifier", sink_type="database"),
+    "AdvertisingId_WebView":         dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="advertising_identifier", sink_type="webview"),
+    "AdvertisingId_Clipboard":       dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="advertising_identifier", sink_type="clipboard"),
+    "AdvertisingId_NetworkTransfer": dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="advertising_identifier", sink_type="network"),
     "Location_NetworkTransfer": dict(result_type=RESULT_DIRECT, observation_type="dataflow.privacy", data_category="location",           sink_type="network"),
 
     # ---- 官方规则：论断是「存在某个漏洞」→ 只做证据，不直接成结论 ----
