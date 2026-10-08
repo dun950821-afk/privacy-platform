@@ -64,6 +64,18 @@ export const SEVERITY: Dict = {
   low: { label: '低危', type: 'info' },
 }
 
+/**
+ * 结论整改状态（platform_findings.triage_status）。
+ * 取值与后端校验白名单逐字一致（`tasks.py: FINDING_TRIAGE_STATUSES`）——
+ * 这是新的四态词表，与上面 FINDING_STATUS 的旧词表是两回事，别混用。
+ */
+export const TRIAGE_STATUS: Dict = {
+  needs_review: { label: '待确认', type: 'warning' },
+  fixing: { label: '整改中', type: 'primary' },
+  fixed: { label: '已修复', type: 'success' },
+  ignored: { label: '已忽略', type: 'info' },
+}
+
 /** 问题状态 */
 export const FINDING_STATUS: Dict = {
   open: { label: '待处理', type: 'danger' },

@@ -58,34 +58,23 @@
       </el-steps>
     </el-card>
 
-    <el-card shadow="never">
-      <el-tabs v-model="activeTab">
-        <!-- 结论在前：合规画像回答「采集了什么、谁在采集」 -->
-        <el-tab-pane name="workspace">
-          <template #label>
-            <span class="tab-label">合规画像
-              <span v-if="profileCount" class="tab-badge">{{ profileCount }}</span>
-            </span>
-          </template>
-          <ComplianceProfile :task-id="taskId" @count="profileCount = $event" />
-        </el-tab-pane>
+    <!-- 主视图：问题清单。原 tab 里的引擎细节整体降为下方折叠区，
+         主视图不再罗列引擎结果，只回答「有哪些问题」 -->
+    <ProblemList :task-id="taskId" />
 
-        <el-tab-pane name="risk">
-          <template #label>
-            <span class="tab-label">风险结论
-              <span v-if="riskCount" class="tab-badge">{{ riskCount }}</span>
-            </span>
-          </template>
-          <RiskFindings :task-id="taskId" @count="riskCount = $event" />
-        </el-tab-pane>
+    <el-card shadow="never" class="secondary-card">
+      <el-collapse v-model="openSections">
+        <el-collapse-item name="profile">
+          <template #title><span class="sec-title">合规画像</span></template>
+          <ComplianceProfile :task-id="taskId" />
+        </el-collapse-item>
 
-        <!-- 运维排查用：任务明细 + 阶段 + 场景 + 引擎队列，合并成一个 tab -->
-        <el-tab-pane name="execution">
-          <template #label>
-            <span class="tab-label">执行信息
-              <span v-if="execFailed" class="tab-badge is-danger">{{ execFailed }}</span>
-              <span v-else-if="subTasks.length" class="tab-badge">{{ subTasks.length }}</span>
-            </span>
+        <!-- 运维排查用：任务明细 + 阶段 + 场景 + 引擎队列，合并成一个折叠区 -->
+        <el-collapse-item name="execution">
+          <template #title>
+            <span class="sec-title">执行信息</span>
+            <span v-if="execFailed" class="sec-badge is-danger">{{ execFailed }}</span>
+            <span v-else-if="subTasks.length" class="sec-badge">{{ subTasks.length }}</span>
           </template>
 
           <!-- 原本在首屏折叠条里的字段挪到这里：它对排查有用，但不该占首屏 -->
@@ -198,13 +187,12 @@
             </el-timeline-item>
           </el-timeline>
           <EmptyBox v-else description="暂无引擎执行记录" />
-        </el-tab-pane>
+        </el-collapse-item>
 
-        <el-tab-pane name="evidence">
-          <template #label>
-            <span class="tab-label">证据
-              <span v-if="evidenceList.length" class="tab-badge">{{ evidenceList.length }}</span>
-            </span>
+        <el-collapse-item name="evidence">
+          <template #title>
+            <span class="sec-title">证据</span>
+            <span v-if="evidenceList.length" class="sec-badge">{{ evidenceList.length }}</span>
           </template>
           <el-table :data="evidenceList" size="small" class="data-table">
             <el-table-column label="类型" width="180">
@@ -234,8 +222,13 @@
             </el-table-column>
             <template #empty><EmptyBox description="暂无证据" /></template>
           </el-table>
-        </el-tab-pane>
-      </el-tabs>
+        </el-collapse-item>
+
+        <el-collapse-item name="leads">
+          <template #title><span class="sec-title">引擎判定与未核实线索</span></template>
+          <RiskFindings :task-id="taskId" hide-findings />
+        </el-collapse-item>
+      </el-collapse>
     </el-card>
 
     <!-- 证据预览对话框（可拖拽调整大小） -->
@@ -273,6 +266,7 @@ import {
 } from '@element-plus/icons-vue'
 import StatusTag from '@/components/StatusTag.vue'
 import EmptyBox from '@/components/EmptyBox.vue'
+import ProblemList from '@/components/ProblemList.vue'
 import ComplianceProfile from '@/components/ComplianceProfile.vue'
 import RiskFindings from '@/components/RiskFindings.vue'
 import api from '@/api'
@@ -291,12 +285,8 @@ const taskId = computed(() => Number(route.params.id))
 
 const loading = ref(true)
 const generating = ref(false)
-// 落地即看检测结果：合规画像才是这一页的主线
-const activeTab = ref('workspace')
-
-// 子组件把各自的条数抛上来，供 tab 徽标使用（避免在父组件重复请求同样的数据）
-const profileCount = ref(0)
-const riskCount = ref(0)
+// 落地即看问题清单：主视图回答「有哪些问题」，引擎细节收进下方折叠区
+const openSections = ref<string[]>([])
 
 const task = ref<any>({})
 const subTasks = computed<any[]>(() => task.value.sub_tasks || [])
@@ -605,8 +595,6 @@ function engineNames(subTask: any): string {
 // 同组件内切换任务 id 时重新加载
 watch(taskId, (id, old) => {
   if (id && id !== old) {
-    profileCount.value = 0
-    riskCount.value = 0
     loadAll()
   }
 })
@@ -663,9 +651,27 @@ onMounted(loadAll)
 
 .steps-card { margin-bottom: var(--space-4); }
 
-/* tab 徽标：让「哪个 tab 有东西」不用点开就知道 */
-.tab-label { display: inline-flex; align-items: center; gap: 6px; }
-.tab-badge {
+/* 折叠区：主视图之下，默认全收起；徽标让「哪个区有东西」不用点开就知道 */
+.secondary-card { margin-top: var(--space-4); }
+.secondary-card :deep(.el-collapse) { border-top: none; border-bottom: none; }
+.secondary-card :deep(.el-collapse-item__header) {
+  height: auto;
+  min-height: var(--row-h);
+  padding: var(--space-2) 0;
+  gap: var(--space-2);
+  background: transparent;
+  border-bottom: 1px solid var(--line);
+}
+.secondary-card :deep(.el-collapse-item:last-child .el-collapse-item__header) { border-bottom: none; }
+.secondary-card :deep(.el-collapse-item__arrow) { color: var(--ink-4); }
+.secondary-card :deep(.el-collapse-item__wrap) { border-bottom: none; }
+.secondary-card :deep(.el-collapse-item__content) {
+  padding: var(--space-3) 0 var(--space-5);
+  font-size: var(--text-body);
+}
+
+.sec-title { font-size: var(--text-section); font-weight: 600; color: var(--ink); }
+.sec-badge {
   display: inline-block;
   min-width: 18px;
   padding: 0 6px;
@@ -678,7 +684,7 @@ onMounted(loadAll)
   line-height: 16px;
   text-align: center;
 }
-.tab-badge.is-danger {
+.sec-badge.is-danger {
   background: #FEF2F2;
   color: #DC2626;
   border-color: #FECACA;

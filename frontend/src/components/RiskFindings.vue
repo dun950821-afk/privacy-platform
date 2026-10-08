@@ -1,7 +1,8 @@
 <template>
   <div class="risk" v-loading="loading">
-    <!-- ① 平台结论：具备完整语义的观察直接形成，或经跨引擎证据增强 -->
-    <el-card shadow="never" class="block">
+    <!-- ① 平台结论：具备完整语义的观察直接形成，或经跨引擎证据增强
+         任务详情页改用「问题清单」做主视图后，同一批结论不再在这里重复渲染 -->
+    <el-card v-if="!hideFindings" shadow="never" class="block">
       <template #header>
         <div class="head">
           <span class="title">平台结论</span>
@@ -87,7 +88,11 @@ import EngineReportViewer from '@/components/EngineReportViewer.vue'
 import { taskApi } from '@/api/tasks'
 import { CONFIDENCE, SEVERITY } from '@/utils/dict'
 
-const props = defineProps<{ taskId: number }>()
+const props = withDefaults(defineProps<{
+  taskId: number
+  /** 隐藏「平台结论」块：该数据已由问题清单主视图承载，避免同页重复 */
+  hideFindings?: boolean
+}>(), { hideFindings: false })
 const emit = defineEmits<{ (e: 'count', n: number): void }>()
 
 const SINK_LABELS: Record<string, string> = {
