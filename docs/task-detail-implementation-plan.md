@@ -224,6 +224,14 @@ where task_id = :tid and engine_type = 'androguard' and section_path = 'endpoint
 取消 tab 切换，主视图直接是问题清单；`App 背景`改成右上角按钮 + 右侧滑出面板（480px）；
 整改概览折叠在底部。
 
+> **2026-10-08 更新：面板宽度 480px → 720px（用户裁定）。**
+> 上文计划里仍是 480px，**以本条为准**。实测 480px 里放不下：面板三块（合规画像/SDK/权限）
+> 都是为整页宽度设计的表格；且每个内嵌的 `ComplianceProfile` 会渲染一个 **132px** 的
+> 「本页内容」锚点列（它的显示条件是 `@media (max-width: 1280px)`，**按视口判断**，
+> 而抽屉打开时视口仍是 1600px → 媒体查询不生效），480 − 132 只剩 290-320px 内容。
+> 现为 720px，且**内嵌时不再渲染那个锚点列**（`v-if="!external"`）。
+> 验证脚本的 `PANEL_WIDTH` 断言已同步改为 720——它是对交付物的守护，改宽度必须同步改。
+
 组件树见设计文档第九节。**复用 `EngineReportViewer.vue`**（props: `{taskId, observationId}`）
 ——注意它要 **observationId 不是 findingId**，需先通过 `finding_observations` 取。
 
