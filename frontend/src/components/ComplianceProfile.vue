@@ -219,7 +219,10 @@
       </div>
 
       <!-- 锚点目录：3275px 的长页，让人不用滚也能跳 -->
-      <nav class="toc" aria-label="页内导航">
+      <!-- 嵌在侧滑面板里时**不渲染**页内导航：这 132px 的锚点列只在整页宽度下有意义，
+           而且它的高亮几何（ACTIVE_LINE / scroll-margin-top）是按整页滚动的标定算的，
+           搬进抽屉后对不上。判据用 external（父组件传了 profile 即内嵌）。 -->
+      <nav v-if="!external" class="toc" aria-label="页内导航">
         <div class="toc-title">本页内容</div>
         <button v-for="s in sections" :key="s.id" class="toc-item"
                 :class="{ 'is-active': activeSection === s.id }" @click="goTo(s.id)">

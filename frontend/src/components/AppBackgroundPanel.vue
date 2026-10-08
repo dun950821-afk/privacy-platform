@@ -1,7 +1,8 @@
 <template>
-  <!-- 480px 侧滑面板：App 背景。任务级数据（端点/画像/SDK/权限）只在这里出现一次，
+  <!-- 侧滑面板：App 背景。宽度 720px（原计划写 480px，实测宽表格在 480 里只剩
+       290-320px 内容、必须横向滚动；用户 2026-10-08 裁定改宽）。任务级数据（端点/画像/SDK/权限）只在这里出现一次，
        不再随每张问题卡片重复渲染。 -->
-  <el-drawer v-model="open" direction="rtl" size="480px" :with-header="false" class="bg-panel">
+  <el-drawer v-model="open" direction="rtl" size="720px" :with-header="false" class="bg-panel">
     <div class="panel">
       <div class="panel-head">
         <div class="panel-head-main">
