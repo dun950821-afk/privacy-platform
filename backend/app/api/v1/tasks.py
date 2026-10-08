@@ -361,19 +361,154 @@ def task_platform_findings(tid: int, user: User = Depends(get_current_user), db:
     generate_findings(db, tid)
     rows = db.query(PlatformFinding).filter(PlatformFinding.task_id == tid).all()
     return {"code": 0, "data": {
-        "items": [{
-            "id": f.id, "finding_uid": f.finding_uid, "finding_code": f.finding_code, "title": f.title,
-            "category": f.category, "severity": f.severity, "confidence": f.confidence,
-            "triage_status": f.triage_status, "baseline_state": f.baseline_state,
-            "recommendation": f.recommendation, "observation_count": f.observation_count,
-            "masvs_controls": f.masvs_controls, "maswe_ids": f.maswe_ids, "mastg_test_ids": f.mastg_test_ids,
-            # 历史结论可复现：结论 ID 与生成时的规则快照必须对外可见
-            "rule_snapshot": f.rule_snapshot,
-            "correlation_rule_id": f.correlation_rule_id,
-            "correlation_rule_version": f.correlation_rule_version,
-            "schema_version": f.schema_version,
-        } for f in rows],
+        # 与详情接口共用 _finding_brief：两处各写一份字段迟早会漂移，
+        # 前端从列表点进详情时字段对不上就是那么来的。
+        "items": [_finding_brief(f) for f in rows],
         "total": len(rows),
+    }}
+
+
+# 整改闭环四态。**只有这四个值**：列本身是 VARCHAR(30)，不靠 DDL 约束，
+# 所以校验必须在这里（模型注释里也写着这条）。
+FINDING_TRIAGE_STATUSES = ("needs_review", "fixing", "fixed", "ignored")
+
+
+def _finding_brief(f) -> dict:
+    """列表与详情共用的结论字段，避免两处口径各写一份。"""
+    return {
+        "id": f.id, "finding_uid": f.finding_uid, "finding_code": f.finding_code, "title": f.title,
+        "category": f.category, "severity": f.severity, "confidence": f.confidence,
+        "triage_status": f.triage_status, "baseline_state": f.baseline_state,
+        "assigned_to": f.assigned_to, "due_date": str(f.due_date) if f.due_date else None,
+        "recommendation": f.recommendation, "observation_count": f.observation_count,
+        "provider_level_summary": f.provider_level_summary,
+        "masvs_controls": f.masvs_controls, "maswe_ids": f.maswe_ids,
+        "mastg_test_ids": f.mastg_test_ids, "cwe_ids": f.cwe_ids,
+        # 历史结论可复现：结论 ID 与生成时的规则快照必须对外可见
+        "rule_snapshot": f.rule_snapshot,
+        "correlation_rule_id": f.correlation_rule_id,
+        "correlation_rule_version": f.correlation_rule_version,
+        "schema_version": f.schema_version,
+    }
+
+
+@router.get("/{tid}/platform-findings/{fid}")
+def task_platform_finding_detail(tid: int, fid: int,
+                                 user: User = Depends(get_current_user),
+                                 db: Session = Depends(get_db)):
+    """单条平台结论的详情：含**关联 observation**。
+
+    调用点列表要用 observation 的 `location`（实测覆盖率 99.7%）；`id` 给前端
+    交给 `EngineReportViewer`（**它要 observationId，不是 findingId**）。
+
+    ⚠️ **不调 `generate_findings()`**。列表接口每次读取都会重新生成结论（那是有意的：
+    结论随规则演进要能刷新），但详情/状态接口再调一次就会把刚改的状态覆盖回去。
+    见实施计划 §3.4。
+    """
+    from app.models import PlatformFinding, FindingObservation
+    row = db.query(PlatformFinding).filter(
+        PlatformFinding.id == fid, PlatformFinding.task_id == tid).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="结论不存在")
+    observations = db.query(EngineObservation).join(
+        FindingObservation, FindingObservation.observation_id == EngineObservation.id
+    ).filter(FindingObservation.finding_id == fid).order_by(EngineObservation.id).all()
+    return {"code": 0, "data": {
+        **_finding_brief(row),
+        "description": row.description, "impact": row.impact,
+        "observations": [{
+            "id": o.id, "engine_type": o.engine_type,
+            "observation_type": o.observation_type, "subject": o.subject,
+            "location": o.location, "payload": o.payload,
+            "provider_level": o.provider_level,
+            "provider_rule_id": o.provider_rule_id,
+            "data_category": o.data_category, "sink_type": o.sink_type,
+        } for o in observations],
+    }}
+
+
+@router.put("/{tid}/platform-findings/{fid}/status")
+def update_platform_finding_status(tid: int, fid: int, req: dict,
+                                   user: User = Depends(require_permission("task:write")),
+                                   db: Session = Depends(get_db)):
+    """改整改闭环字段：`triage_status` / `assigned_to` / `due_date`。
+
+    只改这三个字段——`observation_count` / `severity` / `provider_level_summary` 等
+    由生成流程维护，这里碰它们会让下一次重生成与人工修改打架。
+
+    可以安全地不调 `generate_findings()`：`generate_direct_findings` 只写
+    observation_count 与 provider_level_summary，`apply_enrichments` 只写
+    confidence / rule_snapshot，**都不动 `triage_status`**（已核对 finding_service.py）。
+    """
+    from app.models import PlatformFinding
+    row = db.query(PlatformFinding).filter(
+        PlatformFinding.id == fid, PlatformFinding.task_id == tid).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="结论不存在")
+
+    if "triage_status" in req:
+        status = (req.get("triage_status") or "").strip()
+        if status not in FINDING_TRIAGE_STATUSES:
+            raise HTTPException(status_code=400, detail=(
+                f"triage_status 只能是 {' / '.join(FINDING_TRIAGE_STATUSES)}"))
+        row.triage_status = status
+
+    if "assigned_to" in req:
+        assignee = req.get("assigned_to")
+        if assignee in (None, ""):
+            row.assigned_to = None
+        else:
+            if not db.query(User).filter(User.id == int(assignee)).first():
+                raise HTTPException(status_code=400, detail="负责人不存在")
+            row.assigned_to = int(assignee)
+
+    if "due_date" in req:
+        raw = req.get("due_date")
+        if raw in (None, ""):
+            row.due_date = None
+        else:
+            try:
+                row.due_date = datetime.strptime(str(raw), "%Y-%m-%d").date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="due_date 需为 YYYY-MM-DD")
+
+    db.commit()
+    db.refresh(row)
+    return {"code": 0, "data": _finding_brief(row)}
+
+
+@router.get("/{tid}/retest-records")
+def task_retest_records(tid: int, user: User = Depends(get_current_user),
+                        db: Session = Depends(get_db)):
+    """复检记录。两个方向分开返回，因为它们回答的是不同的问题：
+
+    `items`     —— **本任务的结论**后来被复检了没有、结果如何
+                   （`original_finding_id` 属于本任务）。任务详情页的整改闭环看这个。
+    `as_retest` —— **本任务自己**是某条结论的复检任务（`retest_task_id == tid`）。
+
+    混成一个列表会让人分不清「我的结论被别人复检」和「我在复检别人」。
+    """
+    from app.models import PlatformFinding, RetestRecord
+    if not db.get(DetectionTask, tid):
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    def brief(r, role):
+        return {
+            "id": r.id, "role": role,
+            "original_finding_id": r.original_finding_id,
+            "retest_task_id": r.retest_task_id,
+            "result": r.result, "notes": r.notes,
+            "tested_by": r.tested_by,
+            "tested_at": r.tested_at.isoformat() if r.tested_at else None,
+        }
+
+    own = [r for r in db.query(RetestRecord).join(
+        PlatformFinding, RetestRecord.original_finding_id == PlatformFinding.id
+    ).filter(PlatformFinding.task_id == tid).all()]
+    as_retest = db.query(RetestRecord).filter(RetestRecord.retest_task_id == tid).all()
+    return {"code": 0, "data": {
+        "items": [brief(r, "original") for r in own],
+        "as_retest": [brief(r, "retest") for r in as_retest],
     }}
 
 
