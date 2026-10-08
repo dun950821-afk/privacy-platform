@@ -25,6 +25,27 @@ def _field(observation, name):
     return getattr(observation, name, None)
 
 
+def _refresh_totals(db: Session, finding: PlatformFinding) -> None:
+    """把证据计数与 level 分布**重算成与关联行一致**。
+
+    为什么不直接用调用方手里那份 obs_ids：列表接口每次读取都会跑
+    `generate_direct_findings`，而它手里只有「**直接证据**」那一批；**增强证据**
+    （`finding_observations.relation_type='enriched_evidence'`）是 `apply_enrichments`
+    后来挂上的、也在同一张表里。用 obs_ids 会把已挂上的增强证据算漏，于是卡片上的
+    「证据 N 处」小于展开后实际列出的条数。
+
+    实测（2026-10-08）**87/118 条结论**如此，例如 finding 154：记 44、实有 137。
+    前端先发现的——卡片写「证据 30 处」，展开却有 351 条。
+
+    `finding_observations` 才是证据的**唯一真相**：详情接口返回的 `observations[]`
+    就是它，计数与构成说明都必须与它一致。
+    """
+    ids = [r.observation_id for r in db.query(FindingObservation).filter(
+        FindingObservation.finding_id == finding.id).all()]
+    finding.observation_count = len(ids)
+    finding.provider_level_summary = _level_summary(db, ids)
+
+
 def _level_summary(db: Session, observation_ids) -> dict | None:
     """关联 observation 按 `provider_level` 的分布，如 `{"L2": 18, "L3": 2}`。
 
@@ -104,9 +125,7 @@ def generate_direct_findings(db: Session, task_id: int) -> list[PlatformFinding]
             PlatformFinding.task_id == task_id,
             PlatformFinding.dedup_key == dedup_key).first()
         if existing:
-            existing.observation_count = len(obs_ids)
-            existing.provider_level_summary = _level_summary(db, obs_ids)
-            produced.append(existing)
+            produced.append(existing)   # 计数与分布由末尾的 refresh_totals 统一重算
             continue
         head = items[0]
         record = PlatformFinding(
@@ -233,10 +252,7 @@ def generate_findings(db: Session, task_id: int) -> list[PlatformFinding]:
             PlatformFinding.task_id == task_id, PlatformFinding.dedup_key == finding["dedup_key"]
         ).first()
         if existing:
-            existing.observation_count = len(finding.get("observation_ids", []))
-            existing.provider_level_summary = _level_summary(
-                db, finding.get("observation_ids", []))
-            produced.append(existing)
+            produced.append(existing)   # 同上
             continue
         record = PlatformFinding(
             task_id=task_id, finding_code=finding["finding_code"], title=finding["title"],
@@ -258,6 +274,18 @@ def generate_findings(db: Session, task_id: int) -> list[PlatformFinding]:
         for observation_id in finding.get("observation_ids", []):
             db.add(FindingObservation(finding_id=record.id, observation_id=observation_id))
         produced.append(record)
+    # 末尾统一重算：**按 finding_observations 的实际行**刷新证据计数与 level 分布。
+    #
+    # 为什么不能只在「新建/已存在」两个分支里各自赋值：**当前规则不再产出的结论**
+    # 两个分支都走不到，计数会一直停在旧值（实测 87/118 条结论曾如此，
+    # 如 finding 1216 记 40、实有 133）。`finding_observations` 才是证据的唯一真相，
+    # 而详情接口返回的 observations[] 就是它——两边必须一致。
+    #
+    # **必须先 flush**：本项目的 session 是 `autoflush=False`（core/database.py:14），
+    # 上面刚 `db.add()` 的关联行还在 pending，不 flush 就查不到——会把计数算成 0。
+    db.flush()
+    for f in db.query(PlatformFinding).filter(PlatformFinding.task_id == task_id).all():
+        _refresh_totals(db, f)
     db.commit()
     # 直接结论 + 关联结论一并返回。二者 dedup_key 不同域，不会互相覆盖。
     return direct + produced
