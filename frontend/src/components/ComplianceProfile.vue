@@ -2,25 +2,28 @@
   <div class="profile" v-loading="loading">
     <!-- 关键数字：一眼看出这个 App 采集了什么、谁在采集、权限用得怎么样。
          每个数字都可点击 —— 它同时是导航，不是装饰。 -->
-    <div class="metric-row mb14">
-      <button class="metric" :class="{ 'is-zero': !totalCollect }" @click="goTo('sec-collect')">
-        <div class="metric-value">{{ totalCollect }}</div>
-        <div class="metric-label">个人信息采集点</div>
-      </button>
-      <button class="metric" :class="{ 'is-zero': !thirdPartyOwners }" @click="goTo('sec-collect')">
-        <div class="metric-value">{{ thirdPartyOwners }}</div>
-        <div class="metric-label">涉及第三方厂商</div>
-      </button>
-      <button class="metric" :class="{ 'is-zero': !appSelfCount }" @click="goTo('sec-collect')">
-        <div class="metric-value">{{ appSelfCount }}</div>
-        <div class="metric-label">应用自身代码中的采集</div>
-      </button>
-      <!-- 敏感类目 >0 才是「需要注意」，0 用中性色。此前 0 反而标了警告色 -->
-      <button class="metric" :class="sensitiveCount ? 'is-alert' : 'is-zero'"
-              @click="goTo('sec-collect')">
-        <div class="metric-value">{{ sensitiveCount }}</div>
-        <div class="metric-label">敏感个人信息类目</div>
-      </button>
+    <div v-if="has('collect') || has('permission')" class="metric-row mb14">
+      <!-- 采集类指标只属于「个人信息收集」；剪裁掉那样时点它也没有落点 -->
+      <template v-if="has('collect')">
+        <button class="metric" :class="{ 'is-zero': !totalCollect }" @click="goTo('sec-collect')">
+          <div class="metric-value">{{ totalCollect }}</div>
+          <div class="metric-label">个人信息采集点</div>
+        </button>
+        <button class="metric" :class="{ 'is-zero': !thirdPartyOwners }" @click="goTo('sec-collect')">
+          <div class="metric-value">{{ thirdPartyOwners }}</div>
+          <div class="metric-label">涉及第三方厂商</div>
+        </button>
+        <button class="metric" :class="{ 'is-zero': !appSelfCount }" @click="goTo('sec-collect')">
+          <div class="metric-value">{{ appSelfCount }}</div>
+          <div class="metric-label">应用自身代码中的采集</div>
+        </button>
+        <!-- 敏感类目 >0 才是「需要注意」，0 用中性色。此前 0 反而标了警告色 -->
+        <button class="metric" :class="sensitiveCount ? 'is-alert' : 'is-zero'"
+                @click="goTo('sec-collect')">
+          <div class="metric-value">{{ sensitiveCount }}</div>
+          <div class="metric-label">敏感个人信息类目</div>
+        </button>
+      </template>
       <button v-if="has('permission')" class="metric" :class="{ 'is-zero': !permissionCount }"
               @click="goTo('sec-permission')">
         <div class="metric-value">{{ permissionCount }}</div>

@@ -99,54 +99,27 @@
           </div>
         </section>
 
-        <!-- ⑤ SDK 组件 -->
-        <section class="bg-block" data-block="sdk">
+        <!-- ⑤ SDK 组件。unattributed 来自 compliance-profile（与「权限」块同一次取数） -->
+        <section class="bg-block" data-block="sdk" v-loading="profLoading">
           <div class="bg-title">SDK 组件</div>
+          <div v-if="profError" class="bg-error">
+            <span>{{ profError }}</span>
+            <el-button size="small" link type="primary" @click="loadProfile">重试</el-button>
+          </div>
           <div class="bg-embed">
             <SdkPanel :task-id="taskId" :unattributed="unattributed" />
           </div>
         </section>
 
-        <!-- ⑥ 权限 -->
-        <section class="bg-block" data-block="permission" v-loading="profLoading">
-          <div class="bg-title">
-            权限
-            <span v-if="permissions.length" class="sec-count t-num">{{ permissions.length }}</span>
+        <!-- ⑥ 权限：直接复用 ComplianceProfile 的 #sec-permission 卡片。
+             简报 §一 对该块的要求是「沿用现成展示」——手写一张窄表会丢掉
+             筛选栏（含「申请但未见使用」）、compliance_focus、method_count
+             与「N 项权限的映射未覆盖」披露条，并让权限表的列定义在仓库里出现两份。 -->
+        <section class="bg-block" data-block="permission">
+          <div class="bg-title">权限</div>
+          <div class="bg-embed">
+            <ComplianceProfile :task-id="taskId" :sections="['permission']" />
           </div>
-          <div v-if="profError" class="bg-error">
-            <span>{{ profError }}</span>
-            <el-button size="small" link type="primary" @click="loadProfile">重试</el-button>
-          </div>
-          <el-table v-else :data="permissions" size="small" max-height="320" class="data-table">
-            <el-table-column label="权限" min-width="170">
-              <template #default="{ row }">
-                <span class="t-mono">{{ row.permission }}</span>
-                <el-tag v-if="row.risk_level" size="small"
-                        :type="row.risk_level === 'CRITICAL' ? 'danger' : 'warning'"
-                        effect="plain" class="ml6">{{ row.risk_level }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="说明" min-width="150">
-              <template #default="{ row }">
-                <span v-if="row.category_cn">{{ row.category_cn }}</span>
-                <span v-if="row.capability" class="dim"> · {{ row.capability }}</span>
-                <span v-if="!row.kb_available" class="dim">（知识库暂无说明）</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="实际使用" width="96" align="center">
-              <template #default="{ row }">
-                <span v-if="row.call_site_count === 0" class="warn-text">未发现调用点</span>
-                <b v-else class="t-num">{{ row.call_site_count }}</b>
-              </template>
-            </el-table-column>
-            <el-table-column label="申请来源" width="110">
-              <template #default="{ row }">
-                <span class="dim">{{ (row.declared_by || []).join(' · ') }}</span>
-              </template>
-            </el-table-column>
-            <template #empty><EmptyBox description="无权限记录" :image-size="60" /></template>
-          </el-table>
-          <div v-if="!profError" class="bg-hint">申请了却找不到使用处的，是权限过量的线索</div>
         </section>
       </div>
     </div>
@@ -156,7 +129,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Close } from '@element-plus/icons-vue'
-import EmptyBox from '@/components/EmptyBox.vue'
 import NetworkEvidenceBlock from '@/components/NetworkEvidenceBlock.vue'
 import ComplianceProfile from '@/components/ComplianceProfile.vue'
 import SdkPanel from '@/components/SdkPanel.vue'
@@ -239,8 +211,7 @@ const endpoints = ref<any>(null)
 const epLoading = ref(false)
 const epError = ref('')
 
-// ── 合规画像 / 权限 / SDK 未识别包 ───────────────────────────────────────────
-const permissions = ref<any[]>([])
+// ── SDK 未识别包（合规画像与权限由 ComplianceProfile 自己取数） ──────────────
 const unattributed = ref<any[]>([])
 const profLoading = ref(false)
 const profError = ref('')
@@ -281,12 +252,10 @@ async function loadProfile() {
   try {
     const res = await taskApi.complianceProfile(props.taskId)
     const d: any = res.data || {}
-    permissions.value = d.permissions || []
     unattributed.value = d.unattributed_packages || []
   } catch (e: any) {
-    permissions.value = []
     unattributed.value = []
-    profError.value = e?.message || e?.detail || '权限数据读取失败'
+    profError.value = e?.message || e?.detail || '未识别包数据读取失败'
   } finally {
     profLoading.value = false
   }
@@ -379,6 +348,4 @@ watch(() => props.taskId, () => { loaded = false; if (props.modelValue) loadAll(
 .raw-more:hover { text-decoration: underline; }
 
 .dim { color: var(--ink-3); }
-.ml6 { margin-left: 6px; }
-.warn-text { color: #E6A23C; }
 </style>

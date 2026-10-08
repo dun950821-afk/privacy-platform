@@ -15,7 +15,13 @@
     </div>
 
     <!-- ② 复检记录：两个方向分开显示，它们回答的是不同的问题 -->
-    <div class="retest-grid">
+    <!-- 取数失败必须是错误态，不能落成「尚无复检记录」——把请求挂了说成一句结论，
+         和本页其它两处（问题清单的失败态、面板的错误态）就不一致了。 -->
+    <div v-if="retestError" class="retest-error">
+      <span class="retest-error-text">复检记录读取失败：{{ retestError }}</span>
+      <el-button size="small" link type="primary" @click="loadRetest">重试</el-button>
+    </div>
+    <div v-else class="retest-grid">
       <div class="retest-col">
         <div class="col-head">
           <span class="col-title">本任务的结论被复检</span>
@@ -69,6 +75,7 @@ const props = defineProps<{ taskId: number }>()
 
 const loading = ref(false)
 const loadError = ref('')
+const retestError = ref('')
 const items = ref<any[]>([])
 const own = ref<any[]>([])
 const asRetest = ref<any[]>([])
@@ -102,13 +109,16 @@ async function loadFindings() {
 }
 
 async function loadRetest() {
+  retestError.value = ''
   try {
     const res: any = await taskApi.retestRecords(props.taskId)
     own.value = res.data?.items || []
     asRetest.value = res.data?.as_retest || []
-  } catch {
+  } catch (e: any) {
+    // 清空 + 明确报错：失败不能被渲染成「本任务的结论尚无复检记录」
     own.value = []
     asRetest.value = []
+    retestError.value = e?.message || e?.detail || '无法获取复检记录'
   }
 }
 
@@ -157,6 +167,15 @@ watch(() => props.taskId, load)
 .tri-fill { flex: 1; }
 .tri-total { font-size: var(--text-label); color: var(--ink-3); }
 .tri-err { font-size: var(--text-label); color: var(--el-color-danger); }
+
+/* 复检取数失败：与面板 .bg-error / 清单 .load-error 同一套告警语言 */
+.retest-error {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: #FEF0F0; border: 1px solid #FECACA; border-radius: 8px;
+  font-size: var(--text-label);
+}
+.retest-error-text { color: var(--el-color-danger); word-break: break-all; }
 
 /* 两个方向并排：左边「我的结论被复检」，右边「我在复检别人」 */
 .retest-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4); }

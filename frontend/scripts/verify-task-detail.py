@@ -47,6 +47,7 @@ LEVEL_CN = {"L2": "敏感 API 调用", "L3": "数据流"}
 CARD_LEVELS = ("L2", "L3")
 SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 FINDINGS_ROUTE = "**/platform-findings*"
+RETEST_ROUTE = "**/retest-records*"
 
 # 安全加固五段：顺序即展示顺序（与后端 tasks.py: SECURITY_SECTIONS 一致）
 SECURITY_SECTIONS = [
@@ -106,6 +107,17 @@ BROWSER_RESOURCE_NOISE = "Failed to load resource"
 
 def app_errors(entries: list[str]) -> list[str]:
     return [e for e in entries if BROWSER_RESOURCE_NOISE not in e]
+
+
+def trim_resource_noise(console: list[str], mark: int) -> None:
+    """只放行 `console[mark:]` 里的资源级噪音，保留这段窗口内其它 console 条目。
+
+    正向路径的判定是严格的（`not console`）。但整改 400、复检 500 是**故意注入**的，
+    浏览器必然补一条 "Failed to load resource"。宽容只收敛到注入点周围，
+    而不是全局放宽——否则三个任务的正向路径从此不再拦任何资源级失败。
+    """
+    console[mark:] = [e for e in console[mark:] if BROWSER_RESOURCE_NOISE not in e]
+
 
 
 class Checker:
@@ -169,7 +181,8 @@ async def open_panel(page, ck: Checker) -> None:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-async def verify_happy_path(page, base: str, token: str, task_id: int, ck: Checker) -> None:
+async def verify_happy_path(page, base: str, token: str, task_id: int, ck: Checker,
+                            console: list[str]) -> None:
     print(f"\n[正向路径] task {task_id}")
     data = await fetch_findings(page, base, token, task_id)
     findings = data.get("items") or []
@@ -198,7 +211,7 @@ async def verify_happy_path(page, base: str, token: str, task_id: int, ck: Check
         await verify_cards(page, findings, ck)
         first_id = sorted_findings(findings)[0]["id"]
         await verify_code_evidence(page, base, token, task_id, first_id, ck)
-        await verify_remediation(page, base, token, task_id, first_id, ck)
+        await verify_remediation(page, base, token, task_id, first_id, ck, console)
 
     # 网络证据是任务级数据，现在只活在面板里
     ck.check("网络证据块不再出现在任何卡片里",
@@ -206,7 +219,7 @@ async def verify_happy_path(page, base: str, token: str, task_id: int, ck: Check
              f"dom={await page.locator('.cards .net-evidence').count()}")
 
     await verify_panel(page, base, token, task_id, ck)
-    await verify_overview(page, base, token, task_id, ck)
+    await verify_overview(page, base, token, task_id, ck, console)
     await page.keyboard.press("Escape")  # 关掉可能还开着的东西
 
 
@@ -326,7 +339,7 @@ async def pick_select(page, scope, label: str, option_text: str) -> None:
 
 
 async def verify_remediation(page, base: str, token: str, task_id: int, fid: int,
-                             ck: Checker) -> None:
+                             ck: Checker, console: list[str]) -> None:
     """task 8 §二：卡片上能改 triage_status / assigned_to / due_date，刷新后值还在。"""
     print(f"  [整改操作] finding {fid}")
     card = page.locator(".cards .el-collapse-item").first
@@ -341,75 +354,85 @@ async def verify_remediation(page, base: str, token: str, task_id: int, fid: int
              and await card.locator(".card-actions .el-date-editor").count() == 1
              and await card.locator(".card-actions button", has_text="保存").count() == 1)
 
-    # 记录原始值，跑完恢复（这是真库，别把结论状态留成测试值）
+    # 记录原始值。这是**真业务库**：恢复必须落在 finally 里 —— 中途 Playwright 超时
+    # 抛出时（不是 ck.check 失败），不能让 fixing/1/2026-12-31 留在库里。
     origin = next((f for f in (await fetch_findings(page, base, token, task_id))["items"]
                    if f["id"] == fid), {})
     due = "2026-12-31"
 
-    await pick_select(page, card, "整改状态", TRIAGE_LABEL["fixing"])
-    if uid:
-        await pick_select(page, card, "负责人", uname)
-    # 日期：直接在输入框里键入再回车，element-plus 会按 value-format 解析
-    date_input = card.locator(".card-actions .el-date-editor input").first
-    await date_input.click()
-    await date_input.fill(due)
-    await page.keyboard.press("Enter")
-    await page.wait_for_timeout(300)
-
-    await card.locator(".card-actions button", has_text="保存").click()
     try:
-        await page.locator(".el-message--success").first.wait_for(timeout=8000)
-    except PWTimeout:
-        pass
-    ck.check("保存后出现成功提示", await page.locator(".el-message--success").count() > 0)
-
-    # 落库核对：直接打接口看服务端是否真的改了
-    after = next((f for f in (await fetch_findings(page, base, token, task_id))["items"]
-                  if f["id"] == fid), {})
-    ck.check("triage_status 落库为 fixing", after.get("triage_status") == "fixing",
-             f"api={after.get('triage_status')}")
-    if uid:
-        ck.check("assigned_to 落库", after.get("assigned_to") == uid, f"api={after.get('assigned_to')}")
-    ck.check("due_date 落库", after.get("due_date") == due, f"api={after.get('due_date')}")
-
-    # 刷新后界面上的值还在
-    await goto_task(page, base, token, task_id)
-    await page.wait_for_selector(".cards .el-collapse-item", timeout=15000)
-    card = page.locator(".cards .el-collapse-item").first
-    head = (await card.locator(".card-head").inner_text()).replace("\n", " | ")
-    ck.check("刷新后卡片标签仍显示「整改中」", TRIAGE_LABEL["fixing"] in head, f"dom={head!r}")
-    await card.locator(".el-collapse-item__header").click()
-    await page.wait_for_timeout(600)
-    body = (await card.locator(".card-body").inner_text()).replace("\n", " | ")
-    ck.check("刷新后负责人/截止日期仍在",
-             (not uid or uname in body) and due in body, f"dom={body[:200]!r}")
-
-    # 后端 400 时前端给出可读错误
-    async def bad(route):
-        await route.fulfill(status=400, content_type="application/json",
-                            body=json.dumps({"detail": "triage_status 只能是 needs_review / fixing / fixed / ignored"}))
-    await page.route("**/platform-findings/*/status", bad)
-    try:
-        await card.locator(".card-actions button", has_text="保存").click()
-        try:
-            await page.locator(".el-message--error").first.wait_for(timeout=8000)
-        except PWTimeout:
-            pass
-        err = (await page.locator(".el-message--error").first.inner_text()).strip() \
-            if await page.locator(".el-message--error").count() else "(没有错误提示)"
-        ck.check("后端 400 时前端显示可读错误", "只能" in err, f"dom={err!r}")
-    finally:
-        await page.unroute("**/platform-findings/*/status")
+        await pick_select(page, card, "整改状态", TRIAGE_LABEL["fixing"])
+        if uid:
+            await pick_select(page, card, "负责人", uname)
+        # 日期：直接在输入框里键入再回车，element-plus 会按 value-format 解析
+        date_input = card.locator(".card-actions .el-date-editor input").first
+        await date_input.click()
+        await date_input.fill(due)
+        await page.keyboard.press("Enter")
         await page.wait_for_timeout(300)
 
-    # 恢复原始值，别把测试值留在库里
-    await page.request.put(
-        f"{base}/api/v1/tasks/{task_id}/platform-findings/{fid}/status",
-        headers={"Authorization": f"Bearer {token}"},
-        data={"triage_status": origin.get("triage_status") or "needs_review",
-              "assigned_to": origin.get("assigned_to"),
-              "due_date": origin.get("due_date")},
-    )
+        await card.locator(".card-actions button", has_text="保存").click()
+        try:
+            await page.locator(".el-message--success").first.wait_for(timeout=8000)
+        except PWTimeout:
+            pass
+        ck.check("保存后出现成功提示", await page.locator(".el-message--success").count() > 0)
+
+        # 落库核对：直接打接口看服务端是否真的改了
+        after = next((f for f in (await fetch_findings(page, base, token, task_id))["items"]
+                      if f["id"] == fid), {})
+        ck.check("triage_status 落库为 fixing", after.get("triage_status") == "fixing",
+                 f"api={after.get('triage_status')}")
+        if uid:
+            ck.check("assigned_to 落库", after.get("assigned_to") == uid,
+                     f"api={after.get('assigned_to')}")
+        ck.check("due_date 落库", after.get("due_date") == due, f"api={after.get('due_date')}")
+
+        # 刷新后界面上的值还在
+        await goto_task(page, base, token, task_id)
+        await page.wait_for_selector(".cards .el-collapse-item", timeout=15000)
+        card = page.locator(".cards .el-collapse-item").first
+        head = (await card.locator(".card-head").inner_text()).replace("\n", " | ")
+        ck.check("刷新后卡片标签仍显示「整改中」", TRIAGE_LABEL["fixing"] in head, f"dom={head!r}")
+        await card.locator(".el-collapse-item__header").click()
+        await page.wait_for_timeout(600)
+        body = (await card.locator(".card-body").inner_text()).replace("\n", " | ")
+        ck.check("刷新后负责人/截止日期仍在",
+                 (not uid or uname in body) and due in body, f"dom={body[:200]!r}")
+
+        # 后端 400 时前端给出可读错误。这次 400 是故意注入的，只放行它带来的
+        # 资源级噪音（mark 之后的窗口），正向路径其余 console 条目仍然严格判定。
+        async def bad(route):
+            await route.fulfill(
+                status=400, content_type="application/json",
+                body=json.dumps({"detail": "triage_status 只能是 needs_review / fixing / fixed / ignored"}))
+        mark = len(console)
+        await page.route("**/platform-findings/*/status", bad)
+        try:
+            await card.locator(".card-actions button", has_text="保存").click()
+            try:
+                await page.locator(".el-message--error").first.wait_for(timeout=8000)
+            except PWTimeout:
+                pass
+            err = (await page.locator(".el-message--error").first.inner_text()).strip() \
+                if await page.locator(".el-message--error").count() else "(没有错误提示)"
+            ck.check("后端 400 时前端显示可读错误", "只能" in err, f"dom={err!r}")
+        finally:
+            await page.unroute("**/platform-findings/*/status")
+            await page.wait_for_timeout(300)
+            trim_resource_noise(console, mark)
+    finally:
+        # 恢复原始值，别把测试值留在库里（无论上面怎么退出都要执行）
+        try:
+            await page.request.put(
+                f"{base}/api/v1/tasks/{task_id}/platform-findings/{fid}/status",
+                headers={"Authorization": f"Bearer {token}"},
+                data={"triage_status": origin.get("triage_status") or "needs_review",
+                      "assigned_to": origin.get("assigned_to"),
+                      "due_date": origin.get("due_date")},
+            )
+        except Exception as e:  # noqa: BLE001
+            ck.check("整改用例结束前恢复原值", False, f"恢复失败，库里可能残留测试值：{e}")
 
 
 # ── task 8 §一：App 背景侧滑面板 ────────────────────────────────────────────
@@ -493,14 +516,47 @@ async def verify_panel(page, base: str, token: str, task_id: int, ck: Checker) -
              await panel.locator(".bg-block[data-block='profile'] .sdk-panel").count() == 0)
     ck.check("SDK 组件块渲染出 SdkPanel",
              await panel.locator(".bg-block[data-block='sdk'] .sdk-panel").count() == 1)
-    prof = await fetch_json(page, base, token, f"/tasks/{task_id}/compliance-profile")
-    want_perms = len(prof.get("permissions") or [])
-    perm_rows = await panel.locator(".bg-block[data-block='permission'] .el-table__row").count()
-    ck.check("权限块按接口条数展示", perm_rows == want_perms,
-             f"dom={perm_rows} api={want_perms}")
+    await verify_permission_block(page, base, token, task_id, panel, ck)
 
     await page.keyboard.press("Escape")
     await page.wait_for_timeout(500)
+
+
+async def verify_permission_block(page, base: str, token: str, task_id: int, panel,
+                                  ck: Checker) -> None:
+    """权限块必须是**现成展示**，不能是被重写的残版。
+
+    简报 §一 对该块的要求是「沿用现成展示」。手写一张窄表会丢掉筛选栏
+    （含「申请但未见使用」）、每行的 compliance_focus / method_count，
+    以及「N 项权限的映射未覆盖，平台暂时无法判定是否被调用」这条披露——
+    它是本项目「不假装有数据」的核心表述。这里逐条把它钉住。
+    """
+    prof = await fetch_json(page, base, token, f"/tasks/{task_id}/compliance-profile")
+    perms = prof.get("permissions") or []
+    judgeable = [p for p in perms if p.get("guard_mapped")]
+    unmapped = [p for p in perms if not p.get("guard_mapped")]
+    blocking = [p for p in judgeable if p.get("call_site_count", 0) == 0]
+
+    block = panel.locator(".bg-block[data-block='permission']")
+    ck.check("权限块沿用现成展示（筛选栏在）", await block.locator(".filter-bar").count() == 1)
+    ck.check("权限块渲染的是现成权限卡片（#sec-permission）",
+             await block.locator("#sec-permission").count() == 1)
+
+    rows = await block.locator(".el-table__row").count()
+    ck.check("权限表行数 == 可判定权限数（现成筛选口径）", rows == len(judgeable),
+             f"dom={rows} api={len(judgeable)} total={len(perms)}")
+
+    if blocking:
+        ck.check("保留「申请但未见使用」筛选",
+                 await block.locator(".el-radio-button", has_text="申请但未见使用").count() == 1)
+    if unmapped:
+        head = (await block.locator(".unmapped-head").inner_text()).strip() \
+            if await block.locator(".unmapped-head").count() else "(没有披露条)"
+        ck.check("保留「映射未覆盖」披露条",
+                 f"{len(unmapped)} 项权限的映射未覆盖" in head, f"dom={head!r}")
+    if judgeable:
+        ck.check("权限行保留能力/合规说明（capability / compliance_focus）",
+                 await block.locator(".compliance-focus, .sub-line").count() > 0)
 
 
 async def verify_network(page, base: str, token: str, task_id: int, net, ck: Checker) -> None:
@@ -557,7 +613,8 @@ async def verify_network(page, base: str, token: str, task_id: int, net, ck: Che
 
 
 # ── task 8 §三：整改概览 ────────────────────────────────────────────────────
-async def verify_overview(page, base: str, token: str, task_id: int, ck: Checker) -> None:
+async def verify_overview(page, base: str, token: str, task_id: int, ck: Checker,
+                          console: list[str]) -> None:
     print(f"  [整改概览] task {task_id}")
     header = page.locator(".secondary-card .el-collapse-item__header", has_text="整改概览")
     ck.check("有「整改概览」折叠区（在底部）", await header.count() == 1)
@@ -597,6 +654,54 @@ async def verify_overview(page, base: str, token: str, task_id: int, ck: Checker
                  await cols.nth(0).locator(".col-empty").count() == 1)
     if not as_retest:
         ck.check("方向二空态不是空表", await cols.nth(1).locator(".col-empty").count() == 1)
+
+    await verify_retest_failure(page, task_id, header, ck, console)
+
+
+async def verify_retest_failure(page, task_id: int, header, ck: Checker,
+                                console: list[str]) -> None:
+    """复检取数挂了，不能渲染成「本任务的结论尚无复检记录」。
+
+    「没有复检记录」是一句有结论意义的话，不能由一次失败冒充 —— 与问题清单的
+    load-error、面板的 bg-error 同一原则。
+    """
+    await header.click()  # 收起 → v-if 卸载组件
+    await page.wait_for_timeout(400)
+
+    async def fail(route):
+        await route.fulfill(status=500, content_type="application/json",
+                            body=json.dumps({"detail": "模拟复检接口故障"}))
+
+    mark = len(console)
+    await page.route(RETEST_ROUTE, fail)
+    try:
+        await header.click()  # 展开 → 重新挂载并取数
+        try:
+            await page.locator(".retest-error").wait_for(timeout=10000)
+        except PWTimeout:
+            pass
+        ck.check("复检取数失败时显示错误态", await page.locator(".retest-error").count() == 1,
+                 (await page.locator(".retest-error").inner_text()).replace("\n", " ")
+                 if await page.locator(".retest-error").count() else "(没有错误态)")
+        ck.check("复检取数失败时**不**显示「尚无复检记录」",
+                 await page.locator(".remediation", has_text="尚无复检记录").count() == 0)
+        ck.check("复检取数失败时**不**显示「不是任何结论的复检任务」",
+                 await page.locator(".remediation", has_text="不是任何结论的复检任务").count() == 0)
+        ck.check("复检取数失败时不渲染空表/计数行",
+                 await page.locator(".remediation .col-empty").count() == 0
+                 and await page.locator(".remediation .retest-col").count() == 0)
+    finally:
+        await page.unroute(RETEST_ROUTE)
+        await page.wait_for_timeout(300)
+        trim_resource_noise(console, mark)
+
+    retry = page.locator(".retest-error button", has_text="重试")
+    if await retry.count():
+        await retry.click()
+        await page.wait_for_timeout(1500)
+    ck.check("点重试后复检记录恢复",
+             await page.locator(".retest-error").count() == 0
+             and await page.locator(".remediation .retest-col").count() == 2)
 
 
 async def verify_failure_path(page, base: str, token: str, task_id: int, ck: Checker,
@@ -764,12 +869,11 @@ async def run(args, task_ids: list[int], ck: Checker) -> int:
             console.clear()
             await goto_task(page, args.base, token, tid)
             await page.wait_for_timeout(4000)
-            await verify_happy_path(page, args.base, token, tid, ck)
+            await verify_happy_path(page, args.base, token, tid, ck, console)
             await page.screenshot(path=f"{args.out}/verify_{tid}_fold.png")
-            # 整改操作那块会故意注入一次 400，浏览器必然补一条 "Failed to load resource"；
-            # 它是断言用的噪音，不是应用缺陷，按 app_errors 的同一口径放行。
-            ck.check(f"task {tid} 正向路径无 console error",
-                     not app_errors(console), "; ".join(app_errors(console)[:5]))
+            # 严格判定：故意注入的 400/500 已经在各自的作用域里被 trim_resource_noise
+            # 就地放行，这里不再做任何全局宽容，资源级失败照样算错。
+            ck.check(f"task {tid} 正向路径无 console error", not console, "; ".join(console[:5]))
 
         if not args.skip_failure:
             await verify_failure_path(page, args.base, token, task_ids[0], ck, args.out)
