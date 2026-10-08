@@ -585,6 +585,9 @@ class PlatformFinding(Base):
     subcategory = Column(String(80))
     severity = Column(String(30), nullable=False, default="medium")
     confidence = Column(String(30), nullable=False, default="medium")
+    # 整改闭环四态：needs_review（待审阅，当前全库都是这个）/ fixing（整改中）
+    # / fixed（已修复）/ ignored（已忽略）。**列本身就是 VARCHAR(30)，扩展取值不需要
+    # DDL**；允许值校验在 api/v1/tasks.py 的状态接口里，改这里要同步改那里。
     triage_status = Column(String(30), nullable=False, default="needs_review")
     baseline_state = Column(String(30), nullable=False, default="new")
     description = Column(Text)
@@ -600,6 +603,14 @@ class PlatformFinding(Base):
     finding_uid = Column(String(64))
     rule_snapshot = Column(JSONB, default=dict)
     observation_count = Column(Integer, default=0)
+    # 关联 observation 按 provider_level 的分布，如 {"L2": 18, "L3": 2, "L4": 4}。
+    # **存原始计数、不存中文**——中文映射（敏感 API 调用 / 数据流 / 安全缺陷）在展示层，
+    # 否则改文案要动数据。口径收在 finding_service._level_summary() 一处。
+    provider_level_summary = Column(JSONB)
+    # 整改闭环（0b）。这两列旧 findings 表上有、platform_findings 上没有，
+    # 所以主视图的「整改操作」内嵌进卡片后一直无处可写。
+    assigned_to = Column(BigInteger, ForeignKey("users.id"))
+    due_date = Column(Date)
     schema_version = Column(String(30), nullable=False, default="1.0")
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utcnow, onupdate=utcnow)

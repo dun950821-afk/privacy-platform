@@ -2,6 +2,7 @@
 import hashlib
 from datetime import datetime, timezone
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models import EngineObservation, FindingObservation, PlatformFinding
@@ -22,6 +23,33 @@ def _field(observation, name):
     if isinstance(observation, dict):
         return observation.get(name)
     return getattr(observation, name, None)
+
+
+def _level_summary(db: Session, observation_ids) -> dict | None:
+    """关联 observation 按 `provider_level` 的分布，如 `{"L2": 18, "L3": 2}`。
+
+    **口径只此一处**：`generate_direct_findings` 的新建/已存在两支、
+    `generate_findings` 的关联结论两支、以及 `apply_enrichments` 都调它，
+    避免五份实现各写各的。
+
+    只统计 `provider_level` 非空的：实测空值里绝大多数是**非隐私的 fact 类**
+    （`fact.component` 3792、`fact.permission` 1581、`security.endpoint` 668…），
+    它们本来就不属于 L2/L3/L4 三族，计进去只会让构成说明对不上
+    `observation_count`。隐私类也有少量空值（`security.sensitive_api` 约 6%），
+    所以**展示层不要假设 sum(summary) == observation_count**。
+
+    接受 id 列表而不是 finding_id：新建分支在 flush 之前就要写这一列，
+    那时还没有 finding_id。全空时返回 None 而不是 `{}`——展示层据此决定**整行不渲染**
+    （显示「由 构成」比不显示更糟）。
+    """
+    ids = [i for i in observation_ids if i]
+    if not ids:
+        return None
+    rows = db.query(EngineObservation.provider_level, func.count()).filter(
+        EngineObservation.id.in_(ids),
+        EngineObservation.provider_level.isnot(None),
+    ).group_by(EngineObservation.provider_level).all()
+    return {level: count for level, count in rows if level} or None
 
 
 def is_direct_finding_observation(observation) -> bool:
@@ -77,6 +105,7 @@ def generate_direct_findings(db: Session, task_id: int) -> list[PlatformFinding]
             PlatformFinding.dedup_key == dedup_key).first()
         if existing:
             existing.observation_count = len(obs_ids)
+            existing.provider_level_summary = _level_summary(db, obs_ids)
             produced.append(existing)
             continue
         head = items[0]
@@ -97,6 +126,7 @@ def generate_direct_findings(db: Session, task_id: int) -> list[PlatformFinding]
                            "sink_type": head.sink_type},
             dedup_key=dedup_key,
             observation_count=len(obs_ids),
+            provider_level_summary=_level_summary(db, obs_ids),
         )
         record.finding_uid = compute_finding_uid(record.finding_code, record.dedup_key)
         db.add(record)
@@ -165,6 +195,9 @@ def apply_enrichments(db: Session, task_id: int, enrichments: list[dict]) -> int
                                       relation_type="enriched_evidence"))
         finding.confidence = stronger_confidence(finding.confidence, bucket["confidence"])
         finding.observation_count = len(linked) + len(added)
+        # 增强会挂上新的证据 observation，level 分布要跟着重算——否则构成说明
+        # 停在增强之前，与 observation_count 越差越多。
+        finding.provider_level_summary = _level_summary(db, linked | added)
         # 增强来源记进 rule_snapshot 的 enrichments，不动结论本身的来源（source/规则）。
         # 不记的话，一个结论为什么是 medium_high 就无从复现了。
         snapshot = dict(finding.rule_snapshot or {})
@@ -201,6 +234,8 @@ def generate_findings(db: Session, task_id: int) -> list[PlatformFinding]:
         ).first()
         if existing:
             existing.observation_count = len(finding.get("observation_ids", []))
+            existing.provider_level_summary = _level_summary(
+                db, finding.get("observation_ids", []))
             produced.append(existing)
             continue
         record = PlatformFinding(
@@ -215,6 +250,7 @@ def generate_findings(db: Session, task_id: int) -> list[PlatformFinding]:
             correlation_rule_version=finding.get("correlation_rule_version"),
             rule_snapshot=finding.get("rule_snapshot", {}),
             dedup_key=finding["dedup_key"], observation_count=len(finding.get("observation_ids", [])),
+            provider_level_summary=_level_summary(db, finding.get("observation_ids", [])),
         )
         record.finding_uid = compute_finding_uid(record.finding_code, record.dedup_key)
         db.add(record)
