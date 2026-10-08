@@ -45,13 +45,19 @@ def test_endpoints_are_aggregated_by_host(client, admin_headers, scanned_task):
 
 
 def test_endpoints_flags_test_residue_and_marks_nothing_else(client, admin_headers, scanned_task):
-    """只标可判定的两类，不做「业务服务器 / 第三方 SDK」分类（§5.4 明确否掉）。"""
+    """归属只标「推得出或查得到」的，其余留空；格式串不得进列表。
+
+    注：计划 §5.4 原文写的是「**不做**业务服务器 / 第三方 SDK 分类（无法判断）」。
+    那条的前提是「知识库里没有域名 → 组件的映射」。本轮补了这份数据之后，
+    可归因的那部分**已经可判断**，所以接口开始返回 `attribution`——§5.4 在
+    「查得到」的子集上被取代，但在**未知部分仍然成立**：查不到就留空，不猜。
+    """
     data = client.get(f"/api/v1/tasks/{scanned_task}/endpoints",
                       headers=admin_headers).json()["data"]
     for h in data["hosts"]:
         assert set(h) == {"host", "urls", "observed_by", "is_test_residue",
                           "is_privacy_policy", "url_count", "attribution"}, \
-            "多出了未声明的分类字段——§5.4 要求不做 业务/第三方 分类"
+            "多出了未声明的字段——有归属的走 attribution，不要另起分类字段"
         # 归属只标推得出/查得到的，查不到必须留空而不是硬编一个
         a = h["attribution"]
         if a is not None:

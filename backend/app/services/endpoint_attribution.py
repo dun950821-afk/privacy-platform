@@ -146,6 +146,15 @@ def load_curated(path: pathlib.Path | None = None) -> dict[str, dict]:
     return out
 
 
+# 厂商/组件名里切出来的通用词——它们出现在域名里并不能说明归属，
+# 反而会把 `api.somewhere.com` 这类误判成 high（`api` 对上了「XX API SDK」）。
+_GENERIC_TOKENS = {
+    "sdk", "app", "platform", "library", "lib", "core", "common", "base",
+    "tool", "tools", "api", "android", "client", "service", "services",
+    "kit", "framework", "module", "plugin", "mobile", "cloud", "open",
+}
+
+
 def _vendor_matches_host(host: str, vendor: str | None, component: str | None) -> bool:
     """域名与厂商**对得上**吗——用来给推导结果定确信度。
 
@@ -160,11 +169,18 @@ def _vendor_matches_host(host: str, vendor: str | None, component: str | None) -
     它仍是一条线索，只是不能当结论用。
     """
     text = (host or "").lower()
-    labels = set(text.split("."))
+    # 把域名拆成「标签」与「标签的连字符片段」：`trtc.tencent-cloud.com` →
+    # {trtc, tencent-cloud, tencent, cloud, com}。**逐段相等**比较，不做子串——
+    # 子串会让 `qq` 命中 `qqq.com`。
+    parts = set()
+    for label in text.split("."):
+        parts.add(label)
+        parts.update(label.split("-"))
     tokens = set()
     for src in (vendor, component):
         if src:
-            tokens.update(t for t in re.split(r"[^a-z0-9]+", src.lower()) if len(t) >= 3)
+            tokens.update(t for t in re.split(r"[^a-z0-9]+", src.lower())
+                          if len(t) >= 3 and t not in _GENERIC_TOKENS)
     # 中文厂商名（腾讯、百度…）本身对不上域名，得映射到它的英文/域名形态。
     # 注意 vendor 常常是**公司级**（「腾讯」）而组件是产品线级（「腾讯云通信 SDK」），
     # 所以腾讯要同时认 qcloud/myqcloud——实测 api.im.qcloud.com 就是这么漏的。
@@ -181,9 +197,7 @@ def _vendor_matches_host(host: str, vendor: str | None, component: str | None) -
     for key, names in alias.items():
         if vendor and key in vendor:
             tokens.update(names)
-    # **按域名标签匹配**，不做整串子串匹配：`qq` 该命中 `x.qq.com`，
-    # 不该命中 `qqq.com`（标签相等或标签包含，不是任意子串）。
-    return any(t in label for t in tokens for label in labels)
+    return any(t in parts for t in tokens)
 
 
 def attribute_hosts(db: Session, index: ComponentIndex, task_id: int) -> dict[str, dict]:

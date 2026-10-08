@@ -263,9 +263,32 @@ const text = parts.length ? `由 ${parts.join(' + ')}构成` : null
 
 ### 5.4 网络证据块
 
-按 host 平铺，**不做「业务服务器 / 第三方 SDK」分类**（无法判断），
+按 host 平铺，~~**不做「业务服务器 / 第三方 SDK」分类**（无法判断）~~，
 但 `test.bankofyk.com` 这类要黄色高亮为**测试服务器残留**——这是现成的合规信号。
 必须标注「端点与规则的精确关联暂未建立，以上为 App 全部端点」。
+
+> **2026-10-08 更新：「不做分类」这条被取代了，但只在「查得到」的子集上。**
+>
+> 原文的理由是「无法判断」——因为知识库里没有「域名 → 组件」的映射。用户随后要求
+> **补这份映射数据**，于是它可判断了，`GET /{tid}/endpoints` 开始返回 `attribution`。
+>
+> 取代后的口径（§5.4 的谨慎在**未知部分仍然成立**）：
+>
+> ```json
+> "attribution": null | {component_name, vendor, confidence, via, sources, note}
+> ```
+>
+> - 归属线索来自平台自己的数据：`engine_observations(security.endpoint)` 的 payload 里，
+>   `url.path` 是**引用该域名的类或 .so**（实测 131 个 host 100% 有），交给
+>   `component_matcher` 匹配知识库即可——见 `app/services/endpoint_attribution.py`
+> - `confidence: low` 表示「域名出现在该库的代码/字符串里，但归属方与域名对不上」，
+>   可能是文档链接或命名空间（`www.openssl.org` ← `libnrtc_sdk.so`）。
+>   **是线索不是结论**，展示上必须与 `high` 区分
+> - **查不到就留空，不猜**——这一条是原文的精神，保留
+>
+> 另：`/endpoints` 现在**合并两个来源**（Androguard 的 `endpoints.urls` 与 AppShark 的
+> `security.endpoint`），因为两者交集只有 6/71——只取一边都漏真实端点。
+> 每个 host 带 `observed_by` 标出处，这才让「以上为 App **全部**端点」这句话成立。
 
 ---
 
