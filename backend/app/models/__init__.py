@@ -374,7 +374,10 @@ class Remediation(Base):
 class RetestRecord(Base):
     __tablename__ = "retest_records"
     id = Column(BigInteger, primary_key=True)
-    original_finding_id = Column(BigInteger, ForeignKey("findings.id"), nullable=False)
+    # 指向 platform_findings（现行结论表），**不是**旧的 findings 表——那张表 0 行，
+    # 指着它等于「标记已复检」在数据模型上落不下来。迁移见
+    # alembic/versions/20260929_retest_fk_platform_findings.py
+    original_finding_id = Column(BigInteger, ForeignKey("platform_findings.id"), nullable=False)
     retest_task_id = Column(BigInteger, ForeignKey("detection_tasks.id"))
     result = Column(String(30))
     notes = Column(Text)
