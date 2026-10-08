@@ -50,6 +50,13 @@
             <span class="card-key">截止日期</span>
             <span class="card-val t-num">{{ f.due_date }}</span>
           </div>
+
+          <!-- 证据块只在卡片展开时挂载：否则每张卡一进页面就各自打接口 -->
+          <template v-if="isOpen(f.id)">
+            <CodeEvidenceBlock :task-id="taskId" :finding-id="f.id" />
+            <NetworkEvidenceBlock :data="endpoints" :loading="endpointsLoading"
+                                  :error="endpointsError" @retry="loadEndpoints" />
+          </template>
         </div>
       </el-collapse-item>
     </el-collapse>
@@ -73,6 +80,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { RefreshRight } from '@element-plus/icons-vue'
 import EmptyBox from '@/components/EmptyBox.vue'
 import StatusTag from '@/components/StatusTag.vue'
+import CodeEvidenceBlock from '@/components/CodeEvidenceBlock.vue'
+import NetworkEvidenceBlock from '@/components/NetworkEvidenceBlock.vue'
 import { taskApi } from '@/api/tasks'
 import { CONFIDENCE, SEVERITY, TRIAGE_STATUS, dictLabel } from '@/utils/dict'
 
@@ -83,6 +92,19 @@ const findings = ref<any[]>([])
 const openIds = ref<number[]>([])
 /** 取数失败的原因。与「确实没有结论」是两回事，见模板里的失败态 */
 const loadError = ref('')
+
+/**
+ * 端点数据是 **任务级** 的（`/endpoints` 不带 finding），所以在父层取一次，
+ * 展开的每张卡片共用——放在卡片里各自取会把同一个响应对 N 张卡重复拉 N 次。
+ */
+const endpoints = ref<any>(null)
+const endpointsLoading = ref(false)
+const endpointsError = ref('')
+
+/** el-collapse 的 v-model 就是展开中的 finding id 列表 */
+function isOpen(id: number): boolean {
+  return openIds.value.includes(id)
+}
 
 /**
  * 构成说明的词面。L2/L3/L4 是三个规则族，不是严重度阶梯（同一规则不跨 level）。
@@ -147,8 +169,32 @@ async function load() {
   }
 }
 
-onMounted(load)
-watch(() => props.taskId, load)
+/**
+ * 端点单独取、单独失败：它挂了不该把问题清单一起变成失败态——两者是两块证据。
+ * `api` 已按 silent 调用（见 api/tasks.ts），失败由这里的文案承担。
+ */
+async function loadEndpoints() {
+  if (!props.taskId) return
+  endpointsLoading.value = true
+  endpointsError.value = ''
+  try {
+    const res: any = await taskApi.endpoints(props.taskId)
+    endpoints.value = res.data || null
+  } catch (e: any) {
+    endpoints.value = null
+    endpointsError.value = e?.message || e?.detail || '网络证据读取失败'
+  } finally {
+    endpointsLoading.value = false
+  }
+}
+
+onMounted(() => { load(); loadEndpoints() })
+watch(() => props.taskId, () => {
+  // 换任务时收起所有卡片：展开态里的证据是上一个任务的，留着会张冠李戴
+  openIds.value = []
+  load()
+  loadEndpoints()
+})
 </script>
 
 <style scoped>
@@ -230,6 +276,9 @@ watch(() => props.taskId, load)
 .load-error-reason { font-size: var(--text-label); color: var(--ink-3); word-break: break-all; }
 
 .card-body { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); }
+/* 证据块要与上面的字段行整行并列，不跟字段挤在同一行 */
+.card-body :deep(.code-evidence),
+.card-body :deep(.net-evidence) { flex-basis: 100%; width: 100%; }
 .card-field { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
 .card-key { font-size: var(--text-label); color: var(--ink-4); flex-shrink: 0; }
 .card-val { color: var(--ink-body); word-break: break-all; }

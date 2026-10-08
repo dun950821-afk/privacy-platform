@@ -15,6 +15,15 @@
   正向路径  —— 主视图无 tab；结论条计数；卡片数与接口一致；按 severity 排序；
               构成说明只在 L2/L3 有值时出现（L4 不进、summary 为 null 不出现）；
               「证据 N 处」取自 observation_count；全程无 console error。
+  证据块    —— §5.3 代码证据：按 observation 逐条列出 location 方法签名原文
+              （含 location 为空时写「没有」而非空行）；「查看完整路径」打开
+              EngineReportViewer 且带逐字标注「以下为 IR 代码（smali 风格），非 Java 源码」；
+              没有 payload.url 的观察按钮置灰（点了才会 404）。
+              §5.4 网络证据：按 host 平铺且与接口同序；测试服务器残留高亮；
+              逐字标注「端点与规则的精确关联暂未建立，以上为 App 全部端点」；
+              available:false 显示「该任务没有端点数据」而不是空列表；
+              confidence=low 的归属用 .is-lead（与 high 的 .is-solid 不同）并显示 note；
+              attribution 为空的 host 不渲染归属（不猜）。
   失败路径  —— 拦掉 platform-findings 返回 500 后，必须出现可重试的失败态，
               且**不得**出现「本次未形成平台结论」（失败不能冒充「确实没有结论」）；
               点「重试」后恢复。
@@ -90,6 +99,36 @@ async def fetch_findings(page, base: str, token: str, task_id: int) -> dict:
     body = await resp.json()
     assert body.get("code") == 0, body
     return body["data"]
+
+
+async def fetch_json(page, base: str, token: str, path: str) -> dict:
+    resp = await page.request.get(f"{base}/api/v1{path}",
+                                  headers={"Authorization": f"Bearer {token}"})
+    body = await resp.json()
+    assert body.get("code") == 0, body
+    return body["data"]
+
+
+# ── 证据块（§5.3 + §5.4）期望值 ────────────────────────────────────────────────
+# 两条标注是**逐字**要求（简报 Global Constraints 2 / 3），脚本按同一份字面量断言，
+# 前端改了字就会在这里挂——这正是要拦的。
+IR_NOTICE = "以下为 IR 代码（smali 风格），非 Java 源码"
+ENDPOINT_NOTICE = "端点与规则的精确关联暂未建立，以上为 App 全部端点"
+NO_ENDPOINT = "该任务没有端点数据"
+NO_LOCATION = "（该条观察无方法签名）"
+# 代码证据的长列表首屏只渲染这么多（与 CodeEvidenceBlock.PAGE 一致）
+OBS_PAGE = 20
+
+
+def obs_location(obs: dict) -> str:
+    """与 CodeEvidenceBlock.locationOf 同一口径：缺失时是「没有」，不是空行。"""
+    return obs.get("location") or NO_LOCATION
+
+
+def has_report(obs: dict) -> bool:
+    """后端按 payload.url 定位报告文件；没有 url 的观察没有 IR 报告可开。"""
+    payload = obs.get("payload")
+    return bool(payload.get("url")) if isinstance(payload, dict) else False
 
 
 async def goto_task(page, base: str, token: str, task_id: int) -> None:
@@ -173,10 +212,141 @@ async def verify_happy_path(page, base: str, token: str, task_id: int, ck: Check
     ck.check("构成说明逐条正确（L4 不进、null 不出现）", not comp_bad, "; ".join(comp_bad))
     ck.check("证据条数逐条取自 observation_count", not ev_bad, "; ".join(ev_bad))
 
-    # 展开一张卡，确认折叠态可展开、且不报错
+    # 展开第一张卡：它的展开区里应当出现代码证据 + 网络证据两块
+    first_finding_id = sorted_findings(findings)[0]["id"]
     await cards.locator(".el-collapse-item__header").first.click()
-    await page.wait_for_timeout(600)
+    await page.wait_for_timeout(800)
     ck.check("卡片可展开", await cards.locator(".card-body").first.is_visible())
+    await verify_evidence(page, base, token, task_id, first_finding_id, ck)
+
+
+async def verify_evidence(page, base: str, token: str, task_id: int, fid: int,
+                          ck: Checker) -> None:
+    """§5.3 代码证据块 + §5.4 网络证据块（卡片展开区）。"""
+    print(f"  [证据块] finding {fid}")
+    card = page.locator(".cards .el-collapse-item").first
+
+    # ── §5.3 代码证据：逐条列出 observation 的方法签名原文 ──
+    detail = await fetch_json(page, base, token, f"/tasks/{task_id}/platform-findings/{fid}")
+    obs = detail.get("observations") or []
+    try:
+        await card.locator(".code-evidence .obs").first.wait_for(timeout=15000)
+    except PWTimeout:
+        pass
+
+    rows = card.locator(".code-evidence .obs")
+    got_n = await rows.count()
+    ck.check("代码证据按 observation 逐条渲染",
+             got_n == min(len(obs), OBS_PAGE),
+             f"dom={got_n} api={len(obs)} 首屏={min(len(obs), OBS_PAGE)}")
+
+    # 逐条比对方法签名原文（含 null 的「没有」）
+    locs = [s.strip() for s in await rows.locator(".obs-loc").all_inner_texts()]
+    want_locs = [obs_location(o) for o in obs[:OBS_PAGE]]
+    ck.check("代码证据展示 location 方法签名原文", locs == want_locs,
+             f"首条 dom={locs[:1]!r} api={want_locs[:1]!r} 不符={sum(1 for a, b in zip(locs, want_locs) if a != b)} 条")
+    null_n = sum(1 for o in obs if not o.get("location"))
+    print(f"  观察 {len(obs)} 条，其中 location 为空 {null_n} 条")
+
+    # 「查看完整路径」的可用性必须与「有没有报告」一致：无 url 的观察不该可点
+    btns = rows.locator("button", has_text="查看完整路径")
+    want_enabled = [has_report(o) for o in obs[:OBS_PAGE]]
+    got_disabled = [await btns.nth(i).is_disabled() for i in range(await btns.count())]
+    ck.check("无引擎报告的观察「查看完整路径」置灰（点了才会 404）",
+             got_disabled == [not e for e in want_enabled],
+             f"disabled={got_disabled} 期望={[not e for e in want_enabled]}")
+
+    # 长列表：展开全部后应等于接口返回条数
+    if len(obs) > OBS_PAGE:
+        more = card.locator(".code-evidence button", has_text="展开其余")
+        ck.check("长列表提供「展开其余 N 条」", await more.count() == 1)
+        if await more.count():
+            await more.click()
+            await page.wait_for_timeout(400)
+            ck.check("展开其余后条数 == 接口条数",
+                     await rows.count() == len(obs),
+                     f"dom={await rows.count()} api={len(obs)}")
+
+    # ── §5.3「查看完整路径」→ EngineReportViewer（IR 代码）+ 逐字标注 ──
+    pick = next((i for i, o in enumerate(obs[:OBS_PAGE]) if has_report(o)), None)
+    if pick is None:
+        ck.check("存在可打开 IR 的观察", False, "首屏 20 条都没有 payload.url")
+    else:
+        await rows.nth(pick).locator("button", has_text="查看完整路径").click()
+        try:
+            await page.locator(".el-drawer .ir-note").wait_for(timeout=10000)
+        except PWTimeout:
+            pass
+        note = (await page.locator(".el-drawer .ir-note").inner_text()).strip() \
+            if await page.locator(".el-drawer .ir-note").count() else "(没有标注)"
+        ck.check("IR 代码块有逐字标注", note == IR_NOTICE, f"dom={note!r}")
+        ck.check("「查看完整路径」打开引擎报告（EngineReportViewer）",
+                 await page.locator(".el-drawer .report-viewer").count() == 1)
+        code_lines = await page.locator(".el-drawer .report-viewer .code-line").count()
+        print(f"  IR 代码行 {code_lines} 行")
+        ck.check("IR 代码块渲染出代码行", code_lines > 0)
+        # 页面上还有别的 drawer（AppSharkPanel 等），`.el-drawer__close-btn` 会命中多个；
+        # Escape 是 Element Plus drawer 的默认关闭方式，且只作用于最上层
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(500)
+
+    # ── §5.4 网络证据块 ──
+    ep = await fetch_json(page, base, token, f"/tasks/{task_id}/endpoints")
+    hosts = ep.get("hosts") or []
+    net = card.locator(".net-evidence")
+    ck.check("网络证据块存在", await net.count() == 1)
+
+    ep_note = (await net.locator(".net-note").inner_text()).strip() \
+        if await net.locator(".net-note").count() else "(没有标注)"
+    ck.check("网络块有逐字标注", ep_note == ENDPOINT_NOTICE, f"dom={ep_note!r}")
+
+    if not ep.get("available"):
+        absent = (await net.locator(".net-absent").inner_text()).strip() \
+            if await net.locator(".net-absent").count() else "(没有说明)"
+        ck.check("available:false 显示「该任务没有端点数据」", absent == NO_ENDPOINT, f"dom={absent!r}")
+        ck.check("available:false 不渲染空 host 列表",
+                 await net.locator(".host").count() == 0)
+        return
+
+    names = [s.strip() for s in await net.locator(".host-name").all_inner_texts()]
+    ck.check("网络块按 host 平铺且条数与接口一致",
+             names == [h["host"] for h in hosts],
+             f"dom={len(names)} api={len(hosts)}")
+    ck.check("host 按 url_count 降序（后端已排好）",
+             names == [h["host"] for h in sorted(hosts, key=lambda h: (-h["url_count"], h["host"]))])
+
+    # 测试服务器残留：黄色高亮 + 标签
+    test_dom = await net.locator(".host.is-test").count()
+    test_api = sum(1 for h in hosts if h["is_test_residue"])
+    ck.check("测试服务器残留高亮行数一致", test_dom == test_api, f"dom={test_dom} api={test_api}")
+    if test_api:
+        flagged = await net.locator(".host.is-test .is-test-flag").all_inner_texts()
+        ck.check("残留行带「测试服务器残留」标签",
+                 all(t.strip() == "测试服务器残留" for t in flagged), f"{flagged[:3]}")
+
+    # 归属：high/medium 与 low 必须视觉可区分，且 low 要显示 note
+    low_api = [h for h in hosts if (h.get("attribution") or {}).get("confidence") == "low"]
+    solid_api = [h for h in hosts if h.get("attribution") and
+                 h["attribution"].get("confidence") != "low"]
+    ck.check("低确信归属用 .is-lead 渲染（与 high 的 .is-solid 不同类）",
+             await net.locator(".attr.is-lead").count() == len(low_api),
+             f"dom={await net.locator('.attr.is-lead').count()} api={len(low_api)}")
+    ck.check("高/中确信归属用 .is-solid 渲染",
+             await net.locator(".attr.is-solid").count() == len(solid_api),
+             f"dom={await net.locator('.attr.is-solid').count()} api={len(solid_api)}")
+    if low_api:
+        lead = net.locator(".attr.is-lead").first
+        note = (await lead.locator(".attr-note").inner_text()).strip()
+        ck.check("低确信归属显示依据/疑虑说明（note）",
+                 len(note) > 10 and note == (low_api[0]["attribution"].get("note") or "").strip(),
+                 f"dom={note[:60]!r}")
+        ck.check("低确信归属标为「归属线索」不是「归属」",
+                 (await lead.locator(".attr-label").inner_text()).strip() == "归属线索")
+    # 留空的不猜：没有 attribution 的 host 不得渲染 .attr
+    attr_hosts = sum(1 for h in hosts if h.get("attribution"))
+    ck.check("attribution 为空的 host 不渲染归属（不猜）",
+             await net.locator(".host .attr").count() == attr_hosts,
+             f"dom={await net.locator('.host .attr').count()} api={attr_hosts}")
 
 
 async def verify_failure_path(page, base: str, token: str, task_id: int, ck: Checker,

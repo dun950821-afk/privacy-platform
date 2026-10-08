@@ -13,6 +13,11 @@ export const taskApi = {
     api.put(`/tasks/${tid}/scenarios/${sid}`, data),
   findings: (id: number) => api.get(`/tasks/${id}/findings`),
   platformFindings: (id: number) => api.get(`/tasks/${id}/platform-findings`),
+  // 单条结论详情：含关联 observation（`observations[].id` 交给 EngineReportViewer）
+  platformFinding: (id: number, fid: number) =>
+    api.get(`/tasks/${id}/platform-findings/${fid}`, { silent: true }),
+  // App 全部网络端点，按 host 聚合（含归属 attribution）
+  endpoints: (id: number) => api.get(`/tasks/${id}/endpoints`, { silent: true }),
   observations: (id: number, params?: any) => api.get(`/tasks/${id}/observations`, { params }),
   // 合规画像：各引擎结果按「收集主体 / 权限」归并后的统一视图
   complianceProfile: (id: number) => api.get(`/tasks/${id}/compliance-profile`),
