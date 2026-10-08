@@ -61,9 +61,14 @@ def test_endpoints_flags_test_residue_and_marks_nothing_else(client, admin_heade
         # 归属只标推得出/查得到的，查不到必须留空而不是硬编一个
         a = h["attribution"]
         if a is not None:
-            assert set(a) == {"component_name", "vendor", "confidence", "via", "sources", "note"}
+            assert set(a) == {"component_name", "vendor", "confidence", "via",
+                              "sources", "note", "label"}
             assert a["via"] in ("derived", "curated")
             assert a["sources"], "标了归属却没有依据，无法核对"
+            # T7-M7：不许返回三样全空的归属盒（前端会渲染成空框）。
+            # 只有 label 的语料行（平台命名空间 / 应用自研）也算有断语。
+            assert a["component_name"] or a["vendor"] or a["label"], \
+                "归属三样全空——应当留空(None)，而不是返回一个空盒子"
         if h["is_test_residue"]:
             assert "test" in h["host"]
         # 两个来源合并后，每个 host 都要能说出是谁观测到的

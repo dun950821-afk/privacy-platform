@@ -5,8 +5,10 @@
       <span v-if="hosts.length" class="ev-count t-num">{{ hosts.length }} 个 host · {{ data?.total_urls }} 个 URL</span>
     </div>
 
-    <!-- 必须标注：端点级归属已能推，但「哪个端点对应哪条规则」还没有建立 -->
-    <p class="net-note">端点与规则的精确关联暂未建立，以上为 App 全部端点</p>
+    <!-- 必须标注：端点级归属已能推，但「哪个端点对应哪条规则」还没有建立。
+         只在**真的取到端点数据**时标注：否则「以上为 App 全部端点」会与下面
+         「该任务没有端点数据」同时出现，语义自相矛盾（T7-M3）。 -->
+    <p v-if="available" class="net-note">端点与规则的精确关联暂未建立，以上为 App 全部端点</p>
 
     <div v-if="error" class="ev-error">
       <span class="ev-error-text">{{ error }}</span>
@@ -36,10 +38,13 @@
           <li v-for="u in h.urls" :key="u" class="mono">{{ u }}</li>
         </ul>
 
-        <!-- 归属：有依据才显示。推不出也查不到就留空——按错误归属去查隐私政策是白查 -->
-        <div v-if="h.attribution" class="attr" :class="isLow(h.attribution) ? 'is-lead' : 'is-solid'">
+        <!-- 归属：有断语才显示。三样（组件 / 厂商 / label）全空就留空——
+             按错误归属去查隐私政策是白查；渲染一个空的归属盒同样没意义（T7-M7）。
+             非代码归属（平台命名空间 / 应用自研）没有组件或厂商，断语落在 label 上。 -->
+        <div v-if="hasVerdict(h.attribution)" class="attr"
+             :class="isLow(h.attribution) ? 'is-lead' : 'is-solid'">
           <span class="attr-label">{{ isLow(h.attribution) ? '归属线索' : '归属' }}</span>
-          <span class="attr-name">{{ h.attribution.component_name || h.attribution.vendor }}</span>
+          <span class="attr-name">{{ attributionName(h.attribution) }}</span>
           <span v-if="h.attribution.component_name && h.attribution.vendor" class="attr-vendor">
             · {{ h.attribution.vendor }}
           </span>
@@ -78,9 +83,20 @@ function isLow(a: any): boolean {
   return a?.confidence === 'low'
 }
 
-/** sources 是空格分隔的混合串（IR 路径 / URL），拆开逐条展示才便于核对 */
+/** 归属盒只在真有断语时渲染：组件名 / 厂商 / label 三样全空 = 一个空盒子（T7-M7） */
+function hasVerdict(a: any): boolean {
+  return !!(a && (a.component_name || a.vendor || a.label))
+}
+
+/** 展示名：组件优先，其次厂商，最后落到 label（平台命名空间 / 应用自研） */
+function attributionName(a: any): string {
+  return a?.component_name || a?.vendor || a?.label || ''
+}
+
+/** sources 是空格分隔的混合串（IR 路径 / URL），拆开逐条展示才便于核对。
+    语料里「无依据」写作 `none`，那不是一条依据，不展示。 */
 function sourcesOf(a: any): string[] {
-  return String(a?.sources || '').split(/\s+/).filter(Boolean)
+  return String(a?.sources || '').split(/\s+/).filter((s) => s && s !== 'none')
 }
 
 function toggle(host: string) {

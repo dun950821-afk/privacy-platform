@@ -35,7 +35,7 @@
         <section class="bg-block" data-block="security" v-loading="secLoading">
           <div class="bg-title">
             安全加固
-            <span class="bg-hint">应用安全 / 清单 / 密钥 / 证书 / 依赖</span>
+            <span class="bg-hint">安全缺陷（L4）/ 应用安全 / 清单 / 密钥 / 证书 / 依赖</span>
           </div>
 
           <div v-if="secError" class="bg-error">
@@ -82,6 +82,28 @@
               </button>
             </div>
           </template>
+
+          <!-- L4 安全缺陷结论（决策 A：不进卡片构成说明，归这里）。
+               数据源是 platform-findings，与上面 MobSF 五段不同，所以单独成块、
+               不参与 .sec-seg 的五段顺序。 -->
+          <div class="l4-seg" data-section="l4" v-loading="l4Loading">
+            <div class="sec-head">
+              <span class="sec-label">安全缺陷结论（L4）</span>
+              <span v-if="l4Items.length" class="sec-count t-num">{{ l4Items.length }} 条</span>
+            </div>
+            <div v-if="l4Error" class="bg-error">
+              <span>{{ l4Error }}</span>
+              <el-button size="small" link type="primary" @click="loadL4">重试</el-button>
+            </div>
+            <div v-else-if="!l4Items.length" class="sec-missing">本任务没有安全缺陷结论</div>
+            <ul v-else class="l4-list">
+              <li v-for="f in l4Items" :key="f.id" class="l4-item">
+                <StatusTag :value="f.severity" :map="SEVERITY" />
+                <span class="l4-title">{{ f.title || f.finding_code || '-' }}</span>
+                <span class="l4-meta t-num">{{ f.observation_count ?? 0 }} 处证据</span>
+              </li>
+            </ul>
+          </div>
         </section>
 
         <!-- ③ 端点与网络：任务级数据，只在这里出现一次 -->
@@ -91,36 +113,49 @@
                                 @retry="loadEndpoints" />
         </section>
 
-        <!-- ④ 合规画像（采集主体）：权限与 SDK 在下面各自成块，这里不再重复 -->
-        <section class="bg-block" data-block="profile">
+        <!-- ④⑤⑥ 合规画像 / SDK / 权限 共用**同一次** `/compliance-profile` 取数
+             （F2：此前取了 3 次）。失败时只有一个错误态、一个重试——绝不把
+             一次请求失败渲染成一排全 0 结论。 -->
+        <section v-if="profError" class="bg-block" data-block="profile">
           <div class="bg-title">合规画像</div>
-          <div class="bg-embed">
-            <ComplianceProfile :task-id="taskId" :sections="['collect', 'gaps']" />
-          </div>
-        </section>
-
-        <!-- ⑤ SDK 组件。unattributed 来自 compliance-profile（与「权限」块同一次取数） -->
-        <section class="bg-block" data-block="sdk" v-loading="profLoading">
-          <div class="bg-title">SDK 组件</div>
-          <div v-if="profError" class="bg-error">
+          <div class="bg-error">
             <span>{{ profError }}</span>
             <el-button size="small" link type="primary" @click="loadProfile">重试</el-button>
           </div>
-          <div class="bg-embed">
-            <SdkPanel :task-id="taskId" :unattributed="unattributed" />
-          </div>
         </section>
 
-        <!-- ⑥ 权限：直接复用 ComplianceProfile 的 #sec-permission 卡片。
-             简报 §一 对该块的要求是「沿用现成展示」——手写一张窄表会丢掉
-             筛选栏（含「申请但未见使用」）、compliance_focus、method_count
-             与「N 项权限的映射未覆盖」披露条，并让权限表的列定义在仓库里出现两份。 -->
-        <section class="bg-block" data-block="permission">
-          <div class="bg-title">权限</div>
-          <div class="bg-embed">
-            <ComplianceProfile :task-id="taskId" :sections="['permission']" />
-          </div>
-        </section>
+        <template v-else>
+          <!-- ④ 合规画像（采集主体）：权限与 SDK 在下面各自成块，这里不再重复 -->
+          <section class="bg-block" data-block="profile">
+            <div class="bg-title">合规画像</div>
+            <div class="bg-embed">
+              <ComplianceProfile :task-id="taskId" :sections="['collect', 'gaps']"
+                                 :profile="profileData" :profile-loading="profLoading"
+                                 :profile-error="profError" @retry="loadProfile" />
+            </div>
+          </section>
+
+          <!-- ⑤ SDK 组件。unattributed 来自同一次 compliance-profile 取数 -->
+          <section class="bg-block" data-block="sdk" v-loading="profLoading">
+            <div class="bg-title">SDK 组件</div>
+            <div class="bg-embed">
+              <SdkPanel :task-id="taskId" :unattributed="unattributed" />
+            </div>
+          </section>
+
+          <!-- ⑥ 权限：直接复用 ComplianceProfile 的 #sec-permission 卡片。
+               简报 §一 对该块的要求是「沿用现成展示」——手写一张窄表会丢掉
+               筛选栏（含「申请但未见使用」）、compliance_focus、method_count
+               与「N 项权限的映射未覆盖」披露条，并让权限表的列定义在仓库里出现两份。 -->
+          <section class="bg-block" data-block="permission">
+            <div class="bg-title">权限</div>
+            <div class="bg-embed">
+              <ComplianceProfile :task-id="taskId" :sections="['permission']"
+                                 :profile="profileData" :profile-loading="profLoading"
+                                 :profile-error="profError" @retry="loadProfile" />
+            </div>
+          </section>
+        </template>
       </div>
     </div>
   </el-drawer>
@@ -132,7 +167,9 @@ import { Close } from '@element-plus/icons-vue'
 import NetworkEvidenceBlock from '@/components/NetworkEvidenceBlock.vue'
 import ComplianceProfile from '@/components/ComplianceProfile.vue'
 import SdkPanel from '@/components/SdkPanel.vue'
+import StatusTag from '@/components/StatusTag.vue'
 import { taskApi } from '@/api/tasks'
+import { SEVERITY } from '@/utils/dict'
 import { fmtSize } from '@/utils/format'
 
 const props = defineProps<{ modelValue: boolean; taskId: number; task?: any }>()
@@ -211,10 +248,28 @@ const endpoints = ref<any>(null)
 const epLoading = ref(false)
 const epError = ref('')
 
-// ── SDK 未识别包（合规画像与权限由 ComplianceProfile 自己取数） ──────────────
+// ── 合规画像 / SDK / 权限：同一次 `/compliance-profile` 取数（F2）。
+//    结果作为 prop 传给两块内嵌的 ComplianceProfile，它们自己不再取数。
+const profileData = ref<any>(null)
 const unattributed = ref<any[]>([])
 const profLoading = ref(false)
 const profError = ref('')
+
+// ── L4 安全缺陷结论（决策 A：归「安全加固」块，不进问题卡片的构成说明） ────────
+const l4Items = ref<any[]>([])
+const l4Loading = ref(false)
+const l4Error = ref('')
+
+/**
+ * 是不是一条「L4 结论」：带 L4 观测、且**没有** L2/L3 的隐私维度成分。
+ * 隐私结论即便含 L4 观测也留在问题清单（它的主体是 L2/L3）；纯安全缺陷才归这里。
+ * summary 为 null 的历史结论用 category 兜底。
+ */
+function isL4(f: any): boolean {
+  const s = f?.provider_level_summary || {}
+  if (s.L2 || s.L3) return false
+  return !!s.L4 || f?.category === 'security'
+}
 
 async function loadSecurity() {
   secLoading.value = true
@@ -252,12 +307,30 @@ async function loadProfile() {
   try {
     const res = await taskApi.complianceProfile(props.taskId)
     const d: any = res.data || {}
+    profileData.value = d
     unattributed.value = d.unattributed_packages || []
   } catch (e: any) {
+    // 失败必须与「确实是 0」分开：合规画像块 / SDK 块 / 权限块共用这一次取数，
+    // 失败时只出**一个**错误态，绝不把全 0 渲染成结论（F2）。
+    profileData.value = null
     unattributed.value = []
-    profError.value = e?.message || e?.detail || '未识别包数据读取失败'
+    profError.value = e?.message || e?.detail || '合规画像读取失败'
   } finally {
     profLoading.value = false
+  }
+}
+
+async function loadL4() {
+  l4Loading.value = true
+  l4Error.value = ''
+  try {
+    const res: any = await taskApi.platformFindings(props.taskId)
+    l4Items.value = (res.data?.items || []).filter(isL4)
+  } catch (e: any) {
+    l4Items.value = []
+    l4Error.value = e?.message || e?.detail || '安全缺陷结论读取失败'
+  } finally {
+    l4Loading.value = false
   }
 }
 
@@ -269,6 +342,7 @@ function loadAll() {
   loadSecurity()
   loadEndpoints()
   loadProfile()
+  loadL4()
 }
 
 watch(open, (v) => { if (v) loadAll() }, { immediate: true })
@@ -322,6 +396,13 @@ watch(() => props.taskId, () => { loaded = false; if (props.modelValue) loadAll(
   padding: 0 6px; border-radius: 999px; background: var(--surface-subtle); border: 1px solid var(--line);
   color: var(--ink-3); font-size: var(--text-micro);
 }
+/* L4 安全缺陷结论：与 MobSF 五段同一排版语言，但独立成块（不占 .sec-seg 的顺序） */
+.l4-seg { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px dashed var(--line); }
+.l4-list { margin: 0; padding: 0; list-style: none; }
+.l4-item { display: flex; align-items: baseline; gap: var(--space-2); padding: 2px 0; flex-wrap: wrap; }
+.l4-title { font-size: var(--text-label); color: var(--ink-body); word-break: break-all; }
+.l4-meta { font-size: var(--text-micro); color: var(--ink-4); }
+
 /* 「没有这段数据」是结论，不是空列表：虚线框 + 一句说明 */
 .sec-missing {
   padding: var(--space-1) var(--space-2);

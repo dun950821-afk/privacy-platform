@@ -15,21 +15,26 @@
   正向路径  —— 主视图无 tab；结论条计数；卡片数与接口一致；按 severity 排序；
               构成说明只在 L2/L3 有值时出现（L4 不进、summary 为 null 不出现）；
               「证据 N 处」取自 observation_count；全程无 console error。
+  详情一致  —— 列表的 observation_count 与详情 observations 条数**逐条**相等
+              （1fc9566 修的不变量；此前两处各自与 API 比，从不交叉核对）。
   代码证据  —— §5.3：按 observation 逐条列出 location 方法签名原文；「查看完整路径」
               打开 EngineReportViewer 且带逐字标注「以下为 IR 代码（smali 风格），非 Java 源码」；
-              没有 payload.url 的观察按钮置灰。
+              没有 payload.url 的观察按钮置灰；§5.2 的「污点路径节点数 = len(target)」逐条。
   网络证据  —— §5.4：**在 App 背景面板里**（不再随卡片重复）：按 host 平铺且与接口同序；
               测试服务器残留高亮；逐字标注；available:false 显示「该任务没有端点数据」；
               confidence=low 用 .is-lead 且显示 note；attribution 为空不渲染归属。
   背景面板  —— task 8 §5.1：右上角按钮打开 480px 面板；六块齐全；「安全加固」五段
               按序展示，missing 段落写「本任务没有这段数据」；secrets（414 条）限高 +
-              首屏只渲染前 N 条；端点与网络块在面板里只出现一次。
+              首屏只渲染前 N 条；端点与网络块在面板里只出现一次；
+              L4 安全缺陷结论列在「安全加固」块（决策 A）；归属盒非空、label 有展示。
   整改操作  —— task 8 §二：卡片上能改 triage_status / assigned_to / due_date，
               刷新后值还在；后端 400 时前端给出可读错误。
   整改概览  —— task 8 §三：四态汇总与接口一致；复检记录两个方向分开显示
               （--inject-retest 时插两条临时记录，跑完即删）。
   失败路径  —— 拦掉 platform-findings 返回 500 后，必须出现可重试的失败态，
               且**不得**出现「本次未形成平台结论」；点「重试」后恢复。
+  画像失败  —— 拦掉 compliance-profile 返回 500 后面板出现**一个**错误态 + 重试，
+              且**不**渲染全 0 指标 / 「无权限记录」；点「重试」后恢复；无 pageerror。
 
 退出码：全部通过 0，任一断言失败 1。
 """
@@ -38,6 +43,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 
 from playwright.async_api import TimeoutError as PWTimeout, async_playwright
@@ -48,6 +54,7 @@ CARD_LEVELS = ("L2", "L3")
 SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 FINDINGS_ROUTE = "**/platform-findings*"
 RETEST_ROUTE = "**/retest-records*"
+PROFILE_ROUTE = "**/compliance-profile*"
 
 # 安全加固五段：顺序即展示顺序（与后端 tasks.py: SECURITY_SECTIONS 一致）
 SECURITY_SECTIONS = [
@@ -209,6 +216,7 @@ async def verify_happy_path(page, base: str, token: str, task_id: int, ck: Check
         ck.check("无结论时不是失败态", await page.locator(".load-error").count() == 0)
     else:
         await verify_cards(page, findings, ck)
+        await verify_detail_consistency(page, base, token, task_id, findings, ck)
         first_id = sorted_findings(findings)[0]["id"]
         await verify_code_evidence(page, base, token, task_id, first_id, ck)
         await verify_remediation(page, base, token, task_id, first_id, ck, console)
@@ -266,6 +274,36 @@ async def verify_cards(page, findings: list[dict], ck: Checker) -> None:
     ck.check("卡片可展开", await cards.locator(".card-body").first.is_visible())
 
 
+async def verify_detail_consistency(page, base: str, token: str, task_id: int,
+                                    findings: list[dict], ck: Checker) -> None:
+    """列表的 `observation_count` 与详情的 `observations` 条数必须**逐条**相等。
+
+    `1fc9566` 修的就是这个不变量（此前 87/118 条结论少算）。此前脚本让列表、详情
+    各自与接口比，从不**交叉**核对——那个 bug 复现时脚本会放行。这里把它钉住。
+    """
+    print(f"  [详情一致性] task {task_id}")
+    bad = []
+    for f in findings:
+        d = await fetch_json(page, base, token,
+                             f"/tasks/{task_id}/platform-findings/{f['id']}")
+        n = len(d.get("observations") or [])
+        if (f.get("observation_count") or 0) != n:
+            bad.append(f"id={f['id']} 列表={f.get('observation_count')} 详情={n}")
+    ck.check("列表 observation_count == 详情 observations 条数（逐条）", not bad,
+             "; ".join(bad) or f"{len(findings)} 条全部一致")
+
+
+def taint_nodes(obs: dict) -> int:
+    """§5.2 的污点路径节点数：AppShark 原始键 `target`，归一化后是 `taint_path`。"""
+    payload = obs.get("payload")
+    if not isinstance(payload, dict):
+        return 0
+    for key in ("taint_path", "target"):
+        if isinstance(payload.get(key), list):
+            return len(payload[key])
+    return 0
+
+
 async def verify_code_evidence(page, base: str, token: str, task_id: int, fid: int,
                                ck: Checker) -> None:
     """§5.3 代码证据块（卡片展开区）。网络证据已搬到面板，见 verify_panel。"""
@@ -305,6 +343,22 @@ async def verify_code_evidence(page, base: str, token: str, task_id: int, fid: i
             await page.wait_for_timeout(400)
             ck.check("展开其余后条数 == 接口条数", await rows.count() == len(obs),
                      f"dom={await rows.count()} api={len(obs)}")
+
+    # §5.2：污点路径节点数 = len(target)。此时行数已覆盖全部观察，逐条比对
+    feet = [(await rows.nth(i).locator(".obs-foot").inner_text()).replace("\n", " ")
+            for i in range(await rows.count())]
+    taint_bad = []
+    for i, o in enumerate(obs):
+        if i >= len(feet):
+            break
+        n = taint_nodes(o)
+        if n and f"污点路径 {n} 节点" not in feet[i]:
+            taint_bad.append(f"#{i} 期望「污点路径 {n} 节点」得到 {feet[i]!r}")
+        elif not n and "污点路径" in feet[i]:
+            taint_bad.append(f"#{i} 无 taint 却渲染了污点路径：{feet[i]!r}")
+    with_taint = sum(1 for o in obs if taint_nodes(o))
+    print(f"  污点路径：{with_taint}/{len(obs)} 条观察带 taint_path")
+    ck.check("§5.2 污点路径节点数 = len(target)（逐条）", not taint_bad, "; ".join(taint_bad[:3]))
 
     pick = next((i for i, o in enumerate(obs[:OBS_PAGE]) if has_report(o)), None)
     if pick is None:
@@ -503,6 +557,29 @@ async def verify_panel(page, base: str, token: str, task_id: int, ck: Checker) -
                      await seg.locator(".raw-item").count() == len(sec_payload),
                      f"dom={await seg.locator('.raw-item').count()} api={len(sec_payload)}")
 
+    # 决策 A：L4 安全缺陷结论归「安全加固」块，不进卡片构成说明
+    pf = await fetch_json(page, base, token, f"/tasks/{task_id}/platform-findings")
+
+    def _is_l4(f: dict) -> bool:
+        s = f.get("provider_level_summary") or {}
+        if s.get("L2") or s.get("L3"):
+            return False
+        return bool(s.get("L4")) or f.get("category") == "security"
+
+    want_l4 = [f for f in (pf.get("items") or []) if _is_l4(f)]
+    l4_rows = panel.locator(".bg-block[data-block='security'] .l4-seg .l4-item")
+    ck.check("「安全加固」块列出 L4 安全缺陷结论（决策 A）",
+             await l4_rows.count() == len(want_l4),
+             f"dom={await l4_rows.count()} api={len(want_l4)}")
+    if want_l4:
+        l4_titles = [s.strip() for s in await l4_rows.locator(".l4-title").all_inner_texts()]
+        ck.check("L4 结论逐条显示 title",
+                 l4_titles == [f.get("title") or f.get("finding_code") or "-" for f in want_l4],
+                 f"{l4_titles[:3]}")
+    else:
+        ck.check("无 L4 结论时写「本任务没有安全缺陷结论」",
+                 await panel.locator(".l4-seg .sec-missing").count() == 1)
+
     # §端点与网络：在面板里且只有一份
     ck.check("端点与网络块在面板里且只出现一次",
              await panel.locator(".net-evidence").count() == 1,
@@ -564,16 +641,20 @@ async def verify_network(page, base: str, token: str, task_id: int, net, ck: Che
     ep = await fetch_json(page, base, token, f"/tasks/{task_id}/endpoints")
     hosts = ep.get("hosts") or []
 
-    ep_note = (await net.locator(".net-note").inner_text()).strip() \
-        if await net.locator(".net-note").count() else "(没有标注)"
-    ck.check("网络块有逐字标注", ep_note == ENDPOINT_NOTICE, f"dom={ep_note!r}")
-
     if not ep.get("available"):
+        # T7-M3：标注只在真有端点数据时出现，否则与「该任务没有端点数据」自相矛盾
+        ck.check("available:false **不**渲染「以上为 App 全部端点」标注（T7-M3）",
+                 await net.locator(".net-note").count() == 0,
+                 f"dom={await net.locator('.net-note').count()}")
         absent = (await net.locator(".net-absent").inner_text()).strip() \
             if await net.locator(".net-absent").count() else "(没有说明)"
         ck.check("available:false 显示「该任务没有端点数据」", absent == NO_ENDPOINT, f"dom={absent!r}")
         ck.check("available:false 不渲染空 host 列表", await net.locator(".host").count() == 0)
         return
+
+    ep_note = (await net.locator(".net-note").inner_text()).strip() \
+        if await net.locator(".net-note").count() else "(没有标注)"
+    ck.check("网络块有逐字标注", ep_note == ENDPOINT_NOTICE, f"dom={ep_note!r}")
 
     names = [s.strip() for s in await net.locator(".host-name").all_inner_texts()]
     ck.check("网络块按 host 平铺且条数与接口一致",
@@ -610,6 +691,27 @@ async def verify_network(page, base: str, token: str, task_id: int, net, ck: Che
     ck.check("attribution 为空的 host 不渲染归属（不猜）",
              await net.locator(".host .attr").count() == attr_hosts,
              f"dom={await net.locator('.host .attr').count()} api={attr_hosts}")
+
+    # T7-M7：归属盒不能是空的——组件 / 厂商 / label 至少有一个可展示
+    names = [s.strip() for s in await net.locator(".host .attr .attr-name").all_inner_texts()]
+    ck.check("归属盒都有可展示的名字（T7-M7：不留空盒）",
+             len(names) == attr_hosts and all(names), f"dom={names[:6]}")
+
+    # F3：只有 label 的行（平台命名空间 / 应用自研）必须把 label 显示出来
+    label_api = [h for h in hosts if (h.get("attribution") or {}).get("label")]
+    label_bad = []
+    for h in label_api:
+        row = net.locator(f".host:has(.host-name:text-is({json.dumps(h['host'])}))")
+        if await row.count() != 1:
+            label_bad.append(f"{h['host']} 行找不到")
+            continue
+        cell = row.first.locator(".attr-name")
+        nm = (await cell.inner_text()).strip() if await cell.count() else "(无归属盒)"
+        if nm != h["attribution"]["label"]:
+            label_bad.append(f"{h['host']} 期望 {h['attribution']['label']!r} 得到 {nm!r}")
+    if label_api:
+        ck.check("留白语料行的 label 有展示（F3：平台命名空间 / 应用自研）",
+                 not label_bad, "; ".join(label_bad[:3]))
 
 
 # ── task 8 §三：整改概览 ────────────────────────────────────────────────────
@@ -830,6 +932,8 @@ async def main() -> int:
                     help="临时插两条复检记录以验证「两个方向分开显示」（跑完即删）")
     args = ap.parse_args()
     task_ids = args.task or [810, 3107]
+    # 新机器上 --out 目录通常不存在，第一次截图就会 FileNotFoundError
+    os.makedirs(args.out, exist_ok=True)
 
     injected: list[int] = []
     if args.inject_retest:
@@ -843,6 +947,64 @@ async def main() -> int:
         remove_retest(injected)
         if injected:
             print(f"[夹具] 已删除复检记录 {injected}")
+
+
+async def verify_profile_failure(page, base: str, token: str, task_id: int, ck: Checker,
+                                 out: str) -> None:
+    """F2：`/compliance-profile` 挂了，面板必须给**一个**错误态 + 重试，
+    且**不**把全 0 渲染成结论（「个人信息采集点 0 / 涉及第三方厂商 0 …」）。
+
+    这与 ProblemList / RemediationOverview 是同一类缺陷（本工作流第三次）。
+    成功一次请求、失败一个错误态：面板里三块（画像 / SDK / 权限）共用它。"""
+    print(f"\n[合规画像失败路径] task {task_id}（compliance-profile 返回 500）")
+    failure_console: list[str] = []
+    listener = lambda m: failure_console.append(f"[{m.type}] {m.text}") if m.type in ("error", "warning") else None
+    page.on("console", listener)
+    page.on("pageerror", lambda e: failure_console.append(f"[pageerror] {e}"))
+
+    async def fail(route):
+        await route.fulfill(status=500, content_type="application/json",
+                            body=json.dumps({"detail": "模拟合规画像故障"}))
+
+    await page.route(PROFILE_ROUTE, fail)
+    try:
+        await goto_task(page, base, token, task_id)   # 重载页面 = 面板重新挂载
+        await page.wait_for_timeout(1500)
+        await open_panel(page, ck)
+        panel = panel_of(page)
+        try:
+            await panel.locator(".bg-error").first.wait_for(timeout=10000)
+        except PWTimeout:
+            pass
+        ck.check("合规画像取数失败时面板出现错误态",
+                 await panel.locator(".bg-error").count() == 1,
+                 f"dom={await panel.locator('.bg-error').count()}")
+        ck.check("失败时**不**渲染全 0 指标（不把失败当结论）",
+                 await panel.locator(".metric-row").count() == 0,
+                 f"dom={await panel.locator('.metric-row').count()}")
+        ck.check("失败时隐藏权限块（不渲染「无权限记录」冒充结论）",
+                 await panel.locator(".bg-block[data-block='permission']").count() == 0)
+        ck.check("失败时隐藏 SDK 块",
+                 await panel.locator(".bg-block[data-block='sdk']").count() == 0)
+        await page.screenshot(path=f"{out}/verify_{task_id}_profile_failure.png")
+
+        await page.unroute(PROFILE_ROUTE)
+        await panel.locator(".bg-error button", has_text="重试").first.click()
+        await page.wait_for_timeout(1500)
+        ck.check("点重试后合规画像恢复（错误态消失、画像渲染）",
+                 await panel.locator(".bg-error").count() == 0
+                 and await panel.locator(".bg-block[data-block='profile'] .profile").count() == 1)
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(400)
+    finally:
+        await page.unroute(PROFILE_ROUTE)
+        page.remove_listener("console", listener)
+
+    ck.check("合规画像失败路径无 pageerror",
+             not [e for e in failure_console if "[pageerror]" in e],
+             "; ".join(e for e in failure_console if "[pageerror]" in e))
+    ck.check("合规画像失败路径无应用级 console error",
+             not app_errors(failure_console), "; ".join(app_errors(failure_console))[:400])
 
 
 async def run(args, task_ids: list[int], ck: Checker) -> int:
@@ -878,6 +1040,7 @@ async def run(args, task_ids: list[int], ck: Checker) -> int:
         if not args.skip_failure:
             await verify_failure_path(page, args.base, token, task_ids[0], ck, args.out)
             await page.screenshot(path=f"{args.out}/verify_{task_ids[0]}_recovered.png")
+            await verify_profile_failure(page, args.base, token, task_ids[0], ck, args.out)
 
         await browser.close()
 

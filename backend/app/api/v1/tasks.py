@@ -359,7 +359,12 @@ def task_platform_findings(tid: int, user: User = Depends(get_current_user), db:
     from app.models import PlatformFinding
     from app.services.finding_service import generate_findings
     generate_findings(db, tid)
-    rows = db.query(PlatformFinding).filter(PlatformFinding.task_id == tid).all()
+    # **必须显式排序**：`generate_findings` 会 UPDATE 已有行，而 Postgres 无 ORDER BY
+    # 时行序随物理位置变化——同一份数据两次调用可能给出不同的顺序。前端「同严重度保持
+    # 接口顺序」的稳定排序、以及验证脚本刷新后按「第一张卡片」核对整改状态，都依赖
+    # 这个顺序稳定（实测：往 `/{fid}/status` PUT 一次就会让行序漂移，脚本随即假失败）。
+    rows = db.query(PlatformFinding).filter(
+        PlatformFinding.task_id == tid).order_by(PlatformFinding.id).all()
     return {"code": 0, "data": {
         # 与详情接口共用 _finding_brief：两处各写一份字段迟早会漂移，
         # 前端从列表点进详情时字段对不上就是那么来的。
@@ -612,9 +617,11 @@ def task_endpoints(tid: int, user: User = Depends(get_current_user),
         for raw in row.payload:
             add(raw, "androguard")
 
-    for obs in db.query(EngineObservation).filter(
-            EngineObservation.task_id == tid,
-            EngineObservation.observation_type == "security.endpoint").all():
+    # 只查一次 security.endpoint：同一批行既用来补 URL，也用来取归属线索（path）。
+    # 归属推导**必须**覆盖这里的全部 host（含只有 Androguard 观测到的那些），
+    # 否则纯 Androguard 任务的语料会被整批丢掉（F1）。
+    endpoint_rows = endpoint_attribution.endpoint_rows(db, tid)
+    for obs in endpoint_rows:
         url_block = (obs.payload or {}).get("url") if isinstance(obs.payload, dict) else None
         if not isinstance(url_block, dict):
             continue
@@ -625,7 +632,9 @@ def task_endpoints(tid: int, user: User = Depends(get_current_user),
         return {"code": 0, "data": {"hosts": [], "total_urls": 0, "available": False}}
 
     attribution = endpoint_attribution.attribute_hosts(
-        db, cached_component_index(db), tid)
+        db, cached_component_index(db), tid,
+        hosts=list(hosts),
+        paths_by_host=endpoint_attribution.paths_from_rows(endpoint_rows))
     ordered = sorted(hosts.values(), key=lambda h: (-len(h["urls"]), h["host"]))
     for h in ordered:
         h["url_count"] = len(h["urls"])

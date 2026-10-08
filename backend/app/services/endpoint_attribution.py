@@ -35,6 +35,15 @@ libAMapSDK_MAP_v9_2_1.so` 这种 so 路径，所以两路都要走。
 
 **查不到就不标**——审计人员按错误的归属去查隐私政策是白查（计划 §5.4 的谨慎在
 未知部分继续成立）。
+
+## 语料行不都有 `component_name` / `vendor`
+
+非代码归属那类（平台命名空间、App 自研业务服务器）在知识库里**没有**逐字对应的
+组件或厂商，所以那两列**故意留白**；它们的断语写在 `label` 列（`平台命名空间` /
+`应用自研`）。这类行同样算「有明确断语」，**照样压过与之冲突的推导**——否则
+`www.w3.org` 会被 `libflutter.so` 推成「Flutter · low」，而语料里明明写着它是
+XML 命名空间、根本不是网络端点。真正「查不到依据」的行三列全空：既不压过推导，
+也不落地成一个空归属盒（见 `attribute_hosts`）。
 """
 from __future__ import annotations
 
@@ -69,13 +78,21 @@ def host_candidates(path: str):
         yield m.group(1)
 
 
-def host_paths(db: Session, task_id: int) -> dict[str, set[str]]:
-    """该任务的 域名 → {引用它的类/so 路径}。"""
-    out: dict[str, set[str]] = {}
-    rows = db.query(EngineObservation).filter(
+def endpoint_rows(db: Session, task_id: int) -> list:
+    """该任务的全部 `security.endpoint` 观测。
+
+    单独抽出来是为了让 `/endpoints` 路由与 `host_paths` **共用同一次查询**：
+    路由本来就要读这批行拿 URL，归属推导再读一遍就成了一次多余的全表扫。
+    """
+    return db.query(EngineObservation).filter(
         EngineObservation.task_id == task_id,
         EngineObservation.observation_type == "security.endpoint",
     ).all()
+
+
+def paths_from_rows(rows) -> dict[str, set[str]]:
+    """从 `security.endpoint` 观测里取出 域名 → {引用它的类/so 路径}。"""
+    out: dict[str, set[str]] = {}
     for obs in rows:
         payload = obs.payload or {}
         url = payload.get("url") if isinstance(payload, dict) else None
@@ -89,6 +106,11 @@ def host_paths(db: Session, task_id: int) -> dict[str, set[str]]:
             if host:
                 out.setdefault(host, set()).add(path)
     return out
+
+
+def host_paths(db: Session, task_id: int) -> dict[str, set[str]]:
+    """该任务的 域名 → {引用它的类/so 路径}。"""
+    return paths_from_rows(endpoint_rows(db, task_id))
 
 
 _HOST_RE = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$"
@@ -135,15 +157,27 @@ def load_curated(path: pathlib.Path | None = None) -> dict[str, dict]:
         domain, component, vendor, confidence = parts[0], parts[1], parts[2], parts[3]
         sources = parts[4] if len(parts) > 4 else ""
         note = parts[5] if len(parts) > 5 else ""
+        label = parts[6] if len(parts) > 6 else ""
         out[domain.strip().lower()] = {
             "component_name": component.strip() or None,
             "vendor": vendor.strip() or None,
             "confidence": confidence.strip() or None,
             "sources": sources.strip() or None,
             "note": note.strip() or None,
+            # 非代码归属那类（平台命名空间 / 应用自研）没有组件或厂商，断语落在这里
+            "label": label.strip() or None,
             "via": "curated",
         }
     return out
+
+
+def has_verdict(c: dict | None) -> bool:
+    """这行语料有没有**明确断语**可展示？
+
+    三种都算：有组件名、有厂商、或只有 `label`（平台命名空间 / 应用自研）。
+    三列全空的才是「查不到依据」——那种行既不压过推导，也不该落地成空盒子。
+    """
+    return bool(c and (c.get("component_name") or c.get("vendor") or c.get("label")))
 
 
 # 厂商/组件名里切出来的通用词——它们出现在域名里并不能说明归属，
@@ -200,24 +234,40 @@ def _vendor_matches_host(host: str, vendor: str | None, component: str | None) -
     return any(t in parts for t in tokens)
 
 
-def attribute_hosts(db: Session, index: ComponentIndex, task_id: int) -> dict[str, dict]:
+def attribute_hosts(db: Session, index: ComponentIndex, task_id: int,
+                    hosts: list[str] | None = None,
+                    paths_by_host: dict[str, set[str]] | None = None) -> dict[str, dict]:
     """域名 → 归属。三条路的**优先级**：
 
-        curated 且有归属  >  derived  >  curated 但留白
+        curated 且有断语（组件/厂商/label）  >  derived  >  弃权（不落地）
 
-    为什么「curated 且有归属」压过推导：人工语料是查证过的，而且它能把推导**误判**
-    的那些纠正回来——比如 `www.w3.org` 在人工语料里明确是「平台命名空间」，
-    而推导会把它算成 Flutter（因为 `libflutter.so` 里有这个串）。
+    为什么「curated 且有断语」压过推导：人工语料是查证过的，而且它能把推导**误判**
+    的那些纠正回来——`www.w3.org` 在人工语料里明确写着是 XML 命名空间、**不是网络
+    端点**（`label='平台命名空间'`，组件与厂商两列故意留白），而推导会因
+    `libflutter.so` 里有这个串把它算成 Flutter。**留白不等于弃权**：断语写在 label
+    里，所以这类行也必须能压过推导。
 
-    为什么「curated 但留白」输给推导：那说明人工查不到依据，而 IR 证据能给出——
-    信息更多的一侧赢。两边都不硬编一个归属。
+    为什么「三列全空」的语料行不落地：那说明人工查不到依据，而推导也没有命中——
+    此时输出一个 `component_name=null, vendor=null` 的空盒子，前端只会渲染成
+    一个空的归属框（T7-M7）。宁可不标。
+
+    `hosts` —— 该任务**实际出现**的 host 全集。调用方（`/endpoints` 路由）已经算过，
+    传进来即可。**不传则退回 `host_paths` 的 key**——那是只有 AppShark 观测的 host；
+    纯 Androguard 任务（三个银行样本）的 host 一个都不在里面，语料会被整批丢掉
+    （F1）。路由务必传。
+    `paths_by_host` —— 可选的 `host_paths` 结果，避免路由里重复查一遍
+    `security.endpoint`。
 
     返回的每一项都带 `via`（`derived` / `curated`）与 `sources` 说明**凭什么**，
     前端要能展示依据，否则审计人员无从核对。
     """
     curated = load_curated()
+    if paths_by_host is None:
+        paths_by_host = host_paths(db, task_id)
+    host_list = list(hosts) if hosts is not None else list(paths_by_host)
     result: dict[str, dict] = {}
-    for host, paths in host_paths(db, task_id).items():
+    for host in host_list:
+        paths = paths_by_host.get(host, set())
         hit = used = None
         for p in sorted(paths):
             for cand in host_candidates(p):
@@ -229,8 +279,8 @@ def attribute_hosts(db: Session, index: ComponentIndex, task_id: int) -> dict[st
                 break
 
         c = curated.get(host)
-        if c and (c.get("component_name") or c.get("vendor")):
-            result[host] = c                      # 人工查证过的压过推导
+        if has_verdict(c):
+            result[host] = c                      # 人工查证过的（含只有 label 的）压过推导
             continue
         if hit:
             ok = _vendor_matches_host(host, hit.get("vendor"), hit["name"])
@@ -243,6 +293,4 @@ def attribute_hosts(db: Session, index: ComponentIndex, task_id: int) -> dict[st
                                         "文档链接或命名空间，未必是该库的服务端点",
             }
             continue
-        if c:
-            result[host] = c                      # 只有留白的人工语料
     return result

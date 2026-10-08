@@ -1,5 +1,14 @@
 <template>
   <div class="profile" v-loading="loading">
+    <!-- 取数失败：给一个可重试的错误态，**不**把全 0 渲染成结论（F2）。
+         「0 个采集点」在合规产品里是一句有结论意义的话，不能由失败冒充。 -->
+    <div v-if="loadError" class="profile-error">
+      <span class="profile-error-text">{{ loadError }}</span>
+      <el-button size="small" link type="primary" @click="reload">重试</el-button>
+    </div>
+
+    <!-- 还没取到数（载入中）也不渲染结论：否则会先闪一排 0 再被真值替换 -->
+    <template v-else-if="profile !== null">
     <!-- 关键数字：一眼看出这个 App 采集了什么、谁在采集、权限用得怎么样。
          每个数字都可点击 —— 它同时是导航，不是装饰。 -->
     <div v-if="has('collect') || has('permission')" class="metric-row mb14">
@@ -218,6 +227,7 @@
         </button>
       </nav>
     </div>
+    </template>
 
     <el-drawer v-model="codeVisible" :title="codeTitle" size="720px">
       <EngineReportViewer v-if="codeObservationId" :task-id="taskId"
@@ -238,18 +248,37 @@ import { taskApi } from '@/api/tasks'
  * `sections` 让消费方按需剪裁：App 背景侧滑面板把「权限」与「SDK 组件」拆成独立块，
  * 这里就只渲染「个人信息收集」与「数据缺口」，否则同一面板里 SDK 会连出两遍。
  * 不传 = 全渲染，TaskReport 等既有用法行为不变。
+ *
+ * `profile` / `profileLoading` / `profileError`（可选）让**父组件统一取数**：
+ * App 背景面板把 `/compliance-profile` 的 3 次请求收敛成 1 次、1 个错误态、1 个重试
+ * （F2）。传了 `profile`（含初始的 null）就一并不再自己取数；不传照旧自取，
+ * TaskReport 等既有用法行为不变。
  */
-const props = withDefaults(defineProps<{ taskId: number; sections?: string[] }>(), {
+const props = withDefaults(defineProps<{
+  taskId: number
+  sections?: string[]
+  profile?: any
+  profileError?: string
+  profileLoading?: boolean
+}>(), {
   // 默认全渲染（TaskReport 等既有用法行为不变）；defineProps 的默认值会被提升，
   // 所以这里必须写字面量，不能引用本地 const。
   sections: () => ['collect', 'permission', 'components', 'gaps'],
 })
-const emit = defineEmits<{ (e: 'count', n: number): void }>()
+const emit = defineEmits<{ (e: 'count', n: number): void; (e: 'retry'): void }>()
 
 const has = (key: string) => props.sections.includes(key)
 
-const loading = ref(false)
-const profile = ref<any>(null)
+/** 父组件绑定了 `profile` 就由它取数（初始 null 也算「绑定了」） */
+const external = computed(() => props.profile !== undefined)
+const localProfile = ref<any>(null)
+const localError = ref('')
+const localLoading = ref(false)
+
+const profile = computed<any>(() => (external.value ? props.profile : localProfile.value))
+/** 取数失败与「确实 0 条」是两回事：失败时**不**渲染那排全 0 结论（F2） */
+const loadError = computed(() => (external.value ? (props.profileError || '') : localError.value))
+const loading = computed(() => (external.value ? !!props.profileLoading : localLoading.value))
 const permFilter = ref('all')
 const permKeyword = ref('')
 const showUnmapped = ref(false)
@@ -388,18 +417,32 @@ function openCode(loc: any) {
 
 async function load() {
   if (!props.taskId) return
-  loading.value = true
+  localLoading.value = true
+  localError.value = ''
   try {
     const res = await taskApi.complianceProfile(props.taskId)
-    profile.value = res.data || {}
+    localProfile.value = res.data || {}
     emit('count', totalCollect.value)
+  } catch (e: any) {
+    // 必须 catch：否则 (a) 失败会渲染成一排全 0 的「结论」（个人信息采集点 0 /
+    // 涉及第三方厂商 0 …）；(b) onMounted 的 rejected promise 会以 pageerror 落进
+    // console —— 违反交付脚本自己的不变式「失败路径无 pageerror」。
+    // 这与 ProblemList / RemediationOverview 是同一类缺陷，本工作流里第三次出现。
+    localProfile.value = null
+    localError.value = e?.message || e?.detail || '合规画像读取失败'
   } finally {
-    loading.value = false
+    localLoading.value = false
   }
 }
 
+/** 重试入口：外部取数时把动作交给父组件（错误态与重试只有一份） */
+function reload() {
+  if (external.value) emit('retry')
+  else load()
+}
+
 onMounted(async () => {
-  await load()
+  if (!external.value) await load()
   bindScroll()
 })
 
@@ -407,11 +450,19 @@ onBeforeUnmount(() => {
   box?.removeEventListener('scroll', onScroll)
 })
 
-watch(() => props.taskId, load)
+watch(() => props.taskId, () => { if (!external.value) load() })
 </script>
 
 <style scoped>
 .profile { font-size: var(--text-body); }
+
+/* 失败态：与 ProblemList 的 .load-error / 面板的 .bg-error 同一配色，不引入新色 */
+.profile-error {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  padding: var(--card-pad) var(--space-4);
+  background: #FEF0F0; border: 1px solid #FECACA; border-radius: 8px;
+}
+.profile-error-text { font-size: var(--text-label); color: var(--el-color-danger); word-break: break-all; }
 
 /* 内容 + 右侧锚点目录 */
 .body-grid { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: var(--space-5); }

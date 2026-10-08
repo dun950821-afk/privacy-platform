@@ -29,6 +29,9 @@
           <span class="obs-sub mono">{{ o.subject || '-' }}</span>
           <span v-if="o.data_category" class="obs-meta">{{ o.data_category }}</span>
           <span v-if="o.sink_type" class="obs-meta">经 {{ o.sink_type }}</span>
+          <!-- §5.2：污点路径节点数 = len(target)（归一化后落到 payload.taint_path，仍是 list）。
+               只有数据流的观察才有，没有就不渲染，不写「0 节点」。 -->
+          <span v-if="taintNodes(o)" class="obs-meta">污点路径 {{ taintNodes(o) }} 节点</span>
           <span class="obs-meta">{{ ENGINE_CN[o.engine_type] || o.engine_type }}</span>
         </div>
       </div>
@@ -88,6 +91,20 @@ function locationOf(o: any): string {
 /** 后端以 payload.url 定位该条命中的报告文件；没有 url 就没有报告可开 */
 function hasReport(o: any): boolean {
   return !!o?.payload?.url
+}
+
+/**
+ * §5.2 的「污点路径节点数 = len(target)」。计划写的是 AppShark 原始键 `target`；
+ * 入库前归一化成了 `taint_path`（**仍是 list**），所以两个键都认——兼容计划原文与
+ * 真实 payload。不是 list 的（或没有的）返回 0，调用处据此不渲染。
+ */
+function taintNodes(o: any): number {
+  const p = o?.payload
+  if (!p || typeof p !== 'object') return 0
+  for (const key of ['taint_path', 'target']) {
+    if (Array.isArray(p[key])) return p[key].length
+  }
+  return 0
 }
 
 async function load() {
