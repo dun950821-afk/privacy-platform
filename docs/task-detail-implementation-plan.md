@@ -274,7 +274,7 @@ const text = parts.length ? `由 ${parts.join(' + ')}构成` : null
 ### 6.1 每步都要跑
 
 ```bash
-cd backend && PYTHONPATH=. /tmp/venv/bin/pytest tests/ -q    # 当前基线：371 passed
+cd backend && PYTHONPATH=. /home/user/privacy-platform/.venv/bin/pytest tests/ -q    # 当前基线：371 passed
 ```
 
 ### 6.2 ⚠️ 真实任务验证前必须重启服务
@@ -285,9 +285,9 @@ cd backend && PYTHONPATH=. /tmp/venv/bin/pytest tests/ -q    # 当前基线：37
 ```bash
 cd backend
 pkill -f "app.engine.worker"; pkill -f "uvicorn app.main"
-nohup /tmp/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/uvicorn.log 2>&1 &
+nohup /home/user/privacy-platform/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/uvicorn.log 2>&1 &
 sleep 1
-nohup /tmp/venv/bin/python -m app.engine.worker > /tmp/worker.log 2>&1 &
+nohup /home/user/privacy-platform/.venv/bin/python -m app.engine.worker > /tmp/worker.log 2>&1 &
 sleep 8 && grep "Registered engines" /tmp/worker.log
 ```
 
@@ -321,7 +321,7 @@ from public.platform_findings where task_id = <TID>;
 
 ### 6.4 前端验证
 
-用 playwright 截图（脚本在 `/tmp/shot3.py`，`/tmp/venv/bin/python`），确认无 console error。
+用 playwright 截图（脚本在 `/tmp/shot3.py`，`/home/user/privacy-platform/.venv/bin/python`），确认无 console error。
 
 ---
 
@@ -336,6 +336,15 @@ from public.platform_findings where task_id = <TID>;
 5. **归档路径 vs `/tmp`** —— 引擎产物已归档在 `data/evidence/artifacts/`，
    但 `Evidence.artifact_path` 对历史任务仍指向失效的 `/tmp`（按你的选择未回填）
 6. **备份习惯** —— 动库前先 `pg_dump` 到 `backup/`，命名 `privacy_platform_YYYYMMDD_HHMM_pre_<原因>.sql.gz`
+7. **venv 不能在 `/tmp`（2026-10-08 踩）** —— 原 `/tmp/venv` 假期期间被**剥掉了源码**：
+   只剩目录与 `__pycache__/*.pyc`，而 `__pycache__` 里的 `.pyc` 是不可导入的。
+   症状很有迷惑性 —— `import fastapi` **不报错**（空目录成了空命名空间包，
+   `fastapi.__file__` 为 `None`），只有真要子模块的 `alembic`/`pytest`/`sqlalchemy` 才炸。
+   现改用 **`/home/user/privacy-platform/.venv`**（`.gitignore` 已含 `.venv/`，
+   `start.sh` 可用 `VENV=` 覆盖）。重建依据是 **`backend/requirements.lock.txt`**
+   （按实装 dist-info 导出），**不是 `requirements.txt`** —— 后者已与实际脱节
+   （钉 `sqlalchemy==2.0.30`，实装 2.0.51）。`pypi.org` 不通时用镜像
+   `--index-url https://pypi.tuna.tsinghua.edu.cn/simple`。
 
 ---
 
