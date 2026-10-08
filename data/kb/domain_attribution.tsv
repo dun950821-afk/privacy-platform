@@ -1,0 +1,99 @@
+# 「域名 → 组件/厂商」人工语料（入仓即为准）。**推不出来的那些放这里。**
+#
+# 为什么需要：任务详情页的网络证据块要回答「这个域名是谁在采集」。主路径是
+# **运行期推导**——引用该域名的类/so 就存在
+# `engine_observations(observation_type='security.endpoint')` 的 payload 里
+# （`url.path`），交给 component_matcher 匹配知识库即可，实测覆盖 94/131（71%）。
+# 见 app/services/endpoint_attribution.py。
+#
+# 这个文件只兜底与覆盖三类推导不出来的：
+#   1. `path` 根本不是路径（如 `Android String Resource`）
+#   2. 知识库缺前缀（如 `com/baidu/platform/domain/a.java`）
+#   3. 非代码归属（平台命名空间 www.w3.org；App 自研服务器 mportal.njcb.com.cn）
+#
+# ⚠️ 推导优先于本文件：某个域名将来能靠知识库推出来了，推导结果会覆盖这里。
+#    所以这里填错不会永久掩盖真相，但仍应尽量准确。
+#
+# 各列：
+#   domain           观测到的域名（小写）
+#   component_name   知识库 privacy_kb.component.name 逐字；不属于已知组件则留空
+#   vendor           知识库 privacy_kb.vendor.name 逐字；不属于已知厂商则留空
+#   confidence       high / medium / low —— 编者的确信程度
+#   sources          依据。URL，或 `ir-evidence:<引用该域名的类/so 路径>`（可重放、可核查）；
+#                    无依据写 none
+#   note             一句话说明依据
+#
+# 生成方式：以扫描产物里实测观测到的域名清单为输入逐个查证（首批 74 个，
+# 日期 2026-10-08）。**查不到依据的也要列出来**，标 low + sources none。
+domain	component_name	vendor	confidence	sources	note
+test.bankofyk.com			high	http://www.bankofyk.com	营口银行自建业务服务器（/emobile/*.do、/clients/*），bankofyk.com 为营口银行官网域名；观测于营口银行 com.csii.yk.ui 与营行企业银行 com.csii.mobile.iap.ykcb
+mbank.bankofyk.com			high	http://www.bankofyk.com	营口银行手机银行生产环境业务服务器（/emobile/、隐私政策/服务协议静态页），属营口银行系 App 自研
+mbank-test.njcb.com.cn			high	https://www.njcb.com.cn	南京银行门户（cn.com.njcb.android.mobilehome.test）测试环境业务服务器；njcb.com.cn 为南京银行官网域名
+mportal.njcb.com.cn			high	https://www.njcb.com.cn	南京银行门户业务服务器（门户 H5/accessService），属南京银行自研
+mcr.njcb.com.cn			high	https://www.njcb.com.cn	南京银行门户业务服务器（call-api，呼叫/客服相关），属南京银行自研
+test002.njcb.com.cn			high	https://www.njcb.com.cn	南京银行门户业务服务器（call-api），属南京银行自研
+videochat.njcb.com.cn			high	https://www.njcb.com.cn	南京银行门户视频客服业务服务器，属南京银行自研
+alltesting-test.njcb.com.cn			high	https://www.njcb.com.cn	南京银行门户测试环境业务服务器，属南京银行自研
+47.93.2.61			medium	ir-evidence:com/yitong/mbank/app/android/entity/home/HomeConstans.java	阿里云公网 IP（无域名），硬编码于南京银行门户的服务器地址常量中（http://47.93.2.61:8090），按业务服务器归入南京银行自研
+api.map.baidu.com	百度地图 SDK	百度	high	https://lbs.baidu.com/docs/jsapi?title=wxjsapi/guide/project ir-evidence:com/baidu/lbsapi/auth/LBSAuthManager.java	百度地图开放平台官方文档将 https://api.map.baidu.com 列为必须配置的 request 合法域名；类 com.baidu.lbsapi.auth.LBSAuthManager 亦为其鉴权域名
+map.baidu.com	百度地图 SDK	百度	high	ir-evidence:com/baidu/mapapi/utils/OpenClientUtil.java	百度地图 SDK 内 com.baidu.mapapi.utils.OpenClientUtil 调起百度地图客户端所用域名
+j.map.baidu.com	百度地图 SDK	百度	high	ir-evidence:com/baidu/platform/domain/a.java	百度地图/定位 SDK 的域名配置类 com.baidu.platform.domain.a 中列出
+wapmap.baidu.com	百度地图 SDK	百度	high	ir-evidence:com/baidu/platform/core/i/c.java	百度地图 SDK 内 com.baidu.platform.core.i.c 使用的 WAP 地图域名
+client.map.baidu.com	百度地图 SDK	百度	medium	ir-evidence:com/baidu/platform/domain/a.java	IR 证据指向百度地图/定位 SDK 的域名配置类（com.baidu.platform.domain.a），同时出现于 com.baidu.location 与 libBaiduMapSDK_map，故组件按地图 SDK 记
+aispace.baidu.com	百度地图 SDK	百度	medium	ir-evidence:lib/arm64-v8a/libBaiduMapSDK_map_v7_6_5.so	出现在百度地图 SDK 原生库 libBaiduMapSDK_map_v7_6_5.so 与 com.baidu.location 代码中，按地图 SDK 记
+daohang.map.baidu.com	百度地图 SDK	百度	high	ir-evidence:com/baidu/mapapi/navi/BaiduMapNavigation.java	百度地图 SDK 导航模块 com.baidu.mapapi.navi.BaiduMapNavigation 使用的导航域名
+app.navi.baidu.com	百度地图 SDK	百度	high	ir-evidence:com/baidu/mapapi/navi/BaiduMapNavigation.java	百度地图 SDK 导航模块 com.baidu.mapapi.navi.BaiduMapNavigation 使用的导航域名
+loc.map.baidu.com	百度定位 SDK	百度地图开放平台	high	ir-evidence:com/baidu/location/h/e.java	百度定位 SDK 类 com.baidu.location.h.e 中的定位服务域名
+ofloc.map.baidu.com	百度定位 SDK	百度地图开放平台	high	ir-evidence:com/baidu/location/e/l.java	百度定位 SDK 离线定位接口域名（ofloc = offline location），类 com.baidu.location.e.*
+itsdata.map.baidu.com	百度定位 SDK	百度地图开放平台	high	ir-evidence:com/baidu/location/b/q.java	百度定位 SDK 长连接 GPS 上报域名（/long-conn-gps/sdk.php），类 com.baidu.location.b.q
+blg.map.baidu.com	百度定位 SDK	百度地图开放平台	high	ir-evidence:com/baidu/location/h/e.java	百度定位 SDK 类 com.baidu.location.h.e 中的服务域名
+daup.map.baidu.com	百度定位 SDK	百度地图开放平台	high	ir-evidence:com/baidu/location/h/e.java	百度定位 SDK 类 com.baidu.location.h.e 中的服务域名
+parking.baidu.com	百度定位 SDK	百度地图开放平台	medium	ir-evidence:com/baidu/location/h/e.java	出现在百度定位 SDK 类 com.baidu.location.h.e 的域名集合中（停车相关服务）
+hmma.baidu.com	百度移动统计	百度	high	https://tongji.baidu.com/static/tongji/Instruction.pdf ir-evidence:com/baidu/mobstat/Config.java	百度移动统计（百度统计）官方接入文档要求把 hmma.baidu.com 加入 request 合法域名；IR 证据为 com.baidu.mobstat.Config
+datax.baidu.com	百度移动统计	百度	high	ir-evidence:com/baidu/mobstat/ah.java	百度移动统计 SDK 上报域名（/xs.gif），类 com.baidu.mobstat.ah
+dxp.baidu.com	百度移动统计	百度	high	ir-evidence:com/baidu/mobstat/ah.java	百度移动统计 SDK 升级/配置域名（/upgrade），类 com.baidu.mobstat.ah
+openrcv.baidu.com	百度移动统计	百度	high	ir-evidence:com/baidu/mobstat/z.java	百度移动统计 SDK 上报域名（/1010/bplus.gif），类 com.baidu.mobstat.z
+log.tbs.qq.com	腾讯浏览服务（TBS）	腾讯	high	ir-evidence:com/tencent/smtt/utils/n.java	腾讯浏览服务 TBS 日志上报域名（/ajax?c=pu 等），类 com.tencent.smtt.utils.n
+cfg.imtt.qq.com	腾讯浏览服务（TBS）	腾讯	high	ir-evidence:com/tencent/smtt/utils/n.java	TBS 配置下发域名（/tbs?v=），类 com.tencent.smtt.utils.n
+tbsrecovery.imtt.qq.com	腾讯浏览服务（TBS）	腾讯	high	ir-evidence:com/tencent/smtt/utils/n.java	TBS 内核恢复域名，类 com.tencent.smtt.utils.n
+soft.tbs.imtt.qq.com	腾讯浏览服务（TBS）	腾讯	high	ir-evidence:com/tencent/smtt/utils/d.java	TBS 内核/资源下载域名，类 com.tencent.smtt.utils.d
+debugtbs.qq.com	腾讯浏览服务（TBS）	腾讯	high	ir-evidence:com/tencent/smtt/sdk/WebView.java	TBS 官方调试页域名，类 com.tencent.smtt.sdk.WebView
+debugx5.qq.com	腾讯浏览服务（TBS）	腾讯	high	ir-evidence:com/tencent/smtt/sdk/WebView.java	X5/TBS 内核调试页域名，类 com.tencent.smtt.sdk.WebView
+mdc.html5.qq.com	腾讯浏览服务（TBS）	腾讯	medium	ir-evidence:com/tencent/smtt/sdk/stat/MttLoader.java	出现在 TBS 统计加载类 com.tencent.smtt.sdk.stat.MttLoader 中（html5.qq.com 系 TBS 统计域名）
+mqqad.html5.qq.com	腾讯浏览服务（TBS）	腾讯	medium	ir-evidence:com/tencent/smtt/utils/n.java	出现在 TBS 域名常量类 com.tencent.smtt.utils.n；域名含 mqqad 字样，疑似腾讯广告相关，但 IR 证据指向 TBS，故按 TBS 记
+pms.mb.qq.com	腾讯浏览服务（TBS）	腾讯	medium	ir-evidence:com/tencent/smtt/sdk/m.java	出现在 TBS 类 com.tencent.smtt.sdk.m 中，按 TBS 记
+open.work.weixin.qq.com	企业微信开放 SDK	腾讯企业微信	high	https://open.work.weixin.qq.com/help2/pc/15372 ir-evidence:com/tencent/wework/api/WWAPIImpl.java	企业微信开放平台/扫码登录入口域名，IR 证据为 com.tencent.wework.api.WWAPIImpl（企业微信开放 SDK）
+wx.tenpay.com		腾讯	high	https://pay.wechatpay.cn/doc/v3/merchant/4012525153 ir-evidence:com/yitong/mbank/app/utils/webview/h.java	微信支付 H5 收银台中间页（/cgi-bin/mmpayweb-bin/checkmweb），官方文档列为 H5 支付 h5_url；由 App WebView 调起，知识库无逐字对应的组件（微信支付 Android SDK 不等价），故组件留空
+nrtc.netease.im	网易云信 NERTC	网易云信	high	https://doc-pre.netease.im/meeting/guide/Tg3MjQ0MTQ?platform=miniProgram ir-evidence:com/netease/nrtc/NetDetector.java	网易云信官方文档把 https://nrtc.netease.im 列为 RTC 接口需白名单的域名；IR 证据为 com.netease.nrtc.*
+roomserver.netease.im	网易云信 NERTC	网易云信	high	ir-evidence:com/netease/nrtc/engine/impl/x.java	网易云信 NERTC 房间服务域名，类 com.netease.nrtc.engine.impl.x
+statistic.live.126.net	网易云信 NERTC	网易云信	medium	ir-evidence:com/netease/nrtc/monitor/b.java	126.net 为网易域名；IR 证据仅出现在 com.netease.nrtc 监控上报类，故按 NERTC 记（统计上报）
+lbs.netease.im	网易云信	网易云信	high	https://doc.yunxin.163.com/messaging-uikit/outdated_articles/TYyODM0OTc?platform=android ir-evidence:com/netease/nimlib/f/e.java	网易云信官方 SDK 配置文档把 https://lbs.netease.im/lbs/conf.jsp 列为 LBS 地址分配域名；IM 与 NERTC 代码均引用，故记到厂商级组件
+imtest.netease.im	网易云信 IM SDK	网易云信	high	ir-evidence:com/netease/nimlib/f/e.java	网易云信 IM SDK 域名常量，类 com.netease.nimlib.f.e
+dt.netease.im	网易云信 IM SDK	网易云信	high	ir-evidence:com/netease/nimlib/analyze/protocol/a.java	网易云信 IM SDK 统计上报域名，类 com.netease.nimlib.analyze.protocol.a
+dr.netease.im	网易云信 IM SDK	网易云信	high	ir-evidence:com/netease/nimlib/f/e.java	网易云信 IM SDK 域名常量，类 com.netease.nimlib.f.e
+nosup-hz1.127.net	网易云信	网易云信	high	https://doc.yunxin.163.com/messaging-enhanced/api-refer/web/typedoc/Latest/zh/NIM/interfaces/src_NIMInterface.ServerConfig.html ir-evidence:com/netease/nimlib/m/a/b/a/c.java	网易云信官方 ServerConfig 文档把 https://nosup-hz1.127.net 列为 NOS 上传默认地址；IM 与 NERTC 代码均引用
+wannos.127.net	网易云信	网易云信	high	https://doc.yunxin.163.com/messaging-enhanced/api-refer/web/typedoc/Latest/zh/NIM/interfaces/src_NIMInterface.ServerConfig.html ir-evidence:com/netease/nimlib/m/a/b/a/c.java	网易云信官方 ServerConfig 文档把 https://wannos.127.net/lbs 列为 NOS 上传 LBS 地址；IM 与 NERTC 代码均引用
+cn.register.xmpush.xiaomi.com	小米推送 SDK	小米	high	ir-evidence:com/xiaomi/push/service/u.java	小米推送 SDK 设备注册域名，类 com.xiaomi.push.service.u（包名即 com.xiaomi.push 推送 SDK）
+resolver.msg.xiaomi.net	小米推送 SDK	小米	high	ir-evidence:com/xiaomi/push/service/bw.java	小米推送 SDK 长连接域名，类 com.xiaomi.push.service.bw
+mobile-symbol-upload.tingyun.com	听云 App SDK	基调听云	high	https://wukongdoc.tingyun.com/app/user_guide/symbol.html ir-evidence:com/networkbench/agent/impl/harvest/a/o.java	听云官方文档把 mobile-symbol-upload.tingyun.com 列为崩溃符号（dSYM）上传域名；IR 证据为 com.networkbench.agent.*（听云 SDK）
+bcrs.intsig.net		上海合合信息科技	medium	https://www.intsig.com ir-evidence:com/intsig/ccrengine/CCREngine.java	intsig.net 为合合信息（INTSIG）官方域名，类 com.intsig.ccrengine/dlcardscansdk/vlcardscansdk 为名片识别引擎；知识库仅有「合合信息图像处理 SDK」一条，语义不完全对应，故组件留空只填厂商
+download.intsig.net		上海合合信息科技	medium	https://www.intsig.com ir-evidence:com/intsig/view/AppkeySDK.java	intsig.net 为合合信息（INTSIG）官方域名，出现在 com.intsig.* 名片扫描 SDK 的下载地址中；知识库无逐字对应组件，故只填厂商
+www.googleapis.com		Google	high	ir-evidence:apk-endpoint-strings	Google API 域名；观测到的形式均为 OAuth 2.0 scope 串（/auth/drive、/auth/games、/auth/plus.login 等），非实际请求端点；只能确定到厂商级，知识库组件粒度无法对应
+developer.android.com		Google	high	ir-evidence:io/flutter/plugin/platform/h.java	Google 官方 Android 开发者文档域名，代码中引用的文档链接，非 SDK 网络端点；只能确定到厂商级
+issuetracker.google.com		Google	high	ir-evidence:apk-endpoint-strings	Google 缺陷跟踪站域名，代码中引用的 issue 链接，非 SDK 网络端点；只能确定到厂商级
+groups.google.com		Google	high	ir-evidence:apk-endpoint-strings	Google 邮件列表域名，代码中引用的链接（如 guava-announce），非 SDK 网络端点；只能确定到厂商级
+plus.google.com		Google	high	ir-evidence:apk-endpoint-strings	Google+ 域名，代码中引用的链接，非 SDK 网络端点；只能确定到厂商级
+goo.gl		Google	high	ir-evidence:com/netease/nrtc/utility/h.java	Google 短链域名，代码中引用的链接，非 SDK 网络端点；只能确定到厂商级
+schemas.android.com			high	none	XML/schema 命名空间（http://schemas.android.com/apk/res/android 等），非网络端点
+xml.org			high	none	XML/SAX 命名空间（http://xml.org/sax/features/* 等），非网络端点
+www.w3.org			high	none	XML/DTD/SVG 命名空间（http://www.w3.org/2000/svg 等），非网络端点
+xml.apache.org			high	none	XSLT 命名空间（http://xml.apache.org/xslt），非网络端点
+tempuri.org			high	none	WCF/SOAP 默认命名空间（http://tempuri.org/），非网络端点
+xmlpull.org			high	none	XMLPull 命名空间（http://xmlpull.org/v1/doc/features.html 等），非网络端点
+ns.adobe.com			high	none	Adobe XMP 元数据命名空间（http://ns.adobe.com/xap/1.0/），出现于 libpdfengine.so；是标识符而非 Adobe 的网络服务端点，故厂商留空
+org.dom4j.io.doucmentsource			high	none	XML 解析器特性标识（http://org.dom4j.io.DoucmentSource/feature，dom4j 库，原文拼写即 DoucmentSource），非网络端点
+124.207.86.58			low	none	公网 IP（无域名），出现在营口银行系 App 的端点集合中（/Product_pweb/），无域名与类名上下文，未找到依据
+192.168.1.104			low	none	私有网段 IP（RFC1918），硬编码于 com.fhuvideo 代码（http://192.168.1.104:8080/mp3app/resources.xml），属测试残留地址，非可达公网服务，未找到依据
+stackoverflow.com			low	none	代码中引用的问答站点链接，非 SDK 网络端点；知识库无对应厂商，未找到依据
+ida.webank.com			low	none	webank.com 经查证属深圳前海微众银行（微众银行）；该 URL 出现在 App 的 WebView 地址列表中，知识库无该厂商/组件，不做归属判定，未找到依据
+m.dttrip.cn			low	none	dttrip.cn 经查证属同程商旅（企业差旅平台）；该 URL 出现在 App 的 WebView 地址列表中，知识库无该厂商/组件，不做归属判定，未找到依据

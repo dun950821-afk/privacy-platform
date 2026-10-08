@@ -49,10 +49,22 @@ def test_endpoints_flags_test_residue_and_marks_nothing_else(client, admin_heade
     data = client.get(f"/api/v1/tasks/{scanned_task}/endpoints",
                       headers=admin_headers).json()["data"]
     for h in data["hosts"]:
-        assert set(h) == {"host", "urls", "is_test_residue", "is_privacy_policy", "url_count"}, \
+        assert set(h) == {"host", "urls", "observed_by", "is_test_residue",
+                          "is_privacy_policy", "url_count", "attribution"}, \
             "多出了未声明的分类字段——§5.4 要求不做 业务/第三方 分类"
+        # 归属只标推得出/查得到的，查不到必须留空而不是硬编一个
+        a = h["attribution"]
+        if a is not None:
+            assert set(a) == {"component_name", "vendor", "confidence", "via", "sources", "note"}
+            assert a["via"] in ("derived", "curated")
+            assert a["sources"], "标了归属却没有依据，无法核对"
         if h["is_test_residue"]:
             assert "test" in h["host"]
+        # 两个来源合并后，每个 host 都要能说出是谁观测到的
+        assert h["observed_by"], "host 没标出处"
+        assert set(h["observed_by"]) <= {"androguard", "appshark"}
+        # 格式串不是主机名，不许进列表
+        assert "%" not in h["host"] and h["host"]
 
 
 def test_endpoints_reports_unavailable_when_no_sections(client, admin_headers, db):

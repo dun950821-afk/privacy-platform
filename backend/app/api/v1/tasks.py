@@ -557,50 +557,79 @@ def task_endpoints(tid: int, user: User = Depends(get_current_user),
                    db: Session = Depends(get_db)):
     """App 的全部网络端点，按 **host** 聚合。
 
-    取数自 `engine_raw_sections` 的 `endpoints.urls`（Androguard），不做新的解析。
+    **两个来源合并**，它们观测到的是**不同的东西**（实测交集只有 6/71）：
 
-    ⚠️ **不做「业务服务器 / 第三方 SDK」分类**——实施计划 §5.4 明确否掉了：
-    「无法判断」。库里也没有「组件 → 域名」的映射，硬判就是猜。
-    （§4.1 里曾写过要按 `component_hit` 的 SDK 域名匹配，与 §5.4 冲突，以 §5.4 为准。）
+        androguard  engine_raw_sections 的 `endpoints.urls` → 多为域名（DEX/字符串里扫到的）
+        appshark    engine_observations(security.endpoint)  → 多为硬编码 IP/URL，
+                                                              **且带引用它的类/so 路径**
 
-    只标记**可判定**的两类：
-      - 测试服务器残留：host 形如 `test.*` / 含 `test`——现成的合规信号
+    只取 Androguard 会漏掉 AppShark 那一半（而那一半恰恰是**带归属证据**的）；
+    只取 AppShark 则漏域名。所以并集，并用 `observed_by` 标出各自出处。
+
+    只标记**可判定**的：
+      - 测试服务器残留：host 含 `test`——现成的合规信号
       - 隐私政策：URL 路径或查询串里含 privacy / policy
+      - 归属（`attribution`）：先按引用该域名的类/so 推导（复用 component_matcher 与
+        知识库），推不出的落到人工语料 `data/kb/domain_attribution.tsv`；
+        **推不出也查不到就留空**，不猜——审计人员按错误的归属去查隐私政策是白查。
 
     前端必须标注「端点与规则的精确关联暂未建立，以上为 App 全部端点」（§5.4）。
     """
     from urllib.parse import urlsplit
     from app.models import EngineRawSection
+    from app.services.component_matcher import cached_component_index
+    from app.services import endpoint_attribution
+
+    hosts: dict[str, dict] = {}
+
+    def add(raw: str, engine: str) -> None:
+        if not isinstance(raw, str) or not raw.strip():
+            return
+        url = raw.strip()
+        try:
+            host = (urlsplit(url).hostname or "").lower()
+        except ValueError:
+            host = ""
+        if not endpoint_attribution.valid_host(host):
+            return          # 挡掉 `%s` / `%1$s` 这类格式串与空 host
+        entry = hosts.setdefault(host, {"host": host, "urls": [], "observed_by": [],
+                                        "is_test_residue": False, "is_privacy_policy": False})
+        if url not in entry["urls"]:
+            entry["urls"].append(url)
+        if engine not in entry["observed_by"]:
+            entry["observed_by"].append(engine)
+        if "test" in host:
+            entry["is_test_residue"] = True
+        lowered = url.lower()
+        if "privacy" in lowered or "policy" in lowered:
+            entry["is_privacy_policy"] = True
+
     row = db.query(EngineRawSection).filter(
         EngineRawSection.task_id == tid,
         EngineRawSection.section_path == "endpoints.urls",
     ).first()
-    if row is None or not isinstance(row.payload, list):
+    if row is not None and isinstance(row.payload, list):
+        for raw in row.payload:
+            add(raw, "androguard")
+
+    for obs in db.query(EngineObservation).filter(
+            EngineObservation.task_id == tid,
+            EngineObservation.observation_type == "security.endpoint").all():
+        url_block = (obs.payload or {}).get("url") if isinstance(obs.payload, dict) else None
+        if not isinstance(url_block, dict):
+            continue
+        for u in url_block.get("urls") or []:
+            add(u, "appshark")
+
+    if not hosts:
         return {"code": 0, "data": {"hosts": [], "total_urls": 0, "available": False}}
 
-    hosts: dict[str, dict] = {}
-    for raw in row.payload:
-        if not isinstance(raw, str) or not raw.strip():
-            continue
-        url = raw.strip()
-        try:
-            parts = urlsplit(url)
-            host = (parts.hostname or "").lower()
-        except ValueError:
-            host = ""
-        host = host or "(无法解析)"
-        entry = hosts.setdefault(host, {"host": host, "urls": [], "is_test_residue": False,
-                                        "is_privacy_policy": False})
-        entry["urls"].append(url)
-        lowered = url.lower()
-        if "test" in host:
-            entry["is_test_residue"] = True
-        if "privacy" in lowered or "policy" in lowered:
-            entry["is_privacy_policy"] = True
-
+    attribution = endpoint_attribution.attribute_hosts(
+        db, cached_component_index(db), tid)
     ordered = sorted(hosts.values(), key=lambda h: (-len(h["urls"]), h["host"]))
     for h in ordered:
         h["url_count"] = len(h["urls"])
+        h["attribution"] = attribution.get(h["host"])
     return {"code": 0, "data": {
         "hosts": ordered,
         "total_urls": sum(h["url_count"] for h in ordered),
