@@ -17,6 +17,9 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.orm.exc import ObjectDeletedError, StaleDataError
+
 from app.core.database import SessionLocal
 from app.core.redis import redis_client, TASK_STREAM, STATIC_WORKER_GROUP
 from app.core.storage import storage
@@ -439,13 +442,25 @@ class EngineWorker:
 
                 except Exception as e:
                     duration_ms = int((time.time() - start_time) * 1000)
-                    execution.status = "failed"
-                    execution.error_code = "ENGINE_PROCESS_CRASHED"
-                    execution.error_message = str(e)
-                    execution.completed_at = datetime.now(timezone.utc)
-                    execution.duration_ms = duration_ms
-                    db.commit()
-                    logger.error(f"  -> {engine_info['name']} failed: {e}", exc_info=True)
+                    # 先 rollback：触发失败的可能就是一次失败的 flush（行被并发删掉），
+                    # 那时 session 已处于「需要 rollback」状态，直接 commit 会抛
+                    # PendingRollbackError，把真正的错误掩盖掉、失败也记不进执行记录。
+                    identity = sa_inspect(execution).identity
+                    execution_id = identity[0] if identity else None
+                    db.rollback()
+                    row = db.get(EngineExecution, execution_id) if execution_id else None
+                    if row is None:
+                        logger.warning(
+                            f"  -> {engine_info['name']} 的执行记录已不存在"
+                            f"（任务被并发删除或重试），跳过失败记录: {e}")
+                    else:
+                        row.status = "failed"
+                        row.error_code = "ENGINE_PROCESS_CRASHED"
+                        row.error_message = str(e)
+                        row.completed_at = datetime.now(timezone.utc)
+                        row.duration_ms = duration_ms
+                        db.commit()
+                        logger.error(f"  -> {engine_info['name']} failed: {e}", exc_info=True)
 
                     engine_results.append({
                         "engine": display_name(db, engine_type),
@@ -496,6 +511,17 @@ class EngineWorker:
             db.commit()
 
             logger.info(f"Task {task_id} static phase done: {len(all_events)} events, {len(all_artifacts)} artifacts")
+
+        except (StaleDataError, ObjectDeletedError) as e:
+            # 任务（或其执行记录）在本次处理**进行中**被另一个进程删掉了：用户删任务，
+            # 或按了重试——API 侧 `retry` 用 `synchronize_session=False` 批量删执行记录，
+            # 删任务本身还会级联到 events/observations。worker 手里那些对象就此成了僵尸。
+            #
+            # 这是**合法竞态，不是缺陷**：任务已经不存在，本次结果没有地方可写。
+            # 记 WARNING 而不是让它冒到 `_sweep_queued` 记成带 traceback 的 ERROR——
+            # 那条 ERROR 看起来像 worker 崩了，实际什么都没坏。
+            db.rollback()
+            logger.warning(f"Task {task_id} 在处理中被删除（并发删除或重试），放弃本次执行: {e}")
 
         finally:
             db.close()
@@ -561,12 +587,28 @@ class EngineWorker:
                 f"结论不可用于判断风险（依据: {artifact_detail}）")
 
     def _fail_task(self, db, task: DetectionTask, reason: str):
-        """标记任务失败"""
-        task.status = "failed"
-        task.failed_reason = reason
-        task.completed_at = datetime.now(timezone.utc)
+        """标记任务失败。
+
+        **先 `rollback()`**：走到这里往往正是因为一次失败的 flush —— 典型是任务被并发
+        删除或重试（API 侧 `retry` 用 `synchronize_session=False` 批量删执行记录，
+        删任务本身还会级联）。那时 session 已经处于「需要 rollback」状态，
+        直接 `commit()` 会抛 `PendingRollbackError`：**原始错误被掩盖、失败记录也写不进去**。
+
+        `rollback` 会把对象置为过期，所以行号先在 rollback 之前从 identity 取；
+        行真没了就跳过——任务已经不存在，没有记录可写。
+        """
+        identity = sa_inspect(task).identity
+        task_id = identity[0] if identity else None
+        db.rollback()
+        row = db.get(DetectionTask, task_id) if task_id else None
+        if row is None:
+            logger.warning(f"Task {task_id} 已不存在（被并发删除或重试），跳过失败记录: {reason}")
+            return
+        row.status = "failed"
+        row.failed_reason = reason
+        row.completed_at = datetime.now(timezone.utc)
         db.commit()
-        logger.error(f"Task {task.id} failed: {reason}")
+        logger.error(f"Task {task_id} failed: {reason}")
 
 
 def list_engines(db=None) -> list[dict]:
