@@ -512,6 +512,102 @@ def task_retest_records(tid: int, user: User = Depends(get_current_user),
     }}
 
 
+# 「安全加固」块的数据来源：MobSF 这几段原本**没被提取**（53 个段落只用了 4 个），
+# engine_raw_sections 让它们可查（实施计划 §4.1）。顺序即展示顺序。
+SECURITY_SECTIONS = (
+    ("appsec", "应用安全评分"),
+    ("manifest_analysis.manifest_findings", "清单问题"),
+    ("secrets", "硬编码密钥"),
+    ("certificate_analysis", "签名与证书"),
+    ("sbom", "依赖清单"),
+)
+
+
+@router.get("/{tid}/security-findings")
+def task_security_findings(tid: int, user: User = Depends(get_current_user),
+                           db: Session = Depends(get_db)):
+    """「安全加固」块：MobSF 的几段安全数据。
+
+    不新写解析逻辑——`engine_raw_sections` 就是为这个建的（实施计划 §4.1），
+    payload 原样带出，前端按 section 分区展示。
+
+    同时返回 `missing`：区分「这段引擎没产出」与「产出了但是空的」。
+    两者在前端看起来都是空数组，但含义完全不同。
+    """
+    from app.models import EngineRawSection
+    rows = db.query(EngineRawSection).filter(
+        EngineRawSection.task_id == tid,
+        EngineRawSection.section_path.in_([s for s, _ in SECURITY_SECTIONS]),
+    ).all()
+    by_path = {r.section_path: r for r in rows}
+    items = [{
+        "section": path, "label": label,
+        "kind": by_path[path].section_kind,
+        "item_count": by_path[path].item_count,
+        "payload": by_path[path].payload,
+    } for path, label in SECURITY_SECTIONS if path in by_path]
+    return {"code": 0, "data": {
+        "items": items,
+        "missing": [path for path, _ in SECURITY_SECTIONS if path not in by_path],
+    }}
+
+
+@router.get("/{tid}/endpoints")
+def task_endpoints(tid: int, user: User = Depends(get_current_user),
+                   db: Session = Depends(get_db)):
+    """App 的全部网络端点，按 **host** 聚合。
+
+    取数自 `engine_raw_sections` 的 `endpoints.urls`（Androguard），不做新的解析。
+
+    ⚠️ **不做「业务服务器 / 第三方 SDK」分类**——实施计划 §5.4 明确否掉了：
+    「无法判断」。库里也没有「组件 → 域名」的映射，硬判就是猜。
+    （§4.1 里曾写过要按 `component_hit` 的 SDK 域名匹配，与 §5.4 冲突，以 §5.4 为准。）
+
+    只标记**可判定**的两类：
+      - 测试服务器残留：host 形如 `test.*` / 含 `test`——现成的合规信号
+      - 隐私政策：URL 路径或查询串里含 privacy / policy
+
+    前端必须标注「端点与规则的精确关联暂未建立，以上为 App 全部端点」（§5.4）。
+    """
+    from urllib.parse import urlsplit
+    from app.models import EngineRawSection
+    row = db.query(EngineRawSection).filter(
+        EngineRawSection.task_id == tid,
+        EngineRawSection.section_path == "endpoints.urls",
+    ).first()
+    if row is None or not isinstance(row.payload, list):
+        return {"code": 0, "data": {"hosts": [], "total_urls": 0, "available": False}}
+
+    hosts: dict[str, dict] = {}
+    for raw in row.payload:
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        url = raw.strip()
+        try:
+            parts = urlsplit(url)
+            host = (parts.hostname or "").lower()
+        except ValueError:
+            host = ""
+        host = host or "(无法解析)"
+        entry = hosts.setdefault(host, {"host": host, "urls": [], "is_test_residue": False,
+                                        "is_privacy_policy": False})
+        entry["urls"].append(url)
+        lowered = url.lower()
+        if "test" in host:
+            entry["is_test_residue"] = True
+        if "privacy" in lowered or "policy" in lowered:
+            entry["is_privacy_policy"] = True
+
+    ordered = sorted(hosts.values(), key=lambda h: (-len(h["urls"]), h["host"]))
+    for h in ordered:
+        h["url_count"] = len(h["urls"])
+    return {"code": 0, "data": {
+        "hosts": ordered,
+        "total_urls": sum(h["url_count"] for h in ordered),
+        "available": True,
+    }}
+
+
 @router.get("/{tid}/artifacts")
 def task_artifacts(tid: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """任务原始制品列表。"""
