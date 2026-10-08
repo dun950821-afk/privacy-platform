@@ -157,12 +157,14 @@ async function load() {
   loading.value = true
   try {
     const [findingsRes, leadsRes] = await Promise.allSettled([
-      taskApi.platformFindings(props.taskId),
+      // hideFindings 时不请求平台结论：那块不渲染，请求它就是白发一次
+      // （任务详情页已由问题清单主视图取同一份数据）
+      props.hideFindings ? Promise.resolve(null) : taskApi.platformFindings(props.taskId),
       taskApi.observations(props.taskId, {
         result_semantics: 'supporting_evidence', observation_type: 'security.other', page_size: 1000,
       }),
     ])
-    if (findingsRes.status === 'fulfilled') {
+    if (findingsRes.status === 'fulfilled' && findingsRes.value) {
       findings.value = (findingsRes.value as any).data?.items || []
     }
     if (leadsRes.status === 'fulfilled') {

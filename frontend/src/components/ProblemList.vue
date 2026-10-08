@@ -54,12 +54,23 @@
       </el-collapse-item>
     </el-collapse>
 
+    <!-- 失败态必须与「确实没有结论」分开：接口挂了不等于「本次未形成平台结论」——
+         在合规产品里「没有问题」是一句有结论意义的话，不能由失败冒充 -->
+    <div v-else-if="loadError" class="load-error">
+      <div class="load-error-body">
+        <span class="load-error-title">问题清单加载失败</span>
+        <span class="load-error-reason">{{ loadError }}</span>
+      </div>
+      <el-button size="small" :icon="RefreshRight" :loading="loading" @click="load">重试</el-button>
+    </div>
+
     <EmptyBox v-else-if="!loading" description="本次未形成平台结论" :image-size="60" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { RefreshRight } from '@element-plus/icons-vue'
 import EmptyBox from '@/components/EmptyBox.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import { taskApi } from '@/api/tasks'
@@ -70,6 +81,8 @@ const props = defineProps<{ taskId: number }>()
 const loading = ref(false)
 const findings = ref<any[]>([])
 const openIds = ref<number[]>([])
+/** 取数失败的原因。与「确实没有结论」是两回事，见模板里的失败态 */
+const loadError = ref('')
 
 /**
  * 构成说明的词面。L2/L3/L4 是三个规则族，不是严重度阶梯（同一规则不跨 level）。
@@ -119,9 +132,16 @@ function composition(f: any): string | null {
 async function load() {
   if (!props.taskId) return
   loading.value = true
+  loadError.value = ''
   try {
     const res: any = await taskApi.platformFindings(props.taskId)
     findings.value = res.data?.items || []
+  } catch (e: any) {
+    // 必须 catch：否则 (a) 失败会落到 EmptyBox，把「请求挂了」渲染成「本次未形成平台结论」；
+    // (b) onMounted 返回的 rejected promise 会被 Vue 生命周期捕获并 console.error。
+    // 同时清空列表，避免切换 taskId 后把上一个任务的结论当成本次结果展示。
+    findings.value = []
+    loadError.value = e?.message || e?.detail || '无法获取问题清单'
   } finally {
     loading.value = false
   }
@@ -193,6 +213,21 @@ watch(() => props.taskId, load)
 .card-fill { flex: 1; }
 .card-evidence { font-size: var(--text-label); color: var(--ink-3); flex-shrink: 0; }
 .card-evidence b { color: var(--ink-2); }
+
+/* 失败态：沿用 TaskDetail 里 .failed-reason 的告警配色，不引入新色 */
+.load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--card-pad) var(--space-4);
+  background: #FEF0F0;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+}
+.load-error-body { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; flex-wrap: wrap; }
+.load-error-title { font-size: var(--text-body); font-weight: 600; color: var(--el-color-danger); }
+.load-error-reason { font-size: var(--text-label); color: var(--ink-3); word-break: break-all; }
 
 .card-body { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); }
 .card-field { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
