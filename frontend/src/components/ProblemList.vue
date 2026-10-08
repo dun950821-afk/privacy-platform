@@ -46,16 +46,46 @@
             <span class="card-key">建议</span>
             <span class="card-val">{{ f.recommendation }}</span>
           </div>
-          <div v-if="f.due_date" class="card-field">
+          <div class="card-field">
+            <span class="card-key">负责人</span>
+            <span class="card-val">{{ f.assigned_to != null ? userName(f.assigned_to) : '未指派' }}</span>
+          </div>
+          <div class="card-field">
             <span class="card-key">截止日期</span>
-            <span class="card-val t-num">{{ f.due_date }}</span>
+            <span class="card-val t-num">{{ f.due_date || '未设置' }}</span>
           </div>
 
-          <!-- 证据块只在卡片展开时挂载：否则每张卡一进页面就各自打接口 -->
           <template v-if="isOpen(f.id)">
+            <!-- 整改操作放在证据之上：证据可能上百条，把操作沉到列表末尾等于藏起来。
+                 只改 triage_status / assigned_to / due_date（不动计数与严重度） -->
+            <div v-if="drafts[f.id]" class="card-actions">
+              <div class="act">
+                <span class="act-key">整改状态</span>
+                <el-select v-model="drafts[f.id].triage_status" size="small" style="width: 118px">
+                  <el-option v-for="(v, k) in TRIAGE_STATUS" :key="k" :label="v.label" :value="k" />
+                </el-select>
+              </div>
+              <div class="act">
+                <span class="act-key">负责人</span>
+                <el-select v-model="drafts[f.id].assigned_to" size="small" clearable filterable
+                           placeholder="未指派" style="width: 160px">
+                  <el-option v-for="u in users" :key="u.id" :value="u.id"
+                             :label="u.full_name || u.username" />
+                </el-select>
+              </div>
+              <div class="act">
+                <span class="act-key">截止日期</span>
+                <el-date-picker v-model="drafts[f.id].due_date" type="date" size="small"
+                                value-format="YYYY-MM-DD" placeholder="未设置" style="width: 150px" />
+              </div>
+              <span class="act-fill"></span>
+              <el-button type="primary" size="small" :loading="savingId === f.id"
+                         @click="saveStatus(f)">保存</el-button>
+            </div>
+
+            <!-- 证据块只在卡片展开时挂载：否则每张卡一进页面就各自打接口。
+                 网络证据是任务级数据，已搬到 App 背景面板，这里只留代码证据。 -->
             <CodeEvidenceBlock :task-id="taskId" :finding-id="f.id" />
-            <NetworkEvidenceBlock :data="endpoints" :loading="endpointsLoading"
-                                  :error="endpointsError" @retry="loadEndpoints" />
           </template>
         </div>
       </el-collapse-item>
@@ -76,12 +106,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { RefreshRight } from '@element-plus/icons-vue'
 import EmptyBox from '@/components/EmptyBox.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import CodeEvidenceBlock from '@/components/CodeEvidenceBlock.vue'
-import NetworkEvidenceBlock from '@/components/NetworkEvidenceBlock.vue'
+import api from '@/api'
 import { taskApi } from '@/api/tasks'
 import { CONFIDENCE, SEVERITY, TRIAGE_STATUS, dictLabel } from '@/utils/dict'
 
@@ -92,14 +123,6 @@ const findings = ref<any[]>([])
 const openIds = ref<number[]>([])
 /** 取数失败的原因。与「确实没有结论」是两回事，见模板里的失败态 */
 const loadError = ref('')
-
-/**
- * 端点数据是 **任务级** 的（`/endpoints` 不带 finding），所以在父层取一次，
- * 展开的每张卡片共用——放在卡片里各自取会把同一个响应对 N 张卡重复拉 N 次。
- */
-const endpoints = ref<any>(null)
-const endpointsLoading = ref(false)
-const endpointsError = ref('')
 
 /** el-collapse 的 v-model 就是展开中的 finding id 列表 */
 function isOpen(id: number): boolean {
@@ -151,6 +174,70 @@ function composition(f: any): string | null {
   return parts.length ? `由 ${parts.join(' + ')}构成` : null
 }
 
+// ============ 整改操作 ============
+interface Draft { triage_status: string; assigned_to: number | null; due_date: string | null }
+
+const users = ref<any[]>([])
+const drafts = reactive<Record<number, Draft>>({})
+const savingId = ref<number | null>(null)
+
+const userName = (id: number) => {
+  const u = users.value.find((x) => x.id === id)
+  return u ? (u.full_name || u.username) : `#${id}`
+}
+
+/** 编辑态取自列表项；只在缺失时播种，避免刷新列表把用户正在改的草稿冲掉 */
+function seedDrafts() {
+  for (const f of findings.value) {
+    if (!drafts[f.id]) {
+      drafts[f.id] = {
+        triage_status: f.triage_status || 'needs_review',
+        assigned_to: f.assigned_to ?? null,
+        due_date: f.due_date || null,
+      }
+    }
+  }
+}
+
+async function loadUsers() {
+  try {
+    const res: any = await api.get('/system/users', { params: { page_size: 100 }, silent: true })
+    users.value = res.data || []
+  } catch {
+    users.value = [] // 取不到就只影响下拉里的名字，不阻塞整改
+  }
+}
+
+/** 后端 400 的 detail 是可读文案；两种 reject 形状都要兜住 */
+function errorText(e: any): string {
+  return e?.response?.data?.detail || e?.detail || e?.message || '保存失败'
+}
+
+async function saveStatus(f: any) {
+  const d = drafts[f.id]
+  if (!d) return
+  savingId.value = f.id
+  try {
+    const res: any = await taskApi.updateFindingStatus(props.taskId, f.id, {
+      triage_status: d.triage_status,
+      assigned_to: d.assigned_to ?? null,
+      due_date: d.due_date || null,
+    })
+    // 以服务端返回为准回写：triage_status/assigned_to/due_date 这三个字段由它拍板
+    Object.assign(f, res.data || {})
+    drafts[f.id] = {
+      triage_status: f.triage_status || 'needs_review',
+      assigned_to: f.assigned_to ?? null,
+      due_date: f.due_date || null,
+    }
+    ElMessage.success('整改信息已保存')
+  } catch (e: any) {
+    ElMessage.error(errorText(e))
+  } finally {
+    savingId.value = null
+  }
+}
+
 async function load() {
   if (!props.taskId) return
   loading.value = true
@@ -158,6 +245,7 @@ async function load() {
   try {
     const res: any = await taskApi.platformFindings(props.taskId)
     findings.value = res.data?.items || []
+    seedDrafts()
   } catch (e: any) {
     // 必须 catch：否则 (a) 失败会落到 EmptyBox，把「请求挂了」渲染成「本次未形成平台结论」；
     // (b) onMounted 返回的 rejected promise 会被 Vue 生命周期捕获并 console.error。
@@ -169,31 +257,13 @@ async function load() {
   }
 }
 
-/**
- * 端点单独取、单独失败：它挂了不该把问题清单一起变成失败态——两者是两块证据。
- * `api` 已按 silent 调用（见 api/tasks.ts），失败由这里的文案承担。
- */
-async function loadEndpoints() {
-  if (!props.taskId) return
-  endpointsLoading.value = true
-  endpointsError.value = ''
-  try {
-    const res: any = await taskApi.endpoints(props.taskId)
-    endpoints.value = res.data || null
-  } catch (e: any) {
-    endpoints.value = null
-    endpointsError.value = e?.message || e?.detail || '网络证据读取失败'
-  } finally {
-    endpointsLoading.value = false
-  }
-}
-
-onMounted(() => { load(); loadEndpoints() })
+onMounted(() => { load(); loadUsers() })
 watch(() => props.taskId, () => {
-  // 换任务时收起所有卡片：展开态里的证据是上一个任务的，留着会张冠李戴
+  // 换任务时收起所有卡片、清掉草稿：展开态里的证据与草稿都是上一个任务的，留着会张冠李戴
   openIds.value = []
+  for (const k of Object.keys(drafts)) delete drafts[Number(k)]
   load()
-  loadEndpoints()
+  loadUsers()
 })
 </script>
 
@@ -277,9 +347,24 @@ watch(() => props.taskId, () => {
 
 .card-body { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); }
 /* 证据块要与上面的字段行整行并列，不跟字段挤在同一行 */
-.card-body :deep(.code-evidence),
-.card-body :deep(.net-evidence) { flex-basis: 100%; width: 100%; }
+.card-body :deep(.code-evidence) { flex-basis: 100%; width: 100%; }
 .card-field { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
 .card-key { font-size: var(--text-label); color: var(--ink-4); flex-shrink: 0; }
 .card-val { color: var(--ink-body); word-break: break-all; }
+
+/* 整改操作行：整行独占，与证据块区分开 */
+.card-actions {
+  flex-basis: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--surface-line);
+}
+.act { display: flex; align-items: center; gap: var(--space-2); }
+.act-key { font-size: var(--text-label); color: var(--ink-4); flex-shrink: 0; }
+.act-fill { flex: 1; }
 </style>

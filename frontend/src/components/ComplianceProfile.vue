@@ -21,7 +21,8 @@
         <div class="metric-value">{{ sensitiveCount }}</div>
         <div class="metric-label">敏感个人信息类目</div>
       </button>
-      <button class="metric" :class="{ 'is-zero': !permissionCount }" @click="goTo('sec-permission')">
+      <button v-if="has('permission')" class="metric" :class="{ 'is-zero': !permissionCount }"
+              @click="goTo('sec-permission')">
         <div class="metric-value">{{ permissionCount }}</div>
         <div class="metric-label">申请权限</div>
       </button>
@@ -30,7 +31,7 @@
     <div class="body-grid">
       <div class="body-main">
         <!-- ── 个人信息收集 ─────────────────────────────────── -->
-        <el-card id="sec-collect" shadow="never" class="block anchor-section">
+        <el-card v-if="has('collect')" id="sec-collect" shadow="never" class="block anchor-section">
           <template #header>
             <div class="block-head">
               <span class="t-section">个人信息收集</span>
@@ -108,7 +109,7 @@
         </el-card>
 
         <!-- ── 权限使用 ─────────────────────────────────────── -->
-        <el-card id="sec-permission" shadow="never" class="block anchor-section">
+        <el-card v-if="has('permission')" id="sec-permission" shadow="never" class="block anchor-section">
           <template #header>
             <div class="block-head">
               <span class="t-section">权限使用</span>
@@ -184,12 +185,12 @@
         </el-card>
 
         <!-- ── SDK 与第三方组件 ──────────────────────────────── -->
-        <div id="sec-components" class="anchor-section">
+        <div v-if="has('components')" id="sec-components" class="anchor-section">
           <SdkPanel :task-id="taskId" :unattributed="profile?.unattributed_packages || []" />
         </div>
 
         <!-- ── 缺口说明：不假装有数据 ───────────────────────── -->
-        <el-card id="sec-gaps" shadow="never" class="block anchor-section">
+        <el-card v-if="has('gaps')" id="sec-gaps" shadow="never" class="block anchor-section">
           <template #header>
             <div class="block-head">
               <span class="t-section">以下字段平台尚无数据</span>
@@ -230,8 +231,19 @@ import EngineReportViewer from '@/components/EngineReportViewer.vue'
 import SdkPanel from '@/components/SdkPanel.vue'
 import { taskApi } from '@/api/tasks'
 
-const props = defineProps<{ taskId: number }>()
+/**
+ * `sections` 让消费方按需剪裁：App 背景侧滑面板把「权限」与「SDK 组件」拆成独立块，
+ * 这里就只渲染「个人信息收集」与「数据缺口」，否则同一面板里 SDK 会连出两遍。
+ * 不传 = 全渲染，TaskReport 等既有用法行为不变。
+ */
+const props = withDefaults(defineProps<{ taskId: number; sections?: string[] }>(), {
+  // 默认全渲染（TaskReport 等既有用法行为不变）；defineProps 的默认值会被提升，
+  // 所以这里必须写字面量，不能引用本地 const。
+  sections: () => ['collect', 'permission', 'components', 'gaps'],
+})
 const emit = defineEmits<{ (e: 'count', n: number): void }>()
+
+const has = (key: string) => props.sections.includes(key)
 
 const loading = ref(false)
 const profile = ref<any>(null)
@@ -303,12 +315,13 @@ const collectGroups = computed(() => [
 ])
 
 // ============ 锚点导航 ============
-const sections = [
-  { id: 'sec-collect', label: '个人信息收集' },
-  { id: 'sec-permission', label: '权限使用' },
-  { id: 'sec-components', label: '第三方组件' },
-  { id: 'sec-gaps', label: '数据缺口' },
+const ALL_TOC = [
+  { id: 'sec-collect', key: 'collect', label: '个人信息收集' },
+  { id: 'sec-permission', key: 'permission', label: '权限使用' },
+  { id: 'sec-components', key: 'components', label: '第三方组件' },
+  { id: 'sec-gaps', key: 'gaps', label: '数据缺口' },
 ]
+const sections = computed(() => ALL_TOC.filter((s) => has(s.key)))
 const activeSection = ref('sec-collect')
 
 /** 页面内容滚在 .el-main 里（不是 window），得先找到真正的滚动容器 */
@@ -333,21 +346,23 @@ function goTo(id: string) {
 const ACTIVE_LINE = 110
 
 function onScroll() {
+  const list = sections.value
+  if (!list.length) return
   const box = scroller()
   if (box instanceof Window) {
     if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
-      activeSection.value = sections[sections.length - 1].id
+      activeSection.value = list[list.length - 1].id
       return
     }
   } else if (box.scrollTop + box.clientHeight >= box.scrollHeight - 4) {
     // 滚到底时最后一节可能到不了激活线，直接判定为最后一节
-    activeSection.value = sections[sections.length - 1].id
+    activeSection.value = list[list.length - 1].id
     return
   }
   const boxTop = box instanceof Window ? 0 : box.getBoundingClientRect().top
   // 取最后一个「已经越过激活线」的分区
-  let current = sections[0].id
-  for (const s of sections) {
+  let current = list[0].id
+  for (const s of list) {
     const el = document.getElementById(s.id)
     if (!el) continue
     if (el.getBoundingClientRect().top - boxTop <= ACTIVE_LINE) current = s.id

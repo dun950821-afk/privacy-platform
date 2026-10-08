@@ -27,6 +27,8 @@
         <StatusTag v-if="task.status" :value="task.status" :map="TASK_STATUS" size="default" />
         <StatusTag v-if="task.analysis_coverage" :value="task.analysis_coverage"
                    :map="ANALYSIS_COVERAGE" size="default" />
+        <!-- App 背景（包/安全加固/端点/画像/SDK/权限）收进右侧面板，不占正文首屏 -->
+        <el-button :icon="Notebook" @click="panelVisible = true">App 背景</el-button>
         <!-- 主位只有一个动作；查看报告、重试、取消、返回都是次级，收进溢出菜单 -->
         <el-button v-if="task.status === 'completed'" type="primary" :icon="Document"
                    :loading="generating" @click="handleGenerateReport">
@@ -64,10 +66,7 @@
 
     <el-card shadow="never" class="secondary-card">
       <el-collapse v-model="openSections">
-        <el-collapse-item name="profile">
-          <template #title><span class="sec-title">合规画像</span></template>
-          <ComplianceProfile :task-id="taskId" />
-        </el-collapse-item>
+        <!-- 合规画像已搬进「App 背景」右侧面板（§5.1）；这里不再重复 -->
 
         <!-- 运维排查用：任务明细 + 阶段 + 场景 + 引擎队列，合并成一个折叠区 -->
         <el-collapse-item name="execution">
@@ -228,8 +227,19 @@
           <template #title><span class="sec-title">引擎判定与未核实线索</span></template>
           <RiskFindings :task-id="taskId" hide-findings />
         </el-collapse-item>
+
+        <!-- 整改概览折叠在底部：四态汇总 + 复检记录（两个方向）。
+             v-if 让它展开时才挂载取数——卡片上的整改是就地改的，若这里常驻挂载，
+             计数会停留在上一次进页面时的快照。 -->
+        <el-collapse-item name="remediation">
+          <template #title><span class="sec-title">整改概览</span></template>
+          <RemediationOverview v-if="openSections.includes('remediation')" :task-id="taskId" />
+        </el-collapse-item>
       </el-collapse>
     </el-card>
+
+    <!-- App 背景：480px 侧滑面板。任务级数据（端点/画像/SDK/权限）只在这里出现一次 -->
+    <AppBackgroundPanel v-model="panelVisible" :task-id="taskId" :task="task" />
 
     <!-- 证据预览对话框（可拖拽调整大小） -->
     <el-dialog v-model="previewVisible" :title="previewTitle" :width="previewSize.w + 'px'" top="4vh">
@@ -262,12 +272,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowLeft, RefreshRight, CircleClose, Document, Download, View, Rank,
-  DataAnalysis, CopyDocument, MoreFilled,
+  DataAnalysis, CopyDocument, MoreFilled, Notebook,
 } from '@element-plus/icons-vue'
 import StatusTag from '@/components/StatusTag.vue'
 import EmptyBox from '@/components/EmptyBox.vue'
 import ProblemList from '@/components/ProblemList.vue'
-import ComplianceProfile from '@/components/ComplianceProfile.vue'
+import AppBackgroundPanel from '@/components/AppBackgroundPanel.vue'
+import RemediationOverview from '@/components/RemediationOverview.vue'
 import RiskFindings from '@/components/RiskFindings.vue'
 import api from '@/api'
 import { taskApi } from '@/api/tasks'
@@ -287,6 +298,8 @@ const loading = ref(true)
 const generating = ref(false)
 // 落地即看问题清单：主视图回答「有哪些问题」，引擎细节收进下方折叠区
 const openSections = ref<string[]>([])
+// App 背景侧滑面板（右上角按钮触发）
+const panelVisible = ref(false)
 
 const task = ref<any>({})
 const subTasks = computed<any[]>(() => task.value.sub_tasks || [])

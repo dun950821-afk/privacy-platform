@@ -70,7 +70,9 @@ export const SEVERITY: Dict = {
  * 这是新的四态词表，与上面 FINDING_STATUS 的旧词表是两回事，别混用。
  */
 export const TRIAGE_STATUS: Dict = {
-  needs_review: { label: '待确认', type: 'warning' },
+  // 词面与后端模型注释同源（`models/__init__.py`：needs_review（待审阅）），
+  // 也与 task-8 简报 §三 的「待审阅 / 整改中 / 已修复 / 已忽略」逐字一致。
+  needs_review: { label: '待审阅', type: 'warning' },
   fixing: { label: '整改中', type: 'primary' },
   fixed: { label: '已修复', type: 'success' },
   ignored: { label: '已忽略', type: 'info' },
